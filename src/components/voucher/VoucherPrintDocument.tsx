@@ -59,35 +59,41 @@ export const VoucherPrintDocument: React.FC<{
   };
   const createdStr = fmtDate(voucher.createdAt);
 
-  // Single-line transport summary, e.g. "JED - MAK CAR, remaining by BUS".
-  // First group's trip + mode, then the remaining modes — always ONE voucher line.
-  const transportGroups: { trips: string; by: string }[] = [];
+  // Single-line transport summary with PROVIDER clarity, e.g.
+  // "Arrival (JED - MAK) by CAR (Company), remaining by BUS (Agent Self Gari)".
+  // Every part says WHO provides it: Company transport vs the agent's Self Gari.
+  const transportGroups: { trips: string; by: string; provider: string }[] = [];
   {
-    let curBy = '';
+    let curKey = '';
     let curTrips: string[] = [];
     const flush = () => {
-      if (curTrips.length && curBy) transportGroups.push({ trips: curTrips.join(' + '), by: curBy });
+      if (curTrips.length && curKey) {
+        const [by, provider] = curKey.split('|');
+        transportGroups.push({ trips: curTrips.join(' + '), by, provider });
+      }
       curTrips = [];
     };
     sectors.forEach((s) => {
       const by = s.isSelfGari ? 'SELF GARI' : (s.vehicleType || '—').toUpperCase();
+      const provider = s.isSelfGari ? 'Agent Self Gari' : 'Company';
+      const key = `${by}|${provider}`;
       let trip = s.type;
       const ap = `${s.fromAirport?.iata || ''}${s.toAirport?.iata ? ` - ${s.toAirport.iata}` : ''}`;
       if (ap.trim() && ap.trim() !== '-') trip += ` (${ap.trim()})`;
-      if (by !== curBy) { flush(); curBy = by; }
+      if (key !== curKey) { flush(); curKey = key; }
       curTrips.push(trip);
     });
     flush();
   }
+  const gLabel = (g: { trips: string; by: string; provider: string }) => `${g.trips} by ${g.by} (${g.provider})`;
   let transportLine = '—';
   if (transportGroups.length === 1) {
-    transportLine = `${transportGroups[0].trips} by ${transportGroups[0].by}`;
+    transportLine = gLabel(transportGroups[0]);
   } else if (transportGroups.length > 1) {
     const [first, ...rest] = transportGroups;
-    const restModes = [...new Set(rest.map((g) => g.by))].join(' + ');
-    transportLine = `${first.trips} by ${first.by}, remaining by ${restModes}`;
+    transportLine = `${gLabel(first)}, remaining by ${rest.map((g) => `${g.by} (${g.provider})`).join(' + ')}`;
   }
-  const transportByLine = [...new Set(transportGroups.map((g) => g.by))].join(' + ') || '—';
+  const transportByLine = [...new Set(transportGroups.map((g) => `${g.by} (${g.provider})`))].join(' + ') || '—';
 
   const half = Math.ceil(pax.length / 2);
   const cols = [pax.slice(0, half), pax.slice(half)];
