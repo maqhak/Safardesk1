@@ -9,7 +9,7 @@ import { LedgerAccountDoc, LedgerEntryDoc } from '../types/accounting';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { fetchLedgerAccounts, fetchLedgerEntries, voidLedgerEntry } from './accountingService';
-import { uploadReceiptToDrive } from './driveService';
+import { uploadReceipt } from './driveService';
 import { getCurrentRate } from './exchangeRateService';
 
 const JV_COLLECTION = 'journal_vouchers';
@@ -361,17 +361,17 @@ export async function createJournalVoucher(params: {
     let webViewLink: string | null = null;
 
     try {
-      // Save attachment to Drive under Receipt/Sent renamed to the JV No
-      const driveUpload = await uploadReceiptToDrive({
+      // Fix #22: save attachment to Drive (fallback: Firebase Storage) under Receipt/Sent renamed to the JV No
+      const receiptUpload = await uploadReceipt({
         paymentNo: jvNo,
         fileDataUrl: params.attachment.fileDataUrl,
-        fileType: params.attachment.fileType === 'pdf' ? 'pdf' : 'image',
+        fileType: params.attachment.fileType === 'pdf' ? 'pdf' : params.attachment.fileType === 'audio' ? 'audio' : 'image',
         isReceived: false, // Sent / Settlement
       });
 
-      if (driveUpload.success) {
-        driveFileId = driveUpload.driveFileId || null;
-        webViewLink = driveUpload.webViewLink || null;
+      if (receiptUpload.success) {
+        driveFileId = receiptUpload.driveFileId || null;
+        webViewLink = receiptUpload.webViewLink || null;
       }
     } catch (e) {
       console.warn('Drive upload error for JV:', e);

@@ -8,7 +8,7 @@ import {
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { postBalancedTransaction, voidLedgerEntry, fetchLedgerEntries } from './accountingService';
-import { uploadReceiptToDrive, verifyReceiptWithAI } from './driveService';
+import { uploadReceipt, verifyReceiptWithAI } from './driveService';
 import { getCurrentRate } from './exchangeRateService';
 
 const PAYMENTS_COLLECTION = 'payments';
@@ -404,24 +404,26 @@ export async function createPayment(params: {
   let driveError: string | null = null;
 
   try {
-    const driveUpload = await uploadReceiptToDrive({
+    // Fix #22: Drive first, Firebase Storage fallback — receipt is never lost
+    const receiptUpload = await uploadReceipt({
       paymentNo,
       fileDataUrl: params.receiptFile,
       fileType: params.receiptFileType || 'image',
       isReceived,
     });
 
-    if (driveUpload.success && driveUpload.webViewLink) {
+    if (receiptUpload.success && receiptUpload.webViewLink) {
       driveSyncStatus = 'synced';
-      driveFileId = driveUpload.driveFileId || null;
-      webViewLink = driveUpload.webViewLink || null;
+      driveFileId = receiptUpload.driveFileId || null;
+      webViewLink = receiptUpload.webViewLink || null;
+      driveError = receiptUpload.provider === 'storage' ? 'Stored in Firebase Storage (Drive unavailable).' : null;
     } else {
       driveSyncStatus = 'pending';
-      driveError = driveUpload.error || 'Google Drive not connected or upload failed.';
+      driveError = receiptUpload.error || 'Receipt upload failed on Drive and Storage.';
     }
   } catch (err: any) {
     driveSyncStatus = 'pending';
-    driveError = err.message || 'Google Drive upload error';
+    driveError = err.message || 'Receipt upload error';
   }
 
   // 3. The app must always open receipts through the stored link, with local fallback
@@ -536,7 +538,7 @@ export async function retryDriveUploadForPayment(paymentId: string): Promise<Pay
   const pmt = currentPayments[idx];
   const isReceived = pmt.entryType === 'cash-received' || pmt.entryType === 'bank-received';
 
-  const result = await uploadReceiptToDrive({
+  const result = await uploadReceipt({
     paymentNo: pmt.paymentNo,
     fileDataUrl: pmt.receiptFile,
     fileType: pmt.receiptFileType || 'image',

@@ -3,8 +3,9 @@ import {
   AiVerificationResult 
 } from '../types/payment';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db, auth, isConfigPlaceholder } from './firebase';
+import { db, auth, storage, isConfigPlaceholder } from './firebase';
 import { GoogleAuthProvider, signInWithPopup, User } from 'firebase/auth';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const INTEGRATIONS_DOC_PATH = 'settings/integrations';
 const LOCAL_STORAGE_INTEGRATION_KEY = 'safardesk_drive_integration_v1';
@@ -21,6 +22,7 @@ const DEFAULT_INTEGRATION: DriveIntegrationDoc = {
   rootFolderId: null,
   receivedFolderId: null,
   sentFolderId: null,
+  lastAuthAt: null,
   isActive: false,
   updatedAt: new Date().toISOString(),
 };
@@ -84,6 +86,7 @@ export async function connectGoogleDrive(currentUser?: { name?: string; email?: 
     rootFolderId: folders.rootFolderId,
     receivedFolderId: folders.receivedFolderId,
     sentFolderId: folders.sentFolderId,
+    lastAuthAt: new Date().toISOString(),
     isActive: true,
     updatedAt: new Date().toISOString(),
   };
@@ -99,6 +102,132 @@ export async function connectGoogleDrive(currentUser?: { name?: string; email?: 
   }
 
   return integrationDoc;
+}
+
+/**
+ * Fix #22 — Drive session persistence.
+ *
+ * The browser OAuth popup flow cannot issue a true server-side refresh token,
+ * so the session is persisted as: (a) the integration doc in Firestore
+ * (survives reloads), and (b) a silent re-authorization attempt below that
+ * restores the in-memory access token whenever the Google session is still
+ * valid — no manual reconnect needed after a page reload.
+ */
+export async function ensureDriveAccessToken(currentUser?: { name?: string; email?: string }): Promise<string> {
+  if (cachedAccessToken) return cachedAccessToken;
+
+  const integration = await getDriveIntegration();
+  if (!integration.connected) {
+    throw new Error('Google Drive is not connected in Settings > Integrations.');
+  }
+
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/drive.file');
+    provider.setCustomParameters({ prompt: 'none' }); // silent: no account picker
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (!credential?.accessToken) throw new Error('No access token returned.');
+    cachedAccessToken = credential.accessToken;
+    await touchDriveAuthAt();
+    return cachedAccessToken;
+  } catch (err: any) {
+    cachedAccessToken = null;
+    throw new Error('Google Drive session expired. Please reconnect Google Drive in Settings > Integrations.');
+  }
+}
+
+async function touchDriveAuthAt(): Promise<void> {
+  const at = new Date().toISOString();
+  try {
+    const stored = localStorage.getItem(LOCAL_STORAGE_INTEGRATION_KEY);
+    if (stored) {
+      const doc = JSON.parse(stored);
+      doc.lastAuthAt = at;
+      doc.updatedAt = at;
+      localStorage.setItem(LOCAL_STORAGE_INTEGRATION_KEY, JSON.stringify(doc));
+    }
+  } catch { /* non-fatal */ }
+  try {
+    if (!isConfigPlaceholder) {
+      const snap = await getDoc(doc(db, INTEGRATIONS_DOC_PATH));
+      if (snap.exists()) {
+        await setDoc(doc(db, INTEGRATIONS_DOC_PATH), { lastAuthAt: at, updatedAt: at }, { merge: true } as any);
+      }
+    }
+  } catch { /* non-fatal */ }
+}
+
+/** Convert a data URL to a Blob for upload. */
+function dataUrlToBlob(fileDataUrl: string, fileType: 'image' | 'pdf' | 'audio'): Blob {
+  const mimeMatch = fileDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  const mimeType = mimeMatch ? mimeMatch[1]
+    : fileType === 'pdf' ? 'application/pdf'
+    : fileType === 'audio' ? 'audio/ogg'
+    : 'image/jpeg';
+  const base64Data = mimeMatch ? mimeMatch[2] : fileDataUrl;
+  const binary = atob(base64Data);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mimeType });
+}
+
+/**
+ * Fix #22 — Firebase Storage fallback for receipts.
+ * Used automatically when Google Drive is unavailable; files land in
+ * `receipts/<ManualNo>.<ext>` with a public download URL stored on the payment.
+ */
+export async function uploadReceiptToStorage(params: {
+  paymentNo: string;
+  fileDataUrl: string;
+  fileType: 'image' | 'pdf' | 'audio';
+}): Promise<{ success: boolean; downloadUrl?: string; error?: string }> {
+  try {
+    const ext = params.fileType === 'pdf' ? '.pdf' : params.fileType === 'audio' ? '.ogg' : '.jpg';
+    const path = `receipts/${params.paymentNo}${ext}`;
+    const blob = dataUrlToBlob(params.fileDataUrl, params.fileType);
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, blob, { contentType: blob.type || undefined });
+    const downloadUrl = await getDownloadURL(storageRef);
+    return { success: true, downloadUrl };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Firebase Storage upload failed.' };
+  }
+}
+
+/**
+ * Fix #22 — unified receipt upload: Google Drive first, Firebase Storage fallback.
+ */
+export async function uploadReceipt(params: {
+  paymentNo: string;
+  fileDataUrl: string;
+  fileType: 'image' | 'pdf' | 'audio';
+  isReceived: boolean;
+}): Promise<{
+  success: boolean;
+  provider: 'drive' | 'storage' | 'none';
+  driveFileId?: string;
+  webViewLink?: string;
+  error?: string;
+}> {
+  const driveRes = await uploadReceiptToDrive({
+    paymentNo: params.paymentNo,
+    fileDataUrl: params.fileDataUrl,
+    fileType: params.fileType === 'audio' ? 'image' : params.fileType,
+    isReceived: params.isReceived,
+  });
+  if (driveRes.success && driveRes.webViewLink) {
+    return { success: true, provider: 'drive', driveFileId: driveRes.driveFileId, webViewLink: driveRes.webViewLink };
+  }
+  const storageRes = await uploadReceiptToStorage(params);
+  if (storageRes.success && storageRes.downloadUrl) {
+    return { success: true, provider: 'storage', webViewLink: storageRes.downloadUrl };
+  }
+  return {
+    success: false,
+    provider: 'none',
+    error: [driveRes.error, storageRes.error].filter(Boolean).join(' | ') || 'Receipt upload failed.',
+  };
 }
 
 /**
@@ -226,12 +355,11 @@ export async function uploadReceiptToDrive(params: {
     };
   }
 
-  // Attempt to use cached access token or prompt
-  if (!cachedAccessToken) {
-    return {
-      success: false,
-      error: 'Google Drive OAuth session expired. Please connect or authorize in Settings.',
-    };
+  // Fix #22: restore the OAuth session (silent re-auth) when the page reloaded
+  try {
+    await ensureDriveAccessToken();
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Google Drive session expired.' };
   }
 
   try {
@@ -284,6 +412,10 @@ export async function uploadReceiptToDrive(params: {
 
     if (!uploadRes.ok) {
       const errText = await uploadRes.text();
+      if (uploadRes.status === 401) {
+        cachedAccessToken = null; // force silent re-auth on the next attempt
+        return { success: false, error: 'Google Drive session expired. Please reconnect Google Drive in Settings > Integrations.' };
+      }
       return {
         success: false,
         error: `Drive API upload error: ${uploadRes.status} - ${errText}`,

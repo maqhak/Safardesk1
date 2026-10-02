@@ -84,6 +84,7 @@ export interface DriveIntegrationDoc {
   receivedFolderId: string | null;   // "Receipt/Received" folder
   sentFolderId: string | null;       // "Receipt/Sent" folder
   refreshToken?: string | null;
+  lastAuthAt?: string | null; // last successful Drive OAuth (re)authorization
   isActive: boolean;
   updatedAt: string;
 }
