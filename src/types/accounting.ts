@@ -59,6 +59,7 @@ export interface LedgerEntryDoc {
   voidReason?: string | null;
   voidedAt?: string | null;
   voidedBy?: string | null;
+  reversalOf?: string | null; // entryNo of the original entry this entry reverses
   paxCount?: number; // carried on voucher-charge entries
   paxType?: 'mofa' | 'hotel' | null;
   mofaPax?: number; // explicit count

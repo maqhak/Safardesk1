@@ -252,7 +252,7 @@ export const AccountsPage: React.FC = () => {
     setVoiding(true);
     try {
       await voidLedgerEntry(entryToVoid.id, voidReason, userProfile?.name || 'Owner');
-      success(`Transaction #${entryToVoid.entryNo} marked void.`);
+      success(`Transaction #${entryToVoid.entryNo} voided — reversal entry posted.`);
       setVoidModalOpen(false);
       setEntryToVoid(null);
       setVoidReason('');

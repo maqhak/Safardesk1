@@ -716,6 +716,9 @@ export async function postBalancedTransaction(params: {
 
 /**
  * Void a ledger entry (Owner only, with reason). Entries never disappear.
+ * Fix #21: voiding posts a mirror REVERSAL entry on the same account (opposite leg),
+ * so the original financial history is preserved AND the void is fully auditable.
+ * Payments and Journal Vouchers void through here, so they get reversals automatically.
  */
 export async function voidLedgerEntry(
   entryId: string,
@@ -728,8 +731,13 @@ export async function voidLedgerEntry(
     throw new Error('Ledger entry not found');
   }
 
+  const original = currentEntries[index];
+  if (original.isVoid) {
+    return original; // already voided — never post a duplicate reversal
+  }
+
   const updatedEntry: LedgerEntryDoc = {
-    ...currentEntries[index],
+    ...original,
     isVoid: true,
     voidReason,
     voidedAt: new Date().toISOString(),
@@ -745,6 +753,38 @@ export async function voidLedgerEntry(
     }
   } catch (err) {
     console.warn('Could not sync void to Firestore:', err);
+  }
+
+  // Post the mirror reversal entry (opposite leg, same account, same amounts).
+  const nextNum = currentEntries.length + 10001;
+  const now = new Date().toISOString();
+  const reversal: LedgerEntryDoc = {
+    ...original,
+    id: `le-${nextNum}`,
+    entryNo: `LE-${nextNum}`,
+    date: now.split('T')[0],
+    particulars: `VOID REVERSAL (${original.entryNo}): ${original.particulars} — ${voidReason}`,
+    debitSAR: original.creditSAR,
+    creditSAR: original.debitSAR,
+    debitPKR: original.creditPKR,
+    creditPKR: original.debitPKR,
+    isVoid: false,
+    voidReason: null,
+    voidedAt: null,
+    voidedBy: null,
+    reversalOf: original.entryNo,
+    createdBy: voidedBy,
+    createdAt: now,
+  };
+  const withReversal = [reversal, ...currentEntries];
+  localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(withReversal));
+
+  try {
+    if (!isConfigPlaceholder) {
+      await setDoc(doc(db, ENTRIES_COLLECTION, reversal.id), reversal);
+    }
+  } catch (err) {
+    console.warn('Could not sync void reversal to Firestore:', err);
   }
 
   return updatedEntry;
