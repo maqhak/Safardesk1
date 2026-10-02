@@ -1,11 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   BarChart3, 
   Download, 
   FileText, 
   Calendar, 
-  Filter, 
   TrendingUp, 
   CreditCard, 
   Users, 
@@ -18,65 +17,93 @@ import { Card, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { useToast } from '../contexts/ToastContext';
+import {
+  generateAgentLedgerStatements,
+  generateVisaProfitability,
+  generateHotelOccupancy,
+  generateTicketingSales,
+  generateForexReport,
+  generateAgentPerformance,
+} from '../services/reportService';
 
 interface ReportTemplate {
+  id: string;
   title: string;
   category: string;
   description: string;
   icon: any;
-  lastGenerated: string;
 }
 
 const REPORTS: ReportTemplate[] = [
   {
+    id: 'agent-statements',
     title: 'Agent Ledger Statements (SAR / PKR)',
     category: 'Finance',
     description: 'Detailed statement of account with debit, credit, running balance and exchange rate breakdowns.',
     icon: CreditCard,
-    lastGenerated: 'Today, 08:30 AM',
   },
   {
+    id: 'visa-profit',
     title: 'Monthly Visa Issuance & Profitability',
     category: 'Visas',
     description: 'Breakdown of visas issued by category, country, sub-agent margins and MoFA fees.',
     icon: FileText,
-    lastGenerated: 'Yesterday',
   },
   {
+    id: 'hotel-occupancy',
     title: 'Hotel Voucher Occupancy & Allotment',
     category: 'Vouchers',
     description: 'Property-wise room night consumption across Makkah & Madinah contracted hotels.',
     icon: Building,
-    lastGenerated: '2 days ago',
   },
   {
+    id: 'ticketing',
     title: 'Airline Ticketing Sales & BSP Reconciliation',
     category: 'Ticketing',
     description: 'Daily ticketing sales register, voids, reissues, commissions and airline stock usage.',
     icon: Plane,
-    lastGenerated: '3 days ago',
   },
   {
+    id: 'forex',
     title: 'Forex Fluctuations & SAR/PKR Gain/Loss',
     category: 'Treasury',
     description: 'Forex impact on cross-border agent remittances and realized exchange rate margins.',
     icon: TrendingUp,
-    lastGenerated: 'Weekly on Monday',
   },
   {
+    id: 'agent-league',
     title: 'Sub-Agent Performance League',
     category: 'Commercial',
     description: 'Top booking agents ranked by total revenue, visa volume, and prompt settlement ratios.',
     icon: Users,
-    lastGenerated: 'Monthly',
   },
 ];
 
 export const ReportsPage: React.FC = () => {
-  const { success } = useToast();
+  const { success, error: showError } = useToast();
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
 
-  const handleDownload = (reportTitle: string) => {
-    success(`Generating ${reportTitle} in PDF and Excel format.`);
+  const handleDownload = async (reportId: string, reportTitle: string) => {
+    setGeneratingId(reportId);
+    try {
+      const range = { from: dateFrom || undefined, to: dateTo || undefined };
+      switch (reportId) {
+        case 'agent-statements': await generateAgentLedgerStatements(range); break;
+        case 'visa-profit': await generateVisaProfitability(range); break;
+        case 'hotel-occupancy': await generateHotelOccupancy(range); break;
+        case 'ticketing': await generateTicketingSales(range); break;
+        case 'forex': await generateForexReport(range); break;
+        case 'agent-league': await generateAgentPerformance(range); break;
+        default: throw new Error('Unknown report.');
+      }
+      success(`${reportTitle} downloaded as Excel.`);
+    } catch (err: any) {
+      showError(err?.message || `Failed to generate ${reportTitle}.`);
+    } finally {
+      setGeneratingId(null);
+    }
   };
 
   return (
@@ -86,13 +113,22 @@ export const ReportsPage: React.FC = () => {
         subtitle="Generate audited financial statements, operational manifests, forex reconciliations, and agent summaries."
         breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Reports' }]}
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            leftIcon={<Filter className="w-3.5 h-3.5" />}
-          >
-            Custom Date Range
-          </Button>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              title="From date"
+              className="p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700"
+            />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              title="To date"
+              className="p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700"
+            />
+          </div>
         }
       />
 
@@ -142,15 +178,16 @@ export const ReportsPage: React.FC = () => {
 
               <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-[11px] text-slate-400">
-                  Last run: {r.lastGenerated}
+                  Live data • Excel (.xlsx)
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
                   leftIcon={<Download className="w-3.5 h-3.5" />}
-                  onClick={() => handleDownload(r.title)}
+                  onClick={() => handleDownload(r.id, r.title)}
+                  disabled={generatingId !== null}
                 >
-                  Generate
+                  {generatingId === r.id ? 'Generating...' : 'Generate'}
                 </Button>
               </div>
             </Card>
