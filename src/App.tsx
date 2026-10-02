@@ -239,8 +239,23 @@ export default function App() {
                     </ProtectedRoute>
                   }
                 />
-                <Route path="/agent-portal" element={<AgentPortalPage />} />
-                <Route path="/profile" element={<ProfilePage />} />
+                {/* Fix #34: explicitly wrapped in ProtectedRoute (defense in depth) */}
+                <Route
+                  path="/agent-portal"
+                  element={
+                    <ProtectedRoute>
+                      <AgentPortalPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/profile"
+                  element={
+                    <ProtectedRoute>
+                      <ProfilePage />
+                    </ProtectedRoute>
+                  }
+                />
               </Route>
 
               {/* Catch-all redirect */}
