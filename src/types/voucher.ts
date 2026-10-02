@@ -34,6 +34,23 @@ export interface HotelStayItem {
   isSelfHotel?: boolean; // For agents
 }
 
+export interface FlightBlockInfo {
+  airline?: AirlineDoc | null;
+  flightNo?: string;
+  fromAirport?: AirportRef | null;
+  toAirport?: AirportRef | null;
+  date?: string;
+  etd?: string;
+  eta?: string;
+}
+
+export interface FlightDetailsSection {
+  allowFlightInfo: boolean;
+  departureFlight: FlightBlockInfo;
+  returnFlight: FlightBlockInfo;
+  lateIntimationChargesSAR: number;
+}
+
 export interface VoucherChargeItem {
   description: string;
   category: 'Hotel' | 'Transport' | 'Visa' | 'Other';
@@ -59,6 +76,7 @@ export interface VoucherDoc {
   passengers: PassengerSnapshot[];
   sectors: SectorItem[];
   hotelStays: HotelStayItem[];
+  flightDetails?: FlightDetailsSection;
   charges: VoucherChargeItem[];
   totals: {
     hotelsSAR: number;

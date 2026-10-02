@@ -93,8 +93,27 @@ export const VouchersPage: React.FC = () => {
     { city: 'Makkah', hotelName: '', checkInDate: new Date().toISOString().split('T')[0], checkOutDate: addDays(new Date().toISOString().split('T')[0], 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 950, totalSAR: 2850 }
   ]);
 
-  // Charges state
-  const [charges, setCharges] = useState<VoucherChargeItem[]>([]);
+  // Flight Details Section State
+  const [allowFlightInfo, setAllowFlightInfo] = useState<boolean>(false);
+  const [depAirline, setDepAirline] = useState<any | null>(null);
+  const [depFlightNo, setDepFlightNo] = useState<string>('');
+  const [depFrom, setDepFrom] = useState<any | null>(null);
+  const [depTo, setDepTo] = useState<any | null>(null);
+  const [depDate, setDepDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [depEtd, setDepEtd] = useState<string>('12:00');
+  const [depEta, setDepEta] = useState<string>('15:00');
+
+  const [retAirline, setRetAirline] = useState<any | null>(null);
+  const [retFlightNo, setRetFlightNo] = useState<string>('');
+  const [retFrom, setRetFrom] = useState<any | null>(null);
+  const [retTo, setRetTo] = useState<any | null>(null);
+  const [retDate, setRetDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [retEtd, setRetEtd] = useState<string>('14:00');
+  const [retEta, setRetEta] = useState<string>('18:00');
+
+  const [lateIntimationSAR, setLateIntimationSAR] = useState<string>('');
+
+  // Commission state
   const [commissionEnabled, setCommissionEnabled] = useState<boolean>(false);
   const [commissionName, setCommissionName] = useState<string>('');
   const [commissionAmount, setCommissionAmount] = useState<string>('');
@@ -158,6 +177,16 @@ export const VouchersPage: React.FC = () => {
     setArrivalDate(new Date().toISOString().split('T')[0]);
     setSectors([{ type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', vehicleType: 'Staria', transportRateSAR: 350 }]);
     setHotelStays([{ city: 'Makkah', hotelName: '', checkInDate: new Date().toISOString().split('T')[0], checkOutDate: addDays(new Date().toISOString().split('T')[0], 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 950, totalSAR: 2850 }]);
+    setAllowFlightInfo(false);
+    setDepAirline(null);
+    setDepFlightNo('');
+    setDepFrom(null);
+    setDepTo(null);
+    setRetAirline(null);
+    setRetFlightNo('');
+    setRetFrom(null);
+    setRetTo(null);
+    setLateIntimationSAR('');
     setBuilderOpen(true);
   };
 
@@ -202,10 +231,11 @@ export const VouchersPage: React.FC = () => {
       }];
     }
 
-    // Calculate totals
+    // Calculate totals including late intimation charges
+    const lateIntimation = parseFloat(lateIntimationSAR) || 0;
     const hotelsSAR = hotelStays.reduce((sum, h) => sum + (h.totalSAR || 0), 0);
     const transportSAR = sectors.reduce((sum, s) => sum + (s.transportRateSAR || 0), 0);
-    const totalSAR = hotelsSAR + transportSAR;
+    const totalSAR = hotelsSAR + transportSAR + lateIntimation;
     const totalPKR = convert(totalSAR, getCurrentRate('SAR-PKR'));
 
     setSaving(true);
@@ -219,14 +249,37 @@ export const VouchersPage: React.FC = () => {
         passengers,
         sectors,
         hotelStays,
+        flightDetails: {
+          allowFlightInfo,
+          departureFlight: {
+            airline: depAirline,
+            flightNo: depFlightNo,
+            fromAirport: depFrom,
+            toAirport: depTo,
+            date: depDate,
+            etd: depEtd,
+            eta: depEta,
+          },
+          returnFlight: {
+            airline: retAirline,
+            flightNo: retFlightNo,
+            fromAirport: retFrom,
+            toAirport: retTo,
+            date: retDate,
+            etd: retEtd,
+            eta: retEta,
+          },
+          lateIntimationChargesSAR: lateIntimation,
+        },
         charges: [
           ...hotelStays.map((h) => ({ description: `${h.city} - ${h.hotelName} (${h.nights}n)`, category: 'Hotel' as const, amountSAR: h.totalSAR })),
-          ...sectors.map((s) => ({ description: `${s.type} Sector (${s.vehicleType || 'Transport'})`, category: 'Transport' as const, amountSAR: s.transportRateSAR || 0 }))
+          ...sectors.map((s) => ({ description: `${s.type} Sector (${s.vehicleType || 'Transport'})`, category: 'Transport' as const, amountSAR: s.transportRateSAR || 0 })),
+          ...(lateIntimation > 0 ? [{ description: 'Late Intimation Charges', category: 'Other' as const, amountSAR: lateIntimation }] : [])
         ],
         totals: {
           hotelsSAR,
           transportSAR,
-          otherSAR: 0,
+          otherSAR: lateIntimation,
           totalSAR,
           totalPKR,
         },
@@ -346,7 +399,7 @@ export const VouchersPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Umrah Trip & Hotel Vouchers"
-        subtitle="Manage unified Umrah vouchers with remaining visa filtering, multi-link options, smart date chaining, and airport/airline selectors."
+        subtitle="Manage unified Umrah vouchers with remaining visa filtering, multi-link options, flight details section, and smart date chaining."
         breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Vouchers' }]}
         actions={
           <div className="flex items-center gap-2">
@@ -417,7 +470,7 @@ export const VouchersPage: React.FC = () => {
         isOpen={builderOpen}
         onClose={() => setBuilderOpen(false)}
         title="Unified Trip Voucher Builder"
-        subtitle={`Step ${builderStep} of 4 • Configure linking rules, flight sectors, hotel stays, and charges.`}
+        subtitle={`Step ${builderStep} of 4 • Configure linking rules, flight details, hotel stays, and charges.`}
         size="lg"
         footer={
           <div className="flex items-center justify-between w-full">
@@ -548,7 +601,7 @@ export const VouchersPage: React.FC = () => {
             </div>
           )}
 
-          {/* Step 2: Smart Date Chaining, Airport/Airline Sectors & Hotel Stays */}
+          {/* Step 2: Smart Date Chaining, Flight Details Section, Transport Sectors & Hotel Stays */}
           {builderStep === 2 && (
             <div className="space-y-6">
               {/* Smart Date Chaining Anchor */}
@@ -576,22 +629,203 @@ export const VouchersPage: React.FC = () => {
                 <div className="text-[11px] text-slate-500">Changing arrival date automatically shifts and chains subsequent hotel check-in/check-out dates.</div>
               </div>
 
-              {/* Sectors with AirportSelect & AirlineSelect */}
+              {/* Flight Details Section */}
+              <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-2">
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                      <Plane className="w-4 h-4 text-[#0e2c4c]" />
+                      <span>Flight Details (Departure & Return)</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500">Optional carrier and flight schedule tracking.</p>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={allowFlightInfo}
+                      onChange={(e) => setAllowFlightInfo(e.target.checked)}
+                      className="rounded text-[#0e2c4c]"
+                    />
+                    <span className="text-xs font-bold text-slate-800">Allow Flight Information</span>
+                  </label>
+                </div>
+
+                <fieldset disabled={!allowFlightInfo} className={`space-y-4 ${!allowFlightInfo ? 'opacity-50' : ''}`}>
+                  {/* Departure Flight Block */}
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <span className="font-bold text-[#0e2c4c] text-xs uppercase block tracking-wider">Departure Flight Block</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                      <div>
+                        <AirlineSelect
+                          label="Flight (Airline)"
+                          value={depAirline}
+                          onChange={setDepAirline}
+                          placeholder="Select airline..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">No (Flight Number)</label>
+                        <input
+                          type="text"
+                          value={depFlightNo}
+                          onChange={(e) => setDepFlightNo(e.target.value)}
+                          placeholder="e.g. SV-734"
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <AirportSelect
+                          label="FROM Airport"
+                          value={depFrom}
+                          onChange={setDepFrom}
+                          placeholder="Origin..."
+                        />
+                      </div>
+                      <div>
+                        <AirportSelect
+                          label="TO Airport"
+                          value={depTo}
+                          onChange={setDepTo}
+                          placeholder="Destination..."
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Date</label>
+                        <input
+                          type="date"
+                          value={depDate}
+                          onChange={(e) => setDepDate(e.target.value)}
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">ETD (Time)</label>
+                        <input
+                          type="time"
+                          value={depEtd}
+                          onChange={(e) => setDepEtd(e.target.value)}
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">ETA (Time)</label>
+                        <input
+                          type="time"
+                          value={depEta}
+                          onChange={(e) => setDepEta(e.target.value)}
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Return Flight Block */}
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                    <span className="font-bold text-[#0e2c4c] text-xs uppercase block tracking-wider">Return Flight Block</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                      <div>
+                        <AirlineSelect
+                          label="Flight (Airline)"
+                          value={retAirline}
+                          onChange={setRetAirline}
+                          placeholder="Select airline..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">No (Flight Number)</label>
+                        <input
+                          type="text"
+                          value={retFlightNo}
+                          onChange={(e) => setRetFlightNo(e.target.value)}
+                          placeholder="e.g. SV-735"
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <AirportSelect
+                          label="FROM Airport"
+                          value={retFrom}
+                          onChange={setRetFrom}
+                          placeholder="Origin..."
+                        />
+                      </div>
+                      <div>
+                        <AirportSelect
+                          label="TO Airport"
+                          value={retTo}
+                          onChange={setRetTo}
+                          placeholder="Destination..."
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Date</label>
+                        <input
+                          type="date"
+                          value={retDate}
+                          onChange={(e) => setRetDate(e.target.value)}
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">ETD (Time)</label>
+                        <input
+                          type="time"
+                          value={retEtd}
+                          onChange={(e) => setRetEtd(e.target.value)}
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">ETA (Time)</label>
+                        <input
+                          type="time"
+                          value={retEta}
+                          onChange={(e) => setRetEta(e.target.value)}
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </fieldset>
+
+                {/* Late Intimation Charges (SAR) */}
+                <div className="pt-2 border-t border-slate-200">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                    Late Intimation Charges (SAR)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="10"
+                    value={lateIntimationSAR}
+                    onChange={(e) => setLateIntimationSAR(e.target.value)}
+                    placeholder="0 (Manual entry)"
+                    className="w-full sm:w-64 p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold text-[#0e2c4c]"
+                  />
+                  <span className="text-[11px] text-slate-500 block mt-1">Manual entry. Empty means zero. Added directly to voucher gross.</span>
+                </div>
+              </div>
+
+              {/* Transport Sectors with mandatory vehicle selection */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
-                  <h4 className="font-bold text-slate-900 text-sm">Flight / Transport Sectors</h4>
+                  <h4 className="font-bold text-slate-900 text-sm">Ground Transport Sectors</h4>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Arrival', date: arrivalDate, flightNo: '', time: '12:00', vehicleType: 'Staria', transportRateSAR: 350 }])}>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Arrival', date: arrivalDate, vehicleType: 'Staria', transportRateSAR: 350 }])}>
                       + Arrival
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Departure', date: arrivalDate, flightNo: '', time: '12:00', vehicleType: 'Staria', transportRateSAR: 350 }])}>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Departure', date: arrivalDate, vehicleType: 'Staria', transportRateSAR: 350 }])}>
                       + Departure
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Makkah to Madina', date: arrivalDate, vehicleType: 'Hiace', transportRateSAR: 500 }])}>
-                      + Makkah → Madina
+                      + Makkah ↔ Madina
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Madina to Makkah', date: arrivalDate, vehicleType: 'Hiace', transportRateSAR: 500 }])}>
-                      + Madina → Makkah
+                      + Madina ↔ Makkah
                     </Button>
                   </div>
                 </div>
@@ -600,7 +834,7 @@ export const VouchersPage: React.FC = () => {
                   <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 text-xs">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-[#0e2c4c] px-2.5 py-1 bg-[#0e2c4c]/10 rounded uppercase text-[10px]">{sec.type} Sector</span>
+                        <span className="font-bold text-[#0e2c4c] px-2.5 py-1 bg-[#0e2c4c]/10 rounded uppercase text-[10px]">{sec.type}</span>
                         <input
                           type="date"
                           value={sec.date}
@@ -617,99 +851,39 @@ export const VouchersPage: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <AirportSelect
-                          label="From Airport"
-                          value={sec.fromAirport || null}
-                          onChange={(apt) => {
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Mandatory Vehicle Selection *</label>
+                        <select
+                          value={sec.vehicleType || 'Staria'}
+                          onChange={(e) => {
                             const updated = [...sectors];
-                            updated[idx].fromAirport = apt;
+                            updated[idx].vehicleType = e.target.value as any;
                             setSectors(updated);
                           }}
-                          placeholder="Departure hub..."
-                        />
+                          required
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                        >
+                          <option value="Car">Car (4 Seater Sedan)</option>
+                          <option value="Staria">Staria VIP Van</option>
+                          <option value="Hiace">Hiace (12 Seater High Roof)</option>
+                          <option value="Coaster">Toyota Coaster Bus</option>
+                          <option value="Bus">49-Seater Luxury Coach</option>
+                        </select>
                       </div>
                       <div>
-                        <AirportSelect
-                          label="To Airport"
-                          value={sec.toAirport || null}
-                          onChange={(apt) => {
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Transport Charge (SAR)</label>
+                        <input
+                          type="number"
+                          value={sec.transportRateSAR || 0}
+                          onChange={(e) => {
                             const updated = [...sectors];
-                            updated[idx].toAirport = apt;
+                            updated[idx].transportRateSAR = parseFloat(e.target.value) || 0;
                             setSectors(updated);
                           }}
-                          placeholder="Arrival hub..."
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[#0e2c4c]"
+                          placeholder="SAR"
                         />
-                      </div>
-                      <div>
-                        <AirlineSelect
-                          label="Airline"
-                          value={sec.airline || null}
-                          onChange={(air) => {
-                            const updated = [...sectors];
-                            updated[idx].airline = air;
-                            setSectors(updated);
-                          }}
-                          placeholder="Select carrier..."
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Flight Number & Time</label>
-                        <div className="flex gap-1">
-                          <input
-                            type="text"
-                            value={sec.flightNo || ''}
-                            onChange={(e) => {
-                              const updated = [...sectors];
-                              updated[idx].flightNo = e.target.value;
-                              setSectors(updated);
-                            }}
-                            placeholder="e.g. SV-734"
-                            className="w-2/3 p-2 bg-white border border-slate-300 rounded text-xs font-mono"
-                          />
-                          <input
-                            type="time"
-                            value={sec.time || '12:00'}
-                            onChange={(e) => {
-                              const updated = [...sectors];
-                              updated[idx].time = e.target.value;
-                              setSectors(updated);
-                            }}
-                            className="w-1/3 p-2 bg-white border border-slate-300 rounded text-xs font-mono"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Transport & Cost (SAR)</label>
-                        <div className="flex gap-1">
-                          <select
-                            value={sec.vehicleType || 'Staria'}
-                            onChange={(e) => {
-                              const updated = [...sectors];
-                              updated[idx].vehicleType = e.target.value as any;
-                              setSectors(updated);
-                            }}
-                            className="w-1/2 p-2 bg-white border border-slate-300 rounded text-xs"
-                          >
-                            <option value="Car">Car</option>
-                            <option value="Staria">Staria</option>
-                            <option value="Hiace">Hiace</option>
-                            <option value="Coaster">Coaster</option>
-                            <option value="Bus">Coach</option>
-                          </select>
-                          <input
-                            type="number"
-                            value={sec.transportRateSAR || 0}
-                            onChange={(e) => {
-                              const updated = [...sectors];
-                              updated[idx].transportRateSAR = parseFloat(e.target.value) || 0;
-                              setSectors(updated);
-                            }}
-                            className="w-1/2 p-2 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-[#0e2c4c]"
-                            placeholder="SAR"
-                          />
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -875,9 +1049,17 @@ export const VouchersPage: React.FC = () => {
                   <span>Total Transport Sectors:</span>
                   <span>SAR {sectors.reduce((s, sec) => s + (sec.transportRateSAR || 0), 0).toLocaleString()}</span>
                 </div>
+                {parseFloat(lateIntimationSAR) > 0 && (
+                  <div className="flex justify-between font-semibold text-slate-700">
+                    <span>Late Intimation Charges:</span>
+                    <span>SAR {parseFloat(lateIntimationSAR).toLocaleString()}</span>
+                  </div>
+                )}
                 <div className="pt-2 border-t border-slate-200 flex justify-between font-bold text-slate-900 text-sm">
                   <span>Gross Voucher Total:</span>
-                  <span className="font-mono text-[#0e2c4c]">SAR {(hotelStays.reduce((s, h) => s + h.totalSAR, 0) + sectors.reduce((s, sec) => s + (sec.transportRateSAR || 0), 0)).toLocaleString()}</span>
+                  <span className="font-mono text-[#0e2c4c]">
+                    SAR {(hotelStays.reduce((s, h) => s + h.totalSAR, 0) + sectors.reduce((s, sec) => s + (sec.transportRateSAR || 0), 0) + (parseFloat(lateIntimationSAR) || 0)).toLocaleString()}
+                  </span>
                 </div>
               </div>
 
@@ -918,17 +1100,27 @@ export const VouchersPage: React.FC = () => {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Flight Sectors:</span>
+                  <span className="text-slate-500">Flight Information:</span>
+                  <span className="font-bold text-slate-800">{allowFlightInfo ? 'Enabled (Departure & Return)' : 'Disabled'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Transport Sectors:</span>
                   <span className="font-bold text-slate-800">{sectors.length} Sectors</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Hotel Stays:</span>
                   <span className="font-bold text-slate-800">{hotelStays.length} Stays</span>
                 </div>
+                {parseFloat(lateIntimationSAR) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Late Intimation Charges:</span>
+                    <span className="font-bold text-amber-600">SAR {parseFloat(lateIntimationSAR).toLocaleString()}</span>
+                  </div>
+                )}
                 <div className="pt-3 border-t border-slate-200 flex justify-between font-bold text-base">
                   <span>Total Amount:</span>
                   <span className="font-mono text-[#0e2c4c]">
-                    SAR {(hotelStays.reduce((s, h) => s + h.totalSAR, 0) + sectors.reduce((s, sec) => s + (sec.transportRateSAR || 0), 0)).toLocaleString()}
+                    SAR {(hotelStays.reduce((s, h) => s + h.totalSAR, 0) + sectors.reduce((s, sec) => s + (sec.transportRateSAR || 0), 0) + (parseFloat(lateIntimationSAR) || 0)).toLocaleString()}
                   </span>
                 </div>
               </div>
@@ -965,6 +1157,19 @@ export const VouchersPage: React.FC = () => {
                 <div className="text-xl font-mono font-bold">SAR {selectedVoucher.totals.totalSAR.toLocaleString()}</div>
               </div>
             </div>
+
+            {selectedVoucher.flightDetails?.allowFlightInfo && (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <span className="font-bold text-[#0e2c4c] uppercase text-[11px]">Flight Details</span>
+                <div className="grid grid-cols-2 gap-2 text-slate-700">
+                  <div><strong>Departure:</strong> {selectedVoucher.flightDetails.departureFlight.airline?.name || ''} {selectedVoucher.flightDetails.departureFlight.flightNo} ({selectedVoucher.flightDetails.departureFlight.date})</div>
+                  <div><strong>Return:</strong> {selectedVoucher.flightDetails.returnFlight.airline?.name || ''} {selectedVoucher.flightDetails.returnFlight.flightNo} ({selectedVoucher.flightDetails.returnFlight.date})</div>
+                </div>
+                {selectedVoucher.flightDetails.lateIntimationChargesSAR > 0 && (
+                  <div className="text-amber-700 font-semibold">Late Intimation Charges: SAR {selectedVoucher.flightDetails.lateIntimationChargesSAR}</div>
+                )}
+              </div>
+            )}
 
             <div>
               <h5 className="font-bold text-slate-800 mb-2">Passengers ({selectedVoucher.passengers.length})</h5>
