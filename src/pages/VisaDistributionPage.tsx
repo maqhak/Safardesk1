@@ -40,6 +40,15 @@ interface GroupedVisaBatch {
   dateRange: string;
 }
 
+interface GroupSelectionData {
+  agentId: string;
+  sellingPricePerVisa: number;
+  commissionEnabled?: boolean;
+  commissionRecipientName?: string;
+  commissionContactNumber?: string;
+  commissionAmountSAR?: number;
+}
+
 export const VisaDistributionPage: React.FC = () => {
   const { userProfile } = useAuth();
   const { profile: company } = useCompany();
@@ -59,8 +68,8 @@ export const VisaDistributionPage: React.FC = () => {
   const [buyingPrice, setBuyingPrice] = useState<number>(0);
   const [distributionDate, setDistributionDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
-  // Per group distribution mapping: groupCode -> { agentId: string (blank by default), sellingPricePerVisa: number }
-  const [groupSelections, setGroupSelections] = useState<Map<string, { agentId: string; sellingPricePerVisa: number }>>(new Map());
+  // Per group distribution mapping
+  const [groupSelections, setGroupSelections] = useState<Map<string, GroupSelectionData>>(new Map());
 
   // Expanded groups accordion state
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -123,8 +132,8 @@ export const VisaDistributionPage: React.FC = () => {
   }, [undistributedVisas]);
 
   // Update selection for a group
-  const handleGroupSelectionChange = (groupCode: string, field: 'agentId' | 'sellingPricePerVisa', value: any) => {
-    const current = groupSelections.get(groupCode) || { agentId: '', sellingPricePerVisa: 0 };
+  const handleGroupSelectionChange = (groupCode: string, field: keyof GroupSelectionData, value: any) => {
+    const current = groupSelections.get(groupCode) || { agentId: '', sellingPricePerVisa: 0, commissionEnabled: false };
     const updated = new Map(groupSelections);
     updated.set(groupCode, {
       ...current,
@@ -145,7 +154,16 @@ export const VisaDistributionPage: React.FC = () => {
 
   // Live Batch Summary Calculations
   const activeSelectedGroups = useMemo(() => {
-    const list: Array<{ groupCode: string; groupName: string; agentId: string; sellingPricePerVisa: number; visaIds: string[]; visaCount: number }> = [];
+    const list: Array<{ 
+      groupCode: string; 
+      groupName: string; 
+      agentId: string; 
+      sellingPricePerVisa: number; 
+      visaIds: string[]; 
+      visaCount: number;
+      commission?: { enabled: boolean; recipientName: string; contactNumber: string; amountSAR: number };
+    }> = [];
+
     groupSelections.forEach((sel, groupCode) => {
       if (sel.agentId && sel.sellingPricePerVisa > 0) {
         const groupObj = groupedVisas.find((g) => g.groupCode === groupCode);
@@ -157,6 +175,12 @@ export const VisaDistributionPage: React.FC = () => {
             sellingPricePerVisa: sel.sellingPricePerVisa,
             visaIds: groupObj.visas.map(v => v.id),
             visaCount: groupObj.visaCount,
+            commission: sel.commissionEnabled ? {
+              enabled: true,
+              recipientName: sel.commissionRecipientName || '',
+              contactNumber: sel.commissionContactNumber || '',
+              amountSAR: sel.commissionAmountSAR || 0,
+            } : undefined,
           });
         }
       }
@@ -214,7 +238,14 @@ export const VisaDistributionPage: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const agentGroupMap = new Map<string, { agentId: string; sellingPricePerVisa: number; groupCode: string; groupName: string; visaIds: string[] }>();
+      const agentGroupMap = new Map<string, { 
+        agentId: string; 
+        sellingPricePerVisa: number; 
+        groupCode: string; 
+        groupName: string; 
+        visaIds: string[];
+        commission?: { enabled: boolean; recipientName: string; contactNumber: string; amountSAR: number };
+      }>();
 
       activeSelectedGroups.forEach((g) => {
         agentGroupMap.set(`${g.groupCode}-${g.agentId}`, {
@@ -223,6 +254,7 @@ export const VisaDistributionPage: React.FC = () => {
           groupCode: g.groupCode,
           groupName: g.groupName,
           visaIds: g.visaIds,
+          commission: g.commission,
         });
       });
 
@@ -247,7 +279,7 @@ export const VisaDistributionPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Visa Stock Distribution"
-        subtitle="Manual distribution of imported visa stock grouped by Group Code. The system never auto-selects agents (Rule enforced)."
+        subtitle="Manual distribution of imported visa stock grouped by Group Code with optional commission box."
         breadcrumbs={[
           { label: 'Dashboard', href: '/' },
           { label: 'Visas', href: '/visas' },
@@ -323,12 +355,12 @@ export const VisaDistributionPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* STEP 2: Group Assignment Checklist */}
+      {/* STEP 2: Group Assignment Checklist & Optional Commission Box */}
       <Card padding="md" className="border-slate-200 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
             <Users className="w-4 h-4 text-[#0e2c4c]" />
-            <span>Step 2: Assign Undistributed Groups to B2B Agents (Manual Selection Required)</span>
+            <span>Step 2: Assign Undistributed Groups to B2B Agents & Add Optional Commission</span>
           </h3>
           <span className="text-[11px] text-slate-500 font-medium">
             {groupedVisas.length} Available Group Batches ({undistributedVisas.length} total visas)
@@ -343,9 +375,9 @@ export const VisaDistributionPage: React.FC = () => {
             <p>Upload a Nusuk Excel batch or register new visa applications to begin distribution.</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {groupedVisas.map((group) => {
-              const selection = groupSelections.get(group.groupCode) || { agentId: '', sellingPricePerVisa: 0 };
+              const selection = groupSelections.get(group.groupCode) || { agentId: '', sellingPricePerVisa: 0, commissionEnabled: false };
               const isExpanded = expandedGroups.has(group.groupCode);
 
               return (
@@ -406,6 +438,56 @@ export const VisaDistributionPage: React.FC = () => {
                         </strong>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Optional Commission Box */}
+                  <div className="pt-2 border-t border-slate-200/60">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(selection.commissionEnabled)}
+                        onChange={(e) => handleGroupSelectionChange(group.groupCode, 'commissionEnabled', e.target.checked)}
+                        className="rounded text-[#0e2c4c] focus:ring-0"
+                      />
+                      <span>Add optional commission for this distribution</span>
+                    </label>
+
+                    {selection.commissionEnabled && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3 p-3 bg-white border border-slate-200 rounded-xl">
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Commission Recipient Name</label>
+                          <input
+                            type="text"
+                            value={selection.commissionRecipientName || ''}
+                            onChange={(e) => handleGroupSelectionChange(group.groupCode, 'commissionRecipientName', e.target.value)}
+                            placeholder="e.g. Sub-Agent / Rep"
+                            className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Contact Number</label>
+                          <input
+                            type="text"
+                            value={selection.commissionContactNumber || ''}
+                            onChange={(e) => handleGroupSelectionChange(group.groupCode, 'commissionContactNumber', e.target.value)}
+                            placeholder="e.g. +923001234567"
+                            className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Commission Amount (SAR)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={selection.commissionAmountSAR || ''}
+                            onChange={(e) => handleGroupSelectionChange(group.groupCode, 'commissionAmountSAR', parseFloat(e.target.value) || 0)}
+                            placeholder="e.g. 500"
+                            className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold text-[#c9a227]"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Expanded Pilgrim Manifest */}

@@ -1,15 +1,17 @@
-import { getCurrentRate } from './exchangeRateService';
 import { 
   VisaDistributionDoc, 
   VisaInvoiceDoc, 
-  DistributionGroupLine 
+  DistributionGroupLine,
+  CommissionDetails
 } from '../types/visaDistribution';
 import { VisaDoc, fetchVisas } from './visaService';
-import { fetchLedgerAccounts, fetchLedgerEntries } from './accountingService';
+import { fetchLedgerAccounts, fetchLedgerEntries, postBalancedTransaction } from './accountingService';
 import { LedgerEntryDoc, LedgerAccountDoc } from '../types/accounting';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { logAuditEvent } from './userService';
+import { UserProfile } from '../types/auth';
+import { getCurrentRate } from './exchangeRateService';
 
 const DISTRIB_COLLECTION = 'visa_distributions';
 const INVOICES_COLLECTION = 'visa_invoices';
@@ -69,7 +71,19 @@ export async function getNextInvoiceNumber(): Promise<string> {
 export async function createVisaDistributionBatch(params: {
   vendorId: string;
   buyingPricePerVisa: number;
-  agentGroupMap: Map<string, { agentId: string; sellingPricePerVisa: number; groupCode: string; groupName: string; visaIds: string[] }>;
+  agentGroupMap: Map<string, { 
+    agentId: string; 
+    sellingPricePerVisa: number; 
+    groupCode: string; 
+    groupName: string; 
+    visaIds: string[];
+    commission?: {
+      enabled: boolean;
+      recipientName: string;
+      contactNumber: string;
+      amountSAR: number;
+    };
+  }>;
   date: string;
   createdBy: string;
 }): Promise<{ distribution: VisaDistributionDoc; invoices: VisaInvoiceDoc[] }> {
@@ -105,6 +119,7 @@ export async function createVisaDistributionBatch(params: {
     totalVisas: number;
     sellingTotalSAR: number;
     buyingTotalSAR: number;
+    commission?: { enabled: boolean; recipientName: string; contactNumber: string; amountSAR: number };
   }>();
 
   params.agentGroupMap.forEach((data) => {
@@ -114,6 +129,7 @@ export async function createVisaDistributionBatch(params: {
       totalVisas: 0,
       sellingTotalSAR: 0,
       buyingTotalSAR: 0,
+      commission: data.commission?.enabled ? data.commission : undefined,
     };
 
     const visaCount = data.visaIds.length;
@@ -182,6 +198,16 @@ export async function createVisaDistributionBatch(params: {
       lineTotalSAR: g.visaCount * g.sellingPricePerVisa,
     }));
 
+    const commissionDetails: CommissionDetails | null = batch.commission?.enabled ? {
+      enabled: true,
+      recipientName: batch.commission.recipientName,
+      contactNumber: batch.commission.contactNumber,
+      amountSAR: batch.commission.amountSAR,
+      status: 'Unpaid',
+      paidAt: null,
+      paidEntryId: null,
+    } : null;
+
     const invoice: VisaInvoiceDoc = {
       id: `inv-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       invoiceNo,
@@ -196,6 +222,7 @@ export async function createVisaDistributionBatch(params: {
       exchangeRate,
       totalsPKR,
       status: 'Unpaid',
+      commission: commissionDetails,
       createdBy: params.createdBy,
       createdAt: now,
     };
@@ -253,10 +280,10 @@ export async function createVisaDistributionBatch(params: {
       id: `le-${baseSeq + 3}`,
       entryNo: `LE-${baseSeq + 3}`,
       date: params.date,
-      accountId: marginAccount!.id,
+      accountId: marginAccount.id,
       entryType: 'Invoice',
       transNo: invoiceNo,
-      particulars: `Visa Distribution Margin for Invoice #${invoiceNo}`,
+      particulars: `Gross Visa Margin for Invoice #${invoiceNo}`,
       invoiceRef: invoiceNo,
       rate: exchangeRate,
       debitSAR: 0,
@@ -288,45 +315,103 @@ export async function createVisaDistributionBatch(params: {
     createdAt: now,
   };
 
-  // Save to localStorage & Firestore
-  const currentDistribs = await fetchVisaDistributions();
-  const updatedDistribs = [distribution, ...currentDistribs];
-  localStorage.setItem(LOCAL_STORAGE_DISTRIB_KEY, JSON.stringify(updatedDistribs));
+  // Save distribution, invoices, ledger entries, and updated visas
+  const existingDistribs = await fetchVisaDistributions();
+  const existingInvoices = await fetchVisaInvoices();
 
-  const currentInvoices = await fetchVisaInvoices();
-  const updatedInvoices = [...createdInvoices, ...currentInvoices];
-  localStorage.setItem(LOCAL_STORAGE_INVOICES_KEY, JSON.stringify(updatedInvoices));
+  const allDistribs = [distribution, ...existingDistribs];
+  const allInvoices = [...createdInvoices, ...existingInvoices];
+  const allEntries = [...newLedgerEntries, ...currentEntries];
 
+  localStorage.setItem(LOCAL_STORAGE_DISTRIB_KEY, JSON.stringify(allDistribs));
+  localStorage.setItem(LOCAL_STORAGE_INVOICES_KEY, JSON.stringify(allInvoices));
   localStorage.setItem(LOCAL_STORAGE_VISAS_KEY, JSON.stringify(updatedVisas));
-
-  const updatedAllEntries = [...newLedgerEntries, ...currentEntries];
-  localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(updatedAllEntries));
+  localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(allEntries));
 
   if (!isConfigPlaceholder) {
     try {
-      await setDoc(doc(db, DISTRIB_COLLECTION, distribution.id), distribution);
-      await Promise.all(createdInvoices.map((inv) => setDoc(doc(db, INVOICES_COLLECTION, inv.id), inv)));
-      await Promise.all(updatedVisas.map((v) => setDoc(doc(db, VISAS_COLLECTION, v.id), v)));
-      await Promise.all(newLedgerEntries.map((le) => setDoc(doc(db, ENTRIES_COLLECTION, le.id), le)));
-    } catch (e) {
-      console.warn('Could not sync distribution batch to Firestore:', e);
+      await Promise.all([
+        setDoc(doc(db, DISTRIB_COLLECTION, distribution.id), distribution),
+        ...createdInvoices.map((inv) => setDoc(doc(db, INVOICES_COLLECTION, inv.id), inv)),
+        ...updatedVisas.map((v) => setDoc(doc(db, VISAS_COLLECTION, v.id), v)),
+        ...newLedgerEntries.map((e) => setDoc(doc(db, ENTRIES_COLLECTION, e.id), e)),
+      ]);
+    } catch (err) {
+      console.warn('Could not sync visa distribution batch to Firestore:', err);
     }
   }
 
-  // Audit log entry
   await logAuditEvent({
     action: 'CREATE_VISA_DISTRIBUTION',
-    userId: 'system-operator',
+    userId: params.createdBy,
     userName: params.createdBy,
-    userEmail: 'operator@safardesk.com',
+    userEmail: '',
     userRole: 'owner',
-    details: {
-      message: `Distributed ${totalVisasAll} visas to ${agentBatches.size} agents from vendor ${params.vendorId}.`,
-      totalVisas: totalVisasAll,
-      totalBuyingSAR: totalBuyingAll,
-      totalSellingSAR: totalSellingAll,
-    },
+    targetUserId: distribId,
+    targetUserName: distribNo,
+    details: { totalVisas: totalVisasAll, totalSellingSAR: totalSellingAll, invoicesCreated: createdInvoices.length },
   });
 
   return { distribution, invoices: createdInvoices };
+}
+
+export async function markCommissionPaid(
+  actor: UserProfile,
+  invoiceId: string,
+  paymentAccountId: string
+): Promise<void> {
+  const invoices = await fetchVisaInvoices();
+  const invIndex = invoices.findIndex(i => i.id === invoiceId || i.invoiceNo === invoiceId);
+  if (invIndex === -1) throw new Error('Invoice not found');
+  const inv = invoices[invIndex];
+
+  if (!inv.commission || !inv.commission.enabled) {
+    throw new Error('This invoice has no active commission enabled.');
+  }
+  if (inv.commission.status === 'Paid') {
+    throw new Error('Commission is already marked as Paid.');
+  }
+
+  const now = new Date().toISOString();
+  const exchangeRate = inv.exchangeRate || 74.50;
+  const commSAR = inv.commission.amountSAR;
+
+  // Post balanced transaction: Dr Commission Expense (acc-sys-003) / Cr Cash-or-Bank (paymentAccountId)
+  await postBalancedTransaction({
+    date: now.split('T')[0],
+    entryType: 'Payment',
+    transNo: `COMM-${inv.invoiceNo}`,
+    particulars: `Commission payment for Invoice #${inv.invoiceNo} to ${inv.commission.recipientName}`,
+    invoiceRef: inv.invoiceNo,
+    rate: exchangeRate,
+    debitAccountId: 'acc-sys-003', // Commission Expense system account
+    creditAccountId: paymentAccountId, // Bank or Cash account selected by Owner
+    amountSAR: commSAR,
+    createdBy: actor.name || 'Owner',
+  });
+
+  inv.commission.status = 'Paid';
+  inv.commission.paidAt = now;
+
+  invoices[invIndex] = inv;
+  localStorage.setItem(LOCAL_STORAGE_INVOICES_KEY, JSON.stringify(invoices));
+
+  if (!isConfigPlaceholder) {
+    try {
+      await setDoc(doc(db, INVOICES_COLLECTION, inv.id), inv);
+    } catch (err) {
+      console.warn('Could not update invoice commission in Firestore:', err);
+    }
+  }
+
+  await logAuditEvent({
+    action: 'MARK_COMMISSION_PAID',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: inv.id,
+    targetUserName: inv.invoiceNo,
+    details: { recipientName: inv.commission.recipientName, amountSAR: commSAR },
+  });
 }

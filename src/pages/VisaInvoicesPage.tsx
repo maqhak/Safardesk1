@@ -25,10 +25,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
-import { fetchVisaInvoices, fetchVisaDistributions } from '../services/visaDistributionService';
+import { fetchVisaInvoices, markCommissionPaid } from '../services/visaDistributionService';
 import { fetchVendors } from '../services/masterService';
 import { fetchLedgerAccounts, fetchLedgerEntries } from '../services/accountingService';
-import { VisaInvoiceDoc, CommissionDetails } from '../types/visaDistribution';
+import { VisaInvoiceDoc } from '../types/visaDistribution';
 import { VendorDoc } from '../types/master';
 import { LedgerAccountDoc, LedgerEntryDoc } from '../types/accounting';
 import { useNavigate } from 'react-router-dom';
@@ -47,6 +47,7 @@ export const VisaInvoicesPage: React.FC = () => {
   const [agents, setAgents] = useState<LedgerAccountDoc[]>([]);
   const [vendors, setVendors] = useState<VendorDoc[]>([]);
   const [entries, setEntries] = useState<LedgerEntryDoc[]>([]);
+  const [ledgerAccounts, setLedgerAccounts] = useState<LedgerAccountDoc[]>([]);
 
   // Filter states
   const [search, setSearch] = useState<string>('');
@@ -62,7 +63,7 @@ export const VisaInvoicesPage: React.FC = () => {
   // Commission mark-paid modal state
   const [commissionModalOpen, setCommissionModalOpen] = useState<boolean>(false);
   const [invoiceForCommission, setInvoiceForCommission] = useState<VisaInvoiceDoc | null>(null);
-  const [paymentAccountType, setPaymentAccountType] = useState<'bank' | 'cash'>('bank');
+  const [selectedPaymentAccountId, setSelectedPaymentAccountId] = useState<string>('');
   const [commissionPaying, setCommissionPaying] = useState<boolean>(false);
 
   const loadData = async () => {
@@ -77,6 +78,7 @@ export const VisaInvoicesPage: React.FC = () => {
 
       setInvoices(invList);
       setAgents(accList.filter(a => a.accountType === 'agent' || a.accountCode.startsWith('AGT')));
+      setLedgerAccounts(accList);
       setVendors(vndList);
       setEntries(entList);
     } catch {
@@ -94,13 +96,18 @@ export const VisaInvoicesPage: React.FC = () => {
   const agentMap = useMemo(() => new Map(agents.map(a => [a.id, a])), [agents]);
   const vendorMap = useMemo(() => new Map(vendors.map(v => [v.id, v])), [vendors]);
 
+  // Cash or Bank accounts for marking commission paid
+  const cashOrBankAccounts = useMemo(() => {
+    return ledgerAccounts.filter(a => a.accountType === 'cash' || a.accountType === 'bank' || a.accountCode.startsWith('CSH') || a.accountCode.startsWith('BNK'));
+  }, [ledgerAccounts]);
+
   // Compute payments received against each invoice from ledger entries
   const invoicePaidMap = useMemo(() => {
     const map = new Map<string, number>();
     entries.forEach((e) => {
       if (!e.isVoid && e.invoiceRef && e.entryType === 'Payment') {
         const current = map.get(e.invoiceRef) || 0;
-        map.set(e.invoiceRef, current + (e.creditSAR || 0)); // payments credit the agent account / invoice
+        map.set(e.invoiceRef, current + (e.creditSAR || 0));
       }
     });
     return map;
@@ -147,11 +154,43 @@ export const VisaInvoicesPage: React.FC = () => {
     window.print();
   };
 
+  const handleOpenCommissionModal = (inv: VisaInvoiceDoc) => {
+    setInvoiceForCommission(inv);
+    setSelectedPaymentAccountId(cashOrBankAccounts[0]?.id || '');
+    setCommissionModalOpen(true);
+  };
+
+  const handleConfirmMarkCommissionPaid = async () => {
+    if (!invoiceForCommission || !selectedPaymentAccountId || !userProfile) {
+      showError('Please select a valid cash or bank payment account.');
+      return;
+    }
+
+    setCommissionPaying(true);
+    try {
+      await markCommissionPaid(userProfile, invoiceForCommission.id, selectedPaymentAccountId);
+      success(`Commission for invoice #${invoiceForCommission.invoiceNo} marked as Paid. Ledger posted.`);
+      setCommissionModalOpen(false);
+      setInvoiceForCommission(null);
+      loadData();
+      if (selectedInvoice && selectedInvoice.id === invoiceForCommission.id) {
+        // refresh selected invoice
+        const updatedList = await fetchVisaInvoices();
+        const refreshed = updatedList.find(i => i.id === selectedInvoice.id);
+        if (refreshed) setSelectedInvoice(refreshed);
+      }
+    } catch (err: any) {
+      showError(err.message || 'Failed to mark commission paid.');
+    } finally {
+      setCommissionPaying(false);
+    }
+  };
+
   return (
     <div className="space-y-6 print:space-y-2">
       <PageHeader
         title="Visa Distribution Invoices & Outstanding B2B Balances"
-        subtitle="Invoices generated automatically from visa distributions, with dual-currency double-entry ledger postings."
+        subtitle="Invoices generated automatically from visa distributions, with optional commission tracking and double-entry postings."
         breadcrumbs={[
           { label: 'Dashboard', href: '/' },
           { label: 'Visas', href: '/visas' },
@@ -273,6 +312,7 @@ export const VisaInvoicesPage: React.FC = () => {
                 <th className="py-3 px-3 text-right">Buying (SAR)</th>
                 <th className="py-3 px-3 text-right">Margin (SAR)</th>
                 <th className="py-3 px-3 text-right">Total (PKR)</th>
+                <th className="py-3 px-3 text-center">Commission</th>
                 <th className="py-3 px-3 text-center">Status</th>
                 <th className="py-3 px-3 text-center print:hidden">Action</th>
               </tr>
@@ -280,13 +320,13 @@ export const VisaInvoicesPage: React.FC = () => {
             <tbody className="divide-y divide-slate-200 bg-white">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-500">
+                  <td colSpan={11} className="py-12 text-center text-slate-500">
                     Loading invoices...
                   </td>
                 </tr>
               ) : filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-10 text-center text-slate-500">
+                  <td colSpan={11} className="py-10 text-center text-slate-500">
                     No distribution invoices found. Complete a visa distribution batch to generate invoices.
                   </td>
                 </tr>
@@ -296,6 +336,8 @@ export const VisaInvoicesPage: React.FC = () => {
                   const vendorObj = vendorMap.get(inv.vendorId);
                   const paidAmt = invoicePaidMap.get(inv.invoiceNo) || 0;
                   const isPaid = paidAmt >= inv.sellingTotalSAR - 0.01;
+                  const hasComm = inv.commission?.enabled;
+                  const commPaid = inv.commission?.status === 'Paid';
 
                   return (
                     <tr
@@ -328,6 +370,15 @@ export const VisaInvoicesPage: React.FC = () => {
                       <td className="py-2.5 px-3 text-right font-mono text-slate-700 whitespace-nowrap">
                         PKR {inv.totalsPKR.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         <div className="text-[10px] text-slate-400">@ {inv.exchangeRate}</div>
+                      </td>
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                        {hasComm ? (
+                          <Badge variant={commPaid ? 'success' : 'warning'} size="sm">
+                            {commPaid ? 'Comm. Paid' : `SAR ${inv.commission?.amountSAR} Unpaid`}
+                          </Badge>
+                        ) : (
+                          <span className="text-slate-400 text-[10px]">None</span>
+                        )}
                       </td>
                       <td className="py-2.5 px-3 text-center whitespace-nowrap">
                         <Badge
@@ -365,6 +416,16 @@ export const VisaInvoicesPage: React.FC = () => {
               Close
             </Button>
             <div className="flex items-center gap-2">
+              {selectedInvoice?.commission?.enabled && selectedInvoice.commission.status !== 'Paid' && isOwner && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="bg-[#c9a227] hover:bg-[#b08d20] text-slate-950 font-bold"
+                  onClick={() => handleOpenCommissionModal(selectedInvoice)}
+                >
+                  Mark Commission Paid →
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -444,6 +505,44 @@ export const VisaInvoicesPage: React.FC = () => {
               </table>
             </div>
 
+            {/* Commission Section */}
+            {selectedInvoice.commission?.enabled && (
+              <div className="p-4 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wide">Commission Details</h4>
+                  <Badge variant={selectedInvoice.commission.status === 'Paid' ? 'success' : 'warning'} size="sm">
+                    {selectedInvoice.commission.status === 'Paid' ? 'Paid' : 'Unpaid'}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-slate-700 pt-1">
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase block font-bold">Recipient:</span>
+                    <strong className="text-slate-900">{selectedInvoice.commission.recipientName}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase block font-bold">Contact:</span>
+                    <span className="font-mono">{selectedInvoice.commission.contactNumber}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase block font-bold">Commission Amount:</span>
+                    <strong className="font-mono text-[#c9a227]">SAR {selectedInvoice.commission.amountSAR.toLocaleString()}</strong>
+                  </div>
+                </div>
+                {selectedInvoice.commission.status !== 'Paid' && isOwner && (
+                  <div className="pt-2 text-right">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="bg-[#c9a227] hover:bg-[#b08d20] text-slate-950 font-bold"
+                      onClick={() => handleOpenCommissionModal(selectedInvoice)}
+                    >
+                      Mark Commission Paid (Dr Commission Expense / Cr Cash-or-Bank) →
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Financial Summary Box */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
@@ -481,6 +580,60 @@ export const VisaInvoicesPage: React.FC = () => {
 
             <div className="text-[11px] text-slate-500 italic text-center pt-2">
               Note: Payments against this invoice are received via Accounts (Payments) and updated automatically.
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Mark Commission Paid Modal (Owner picks Cash/Bank account) */}
+      <Modal
+        isOpen={commissionModalOpen}
+        onClose={() => setCommissionModalOpen(false)}
+        title={`Mark Commission Paid for Invoice #${invoiceForCommission?.invoiceNo}`}
+        subtitle="Select Cash or Bank payment account to post Dr Commission Expense / Cr Cash-or-Bank"
+        size="md"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setCommissionModalOpen(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleConfirmMarkCommissionPaid}
+              loading={commissionPaying}
+              className="bg-[#0e2c4c] hover:bg-[#1a4473] text-white font-bold"
+            >
+              Post & Mark Paid
+            </Button>
+          </div>
+        }
+      >
+        {invoiceForCommission && invoiceForCommission.commission && (
+          <div className="space-y-4 text-xs">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+              <span className="text-slate-500 uppercase text-[10px] font-bold block">Commission Recipient:</span>
+              <strong className="text-slate-900 text-sm">{invoiceForCommission.commission.recipientName} ({invoiceForCommission.commission.contactNumber})</strong>
+              <div className="font-mono text-[#c9a227] font-bold mt-1">Amount: SAR {invoiceForCommission.commission.amountSAR.toLocaleString()}</div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Select Source Cash or Bank Account *
+              </label>
+              <select
+                value={selectedPaymentAccountId}
+                onChange={(e) => setSelectedPaymentAccountId(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none"
+              >
+                <option value="">-- Select Cash Till / Bank Account --</option>
+                {cashOrBankAccounts.map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.title} ({acc.accountCode})
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-500">
+                This will automatically post a double-entry transaction: <strong>Dr Commission Expense</strong> / <strong>Cr Selected Cash/Bank Account</strong>.
+              </p>
             </div>
           </div>
         )}
