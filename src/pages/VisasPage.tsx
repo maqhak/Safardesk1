@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   FileCheck, 
   Plus, 
@@ -33,6 +34,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 export const VisasPage: React.FC = () => {
   const { success, error: showError, info } = useToast();
+  const navigate = useNavigate();
   const { userProfile } = useAuth();
   const canCreate = useCan('Visas', 'create');
 
@@ -406,6 +408,20 @@ export const VisasPage: React.FC = () => {
               onClick={() => setModalOpen(true)}
             >
               New Visa Application
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate('/visas/distribution')}
+              className="bg-[#c9a227] hover:bg-[#b8941f] text-[#0e2c4c] font-bold"
+              title="Group-code-wise manual distribution to B2B agents"
+            >
+              Distribute to Agents
+              {visas.filter(v => v.status !== 'Distributed').length > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full bg-[#0e2c4c] text-white text-[11px] font-bold">
+                  {visas.filter(v => v.status !== 'Distributed').length}
+                </span>
+              )}
             </Button>
           </div>
         }
