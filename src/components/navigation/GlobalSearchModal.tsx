@@ -10,6 +10,8 @@ import { Badge } from '../ui/Badge';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchVouchers } from '../../services/voucherService';
 import { fetchVendors } from '../../services/masterService';
+import { fetchVisas } from '../../services/visaService';
+import { fetchVisaDistributions } from '../../services/visaDistributionService';
 import { VoucherDoc } from '../../types/voucher';
 import { VendorDoc } from '../../types/master';
 
@@ -22,6 +24,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
   const [query, setQuery] = useState('');
   const [vouchers, setVouchers] = useState<VoucherDoc[]>([]);
   const [vendors, setVendors] = useState<VendorDoc[]>([]);
+  const [visaMeta, setVisaMeta] = useState<Map<string, { groupCode: string; shirka: string }>>(new Map());
   const [loading, setLoading] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   
@@ -32,10 +35,26 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
     if (isOpen) {
       setQuery('');
       setLoading(true);
-      Promise.all([fetchVouchers(), fetchVendors()])
-        .then(([vList, vndList]) => {
+      Promise.all([fetchVouchers(), fetchVendors(), fetchVisas(), fetchVisaDistributions()])
+        .then(([vList, vndList, visaList, distList]) => {
           setVouchers(vList);
           setVendors(vndList);
+          // Fix #25: resolve real group codes + shirka names from visa/distribution data
+          const vndMap = new Map(vndList.map(v => [v.id, v.name]));
+          const meta = new Map<string, { groupCode: string; shirka: string }>();
+          visaList.forEach(v => {
+            meta.set(v.id, { groupCode: v.groupCode || '', shirka: '' });
+          });
+          distList.forEach(d => {
+            const shirka = vndMap.get(d.vendorId) || '';
+            (d.groups || []).forEach(g => {
+              (g.visaIds || []).forEach(vid => {
+                const cur = meta.get(vid) || { groupCode: g.groupCode || '', shirka: '' };
+                meta.set(vid, { groupCode: cur.groupCode || g.groupCode || '', shirka: shirka || cur.shirka });
+              });
+            });
+          });
+          setVisaMeta(meta);
         })
         .finally(() => setLoading(false));
 
@@ -74,11 +93,18 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       groupCode: string;
     }> = [];
 
+    const resolveMeta = (v: VoucherDoc): { groupCode: string; shirka: string } => {
+      for (const vid of v.visaIds || []) {
+        const m = visaMeta.get(vid);
+        if (m && (m.groupCode || m.shirka)) return m;
+      }
+      return { groupCode: '', shirka: '' };
+    };
+
     accessibleVouchers.forEach((v) => {
       const voucherNo = (v.voucherNo || '').toLowerCase();
-      const groupCode = (v as any).groupCode || 'GRP-DEFAULT';
-      const vendorId = (v as any).vendorId;
-      const shirkaName = (vendorId ? vendorMap.get(vendorId) : '') || v.hotelStays?.[0]?.hotelName || 'Official Shirka Partner';
+      const { groupCode, shirka } = resolveMeta(v);
+      const shirkaName = shirka;
       const shirkaLower = shirkaName.toLowerCase();
 
       let matchedPassenger = v.passengers?.[0];
@@ -212,10 +238,12 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                       <span className="font-mono font-bold text-[#0e2c4c] text-sm group-hover:underline">
                         {voucher.voucherNo}
                       </span>
-                      <Badge variant="navy" size="sm">{groupCode}</Badge>
-                      <span className="text-[11px] text-slate-500 font-medium">
-                        Shirka: <strong>{shirkaName}</strong>
-                      </span>
+                      <Badge variant="navy" size="sm">{groupCode || '—'}</Badge>
+                      {shirkaName ? (
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          Shirka: <strong>{shirkaName}</strong>
+                        </span>
+                      ) : null}
                     </div>
                     <div className="text-xs font-semibold text-slate-900">
                       Passenger: {matchedPassenger?.name || voucher.passengers?.[0]?.name || 'N/A'} 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Building, 
   Plus, 
@@ -139,6 +139,21 @@ export const VouchersPage: React.FC = () => {
     setSelectedVoucher(v);
     setDetailModalOpen(true);
   });
+
+  // Fix #25: global search result click opens the voucher directly
+  const location = useLocation() as any;
+  React.useEffect(() => {
+    const highlight = location?.state?.highlightVoucherNo;
+    if (highlight && vouchers.length > 0) {
+      const found = vouchers.find(v => v.voucherNo === highlight);
+      if (found) {
+        setSelectedVoucher(found);
+        setDetailModalOpen(true);
+        window.history.replaceState({}, document.title);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vouchers]);
 
   // Verification Lists Modal
   const [verificationModalOpen, setVerificationModalOpen] = useState<boolean>(false);
