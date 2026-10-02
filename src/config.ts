@@ -72,7 +72,7 @@ export const TENANT: TenantConfig = {
  * otherwise it activates a graceful demo/preview authentication mode so reviewers
  * can test every feature and role seamlessly.
  */
-export const firebaseConfig: FirebaseConfig = {
+const envFirebaseConfig: FirebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDemo-SafarDesk-TravelCRM-PlaceholderKey',
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'safardesk-travel-crm.firebaseapp.com',
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'safardesk-travel-crm',
@@ -81,6 +81,59 @@ export const firebaseConfig: FirebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:109233182682:web:7f6d2b89c301ae420',
   firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || '(default)',
 };
+
+
+/**
+ * Easy Firebase Connect: an owner can paste the project's web config JSON once
+ * in Settings > Firebase Backend — it is saved in this browser (localStorage)
+ * and used instead of the build-time .env values. No rebuild needed.
+ */
+const CUSTOM_FIREBASE_CONFIG_KEY = 'safardesk_firebase_config';
+
+function loadCustomFirebaseConfig(): FirebaseConfig | null {
+  try {
+    const raw = localStorage.getItem(CUSTOM_FIREBASE_CONFIG_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.apiKey === 'string' && typeof parsed.authDomain === 'string' && typeof parsed.projectId === 'string') {
+      return {
+        apiKey: parsed.apiKey,
+        authDomain: parsed.authDomain,
+        projectId: parsed.projectId,
+        storageBucket: typeof parsed.storageBucket === 'string' ? parsed.storageBucket : '',
+        messagingSenderId: typeof parsed.messagingSenderId === 'string' ? parsed.messagingSenderId : '',
+        appId: typeof parsed.appId === 'string' ? parsed.appId : '',
+        firestoreDatabaseId: typeof parsed.databaseId === 'string' ? parsed.databaseId : '(default)',
+      };
+    }
+  } catch { /* ignore malformed saved config */ }
+  return null;
+}
+
+export function getFirebaseConfigSource(): 'custom' | 'env' {
+  return loadCustomFirebaseConfig() ? 'custom' : 'env';
+}
+
+export function saveCustomFirebaseConfig(jsonText: string): FirebaseConfig {
+  let parsed: any;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch {
+    throw new Error('Ye valid JSON nahi hai. Firebase Console > Project Settings > "Your apps" se web config copy kar ke paste karein.');
+  }
+  const cfg = parsed?.firebaseConfig || parsed;
+  if (!cfg?.apiKey || !cfg?.authDomain || !cfg?.projectId) {
+    throw new Error('Config mein apiKey, authDomain aur projectId hona zaroori hai.');
+  }
+  localStorage.setItem(CUSTOM_FIREBASE_CONFIG_KEY, JSON.stringify(cfg));
+  return cfg;
+}
+
+export function clearCustomFirebaseConfig(): void {
+  localStorage.removeItem(CUSTOM_FIREBASE_CONFIG_KEY);
+}
+
+export const firebaseConfig: FirebaseConfig = loadCustomFirebaseConfig() || envFirebaseConfig;
 
 export const TENANT_KEY = import.meta.env.VITE_TENANT_KEY || 'safardesk-default-tenant';
 // Fix #31: demo backdoor is gated behind VITE_DEMO_MODE (default off).

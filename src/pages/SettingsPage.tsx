@@ -20,10 +20,11 @@ import { Card, CardHeader } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
-import { TENANT, firebaseConfig } from '../config';
+import { TENANT, firebaseConfig, getFirebaseConfigSource, saveCustomFirebaseConfig, clearCustomFirebaseConfig } from '../config';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { isConfigPlaceholder } from '../services/firebase';
+import { isConfigPlaceholder, db } from '../services/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import { 
   getDriveIntegration, 
   connectGoogleDrive, 
@@ -97,6 +98,50 @@ export const SettingsPage: React.FC = () => {
     } catch (err: any) {
       showError(err?.message || 'Failed to remove Gemini API key.');
     }
+  };
+
+  // Easy Firebase Connect (owner only)
+  const [fbJson, setFbJson] = useState<string>('');
+  const [fbTesting, setFbTesting] = useState<boolean>(false);
+  const [fbStatus, setFbStatus] = useState<string | null>(null);
+  const fbSource = getFirebaseConfigSource();
+
+  const handleTestFirebase = async () => {
+    setFbTesting(true);
+    setFbStatus(null);
+    try {
+      await getDoc(doc(db, 'settings', 'integrations'));
+      setFbStatus('Connected — backend reachable, project: ' + firebaseConfig.projectId);
+      success('Firebase backend connected.');
+    } catch (err: any) {
+      const code = err?.code || '';
+      if (code === 'permission-denied' || code === 'unauthenticated') {
+        setFbStatus('Backend reachable (project: ' + firebaseConfig.projectId + ') — sign in as owner to read settings.');
+        success('Backend reachable.');
+      } else {
+        setFbStatus('Not reachable: ' + (err?.message || 'network error'));
+        showError('Firebase backend not reachable. Check the project config.');
+      }
+    } finally {
+      setFbTesting(false);
+    }
+  };
+
+  const handleSaveFirebaseConfig = () => {
+    try {
+      saveCustomFirebaseConfig(fbJson);
+      success('Firebase config saved. Reconnecting…');
+      setTimeout(() => window.location.reload(), 800);
+    } catch (err: any) {
+      showError(err?.message || 'Invalid config.');
+    }
+  };
+
+  const handleClearFirebaseConfig = () => {
+    if (!confirm('Custom Firebase config hata dun? App wapas build-time (.env) config par chali jayegi.')) return;
+    clearCustomFirebaseConfig();
+    info('Custom config cleared. Reloading…');
+    setTimeout(() => window.location.reload(), 800);
   };
 
   const handleDisconnectDrive = async () => {
@@ -246,6 +291,71 @@ export const SettingsPage: React.FC = () => {
                   Current benchmark: <strong>1.00 SAR = {Number(exchangeRate || 74.5).toFixed(2)} PKR</strong>. Individual sub-agent transactions can override the locked spot rate upon invoice finalization.
                 </p>
               </div>
+            </div>
+          </Card>
+
+          {/* Easy Firebase Connect — owner only */}
+          <Card padding="lg" className="border-slate-200">
+            <CardHeader
+              title="Firebase Backend"
+              subtitle="One-click connect: paste your project's web config — no rebuild, no .env editing"
+            />
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700">Status</span>
+                <Badge variant={isConfigPlaceholder ? 'warning' : 'success'} dot>
+                  {isConfigPlaceholder ? 'Demo / Placeholder' : 'Connected'}
+                </Badge>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Project ID:</span>
+                  <strong className="font-mono text-slate-800">{firebaseConfig.projectId}</strong>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Config source:</span>
+                  <span className="font-mono text-[11px] text-slate-700">{fbSource === 'custom' ? 'Custom (Settings)' : 'Build-time (.env)'}</span>
+                </div>
+                {fbStatus && (
+                  <div className="pt-1 text-[11px] text-slate-600">{fbStatus}</div>
+                )}
+              </div>
+
+              {role === 'owner' ? (
+                <div className="space-y-3">
+                  <Button variant="outline" size="sm" onClick={handleTestFirebase} loading={fbTesting} leftIcon={<RefreshCw className="w-3.5 h-3.5" />}>
+                    Test Connection
+                  </Button>
+                  <div>
+                    <label className="block text-[11px] uppercase font-bold text-slate-500 mb-1">Connect a different project</label>
+                    <textarea
+                      value={fbJson}
+                      onChange={(e) => setFbJson(e.target.value)}
+                      placeholder={'Paste Firebase web config JSON here…\n{ "apiKey": "AIza…", "authDomain": "….firebaseapp.com", "projectId": "…" }'}
+                      rows={4}
+                      className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono focus:outline-none"
+                      spellCheck={false}
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Firebase Console → Project Settings → "Your apps" → web app → config copy karein. Save karte hi app reconnect ho jayegi.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="primary" size="sm" onClick={handleSaveFirebaseConfig} disabled={!fbJson.trim()} leftIcon={<Database className="w-3.5 h-3.5" />}>
+                      Save &amp; Reconnect
+                    </Button>
+                    {fbSource === 'custom' && (
+                      <Button variant="outline" size="sm" onClick={handleClearFirebaseConfig}>
+                        Back to .env config
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-800">
+                  Only the Agency Owner can connect or switch the Firebase backend.
+                </div>
+              )}
             </div>
           </Card>
 
