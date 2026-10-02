@@ -85,6 +85,7 @@ export interface DriveIntegrationDoc {
   receivedFolderId: string | null;   // "Receipt/Received" folder
   sentFolderId: string | null;       // "Receipt/Sent" folder
   refreshToken?: string | null;
+  geminiApiKey?: string | null; // Fix #33: owner-only Gemini key for production AI receipt verification (never committed)
   lastAuthAt?: string | null; // last successful Drive OAuth (re)authorization
   isActive: boolean;
   updatedAt: string;

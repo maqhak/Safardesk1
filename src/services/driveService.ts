@@ -440,6 +440,102 @@ export async function uploadReceiptToDrive(params: {
 }
 
 /**
+ * Fix #33 — owner-only Gemini API key management for production AI verification.
+ * The key lives in settings/integrations (Firestore rule: owner-only) and is
+ * never committed to the repo.
+ */
+export async function saveGeminiApiKey(apiKey: string): Promise<void> {
+  const key = apiKey.trim();
+  if (!key) throw new Error('Please paste a valid Gemini API key.');
+  const integration = await getDriveIntegration();
+  const updated: DriveIntegrationDoc = { ...integration, geminiApiKey: key, updatedAt: new Date().toISOString() };
+  localStorage.setItem(LOCAL_STORAGE_INTEGRATION_KEY, JSON.stringify(updated));
+  try {
+    if (!isConfigPlaceholder) {
+      await setDoc(doc(db, INTEGRATIONS_DOC_PATH), updated);
+    }
+  } catch (err) {
+    console.warn('Could not save Gemini key to Firestore:', err);
+  }
+}
+
+export async function clearGeminiApiKey(): Promise<void> {
+  const integration = await getDriveIntegration();
+  const updated: DriveIntegrationDoc = { ...integration, geminiApiKey: null, updatedAt: new Date().toISOString() };
+  localStorage.setItem(LOCAL_STORAGE_INTEGRATION_KEY, JSON.stringify(updated));
+  try {
+    if (!isConfigPlaceholder) {
+      await setDoc(doc(db, INTEGRATIONS_DOC_PATH), updated);
+    }
+  } catch (err) {
+    console.warn('Could not clear Gemini key in Firestore:', err);
+  }
+}
+
+/**
+ * Fix #33 — production-capable Gemini verification (direct API call).
+ * Used when the dev-only /api/verify-receipt endpoint is unreachable and an
+ * owner has configured a Gemini key in Settings > Integrations.
+ */
+async function verifyWithGeminiDirect(params: {
+  fileDataUrl: string;
+  expectedDate: string;
+  amountSAR?: number;
+  apiKey: string;
+}): Promise<AiVerificationResult> {
+  const mimeMatch = params.fileDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+  const b64 = mimeMatch ? mimeMatch[2] : params.fileDataUrl;
+
+  const prompt = `You are a strict receipt verification assistant for a travel agency's accounts department.
+Analyze the attached receipt image and respond with ONLY a JSON object (no markdown, no extra text) with these exact keys:
+{
+  "isReadable": true/false (is the image clear enough to read?),
+  "isAuthenticReceipt": true/false (does it look like a genuine payment receipt / bank slip, not a random photo or dummy image?),
+  "extractedDate": "YYYY-MM-DD" or null (the transaction date printed on the receipt),
+  "dateMatches": true/false (does the extracted date match the expected payment date?),
+  "notes": "one short sentence explaining the verdict"
+}
+Expected payment date: ${params.expectedDate}${params.amountSAR ? `, expected amount: SAR ${params.amountSAR}` : ''}.`;
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(params.apiKey)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType, data: b64 } }] }],
+        generationConfig: { responseMimeType: 'application/json', temperature: 0.1 },
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Gemini API error ${res.status}: ${errText.substring(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+  let parsed: any = {};
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error('Gemini returned a non-JSON verdict.');
+  }
+
+  const verified = parsed.isReadable === true && parsed.isAuthenticReceipt === true && parsed.dateMatches === true;
+  return {
+    aiStatus: verified ? 'Verified' : 'Needs Review',
+    aiExtractedDate: parsed.extractedDate || null,
+    aiNotes: parsed.notes || (verified ? 'Gemini verified: readable receipt, authentic format, date matches.' : 'Gemini flagged this receipt for owner review.'),
+    isReadable: parsed.isReadable === true,
+    isAuthenticReceipt: parsed.isAuthenticReceipt === true,
+    dateMatches: parsed.dateMatches === true,
+  };
+}
+
+/**
  * Server-Side AI Verification via Gemini Vision API
  * Checks readability, authentic receipt format, and date matching
  */
@@ -448,6 +544,7 @@ export async function verifyReceiptWithAI(params: {
   expectedDate: string;
   amountSAR?: number;
 }): Promise<AiVerificationResult> {
+  // 1. Dev-server endpoint (only exists on the local dev server)
   try {
     const res = await fetch('/api/verify-receipt', {
       method: 'POST',
@@ -461,12 +558,23 @@ export async function verifyReceiptWithAI(params: {
       }),
     });
 
-    if (!res.ok) {
-      throw new Error(`AI verification server returned status ${res.status}`);
+    if (res.ok) {
+      const data: AiVerificationResult = await res.json();
+      return data;
     }
+    throw new Error(`AI verification server returned status ${res.status}`);
+  } catch (devErr: any) {
+    console.warn('Dev AI endpoint unavailable, trying production path:', devErr?.message);
+  }
 
-    const data: AiVerificationResult = await res.json();
-    return data;
+  // 2. Fix #33: production path — direct Gemini call with the owner's configured key
+  try {
+    const integration = await getDriveIntegration();
+    const apiKey = integration.geminiApiKey;
+    if (!apiKey) {
+      throw new Error('No Gemini API key configured. The Agency Owner can add one in Settings > Integrations.');
+    }
+    return await verifyWithGeminiDirect({ ...params, apiKey });
   } catch (err: any) {
     console.warn('AI receipt verification fallback:', err);
     return {

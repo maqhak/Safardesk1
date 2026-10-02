@@ -27,7 +27,9 @@ import { isConfigPlaceholder } from '../services/firebase';
 import { 
   getDriveIntegration, 
   connectGoogleDrive, 
-  disconnectGoogleDrive 
+  disconnectGoogleDrive,
+  saveGeminiApiKey,
+  clearGeminiApiKey
 } from '../services/driveService';
 import { DriveIntegrationDoc } from '../types/payment';
 
@@ -45,6 +47,9 @@ export const SettingsPage: React.FC = () => {
 
   // Drive integration state
   const [driveIntegration, setDriveIntegration] = useState<DriveIntegrationDoc | null>(null);
+  // Fix #33: owner-only Gemini key for production AI receipt verification
+  const [geminiKeyInput, setGeminiKeyInput] = useState<string>('');
+  const [savingGeminiKey, setSavingGeminiKey] = useState<boolean>(false);
   const [connectingDrive, setConnectingDrive] = useState<boolean>(false);
 
   useEffect(() => {
@@ -64,6 +69,33 @@ export const SettingsPage: React.FC = () => {
       showError(err.message || 'Failed to connect Google Drive.');
     } finally {
       setConnectingDrive(false);
+    }
+  };
+
+  const handleSaveGeminiKey = async () => {
+    setSavingGeminiKey(true);
+    try {
+      await saveGeminiApiKey(geminiKeyInput);
+      const updated = await getDriveIntegration();
+      setDriveIntegration(updated);
+      setGeminiKeyInput('');
+      success('Gemini API key saved. Production AI receipt verification is now active.');
+    } catch (err: any) {
+      showError(err?.message || 'Failed to save Gemini API key.');
+    } finally {
+      setSavingGeminiKey(false);
+    }
+  };
+
+  const handleClearGeminiKey = async () => {
+    if (!confirm('Remove the Gemini API key? AI verification will fall back to manual owner review.')) return;
+    try {
+      await clearGeminiApiKey();
+      const updated = await getDriveIntegration();
+      setDriveIntegration(updated);
+      info('Gemini API key removed.');
+    } catch (err: any) {
+      showError(err?.message || 'Failed to remove Gemini API key.');
     }
   };
 
@@ -304,6 +336,60 @@ export const SettingsPage: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+          </Card>
+          {/* Fix #33: AI Receipt Verification (Gemini) — owner only, production path */}
+          <Card padding="lg" className="border-slate-200">
+            <CardHeader
+              title="AI Receipt Verification (Gemini)"
+              subtitle="Production AI checks run through your own Gemini API key — the key is stored owner-only and never committed to code"
+            />
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700">Production AI Status</span>
+                <Badge variant={driveIntegration?.geminiApiKey ? 'success' : 'neutral'} dot>
+                  {driveIntegration?.geminiApiKey ? 'Active' : 'Not Configured'}
+                </Badge>
+              </div>
+
+              {role === 'owner' ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] uppercase font-bold text-slate-500 mb-1">Gemini API Key</label>
+                    <input
+                      type="password"
+                      value={geminiKeyInput}
+                      onChange={(e) => setGeminiKeyInput(e.target.value)}
+                      placeholder={driveIntegration?.geminiApiKey ? '•••••••••••• (key saved — paste a new one to replace)' : 'Paste your Gemini API key (AIza...)'}
+                      className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono focus:outline-none"
+                      autoComplete="off"
+                    />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Get a free key at Google AI Studio (aistudio.google.com). Receipts are verified for readability, authentic format, and date match.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleSaveGeminiKey}
+                      loading={savingGeminiKey}
+                      disabled={!geminiKeyInput.trim()}
+                    >
+                      Save Key
+                    </Button>
+                    {driveIntegration?.geminiApiKey && (
+                      <Button variant="outline" size="sm" onClick={handleClearGeminiKey}>
+                        Remove Key
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-800">
+                  Only the Agency Owner can configure the AI verification key.
+                </div>
+              )}
             </div>
           </Card>
         </div>
