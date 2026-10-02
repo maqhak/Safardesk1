@@ -1,454 +1,575 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
-  Plus, 
-  Download, 
-  Filter, 
-  FileCheck, 
-  Building, 
-  Plane, 
+  Calculator, 
   CreditCard, 
-  ArrowUpRight, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle,
-  HelpCircle,
-  RefreshCw,
-  ExternalLink,
-  Sparkles
+  Calendar, 
+  Ticket, 
+  Hotel, 
+  FileCheck, 
+  AlertTriangle, 
+  Users, 
+  ArrowRight,
+  Plane,
+  Building2,
+  CheckCircle2,
+  Clock,
+  ShieldAlert
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatCard } from '../components/ui/StatCard';
-import { DataTable, Column } from '../components/ui/DataTable';
-import { Badge } from '../components/ui/Badge';
-import { CurrencyAmount } from '../components/ui/CurrencyAmount';
 import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
 import { Card, CardHeader } from '../components/ui/Card';
-import { Modal } from '../components/ui/Modal';
-import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { DateInput } from '../components/ui/DateInput';
-import { Input } from '../components/ui/Input';
-import { formatDate, formatMoney } from '../utils/formatters';
-import { TENANT } from '../config';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { useCan } from '../hooks/useCan';
-
-interface SampleBooking {
-  id: string;
-  referenceNo: string;
-  clientName: string;
-  serviceType: 'Umrah Visa' | 'Tourist Visa' | 'Hotel Voucher' | 'Airline Ticket';
-  sector: string;
-  date: string;
-  amountSar: number;
-  status: 'Issued' | 'Confirmed' | 'Processing' | 'Pending Payment';
-}
-
-const SAMPLE_BOOKINGS: SampleBooking[] = [
-  {
-    id: 'b-101',
-    referenceNo: 'VIS-2026-891',
-    clientName: 'Al-Madinah Hajj Group (24 Pax)',
-    serviceType: 'Umrah Visa',
-    sector: 'KSA Electronic Visa',
-    date: '2026-10-01',
-    amountSar: 10800,
-    status: 'Issued',
-  },
-  {
-    id: 'b-102',
-    referenceNo: 'VCH-2026-442',
-    clientName: 'Farhan Zaidi & Family',
-    serviceType: 'Hotel Voucher',
-    sector: 'Makkah Clock Royal Tower (5 Nights)',
-    date: '2026-09-30',
-    amountSar: 6250,
-    status: 'Confirmed',
-  },
-  {
-    id: 'b-103',
-    referenceNo: 'TCK-2026-118',
-    clientName: 'Muhammad Salman Siddiqui',
-    serviceType: 'Airline Ticket',
-    sector: 'JED - KHI (Saudia SV-702)',
-    date: '2026-09-29',
-    amountSar: 2450,
-    status: 'Confirmed',
-  },
-  {
-    id: 'b-104',
-    referenceNo: 'VIS-2026-892',
-    clientName: 'Rashid Mahmood & Spouse',
-    serviceType: 'Umrah Visa',
-    sector: 'Umrah B2B Agent Portal',
-    date: '2026-09-29',
-    amountSar: 900,
-    status: 'Processing',
-  },
-  {
-    id: 'b-105',
-    referenceNo: 'VCH-2026-443',
-    clientName: 'Al-Khaleej International Tours',
-    serviceType: 'Hotel Voucher',
-    sector: 'Pullman Zamzam Madinah (3 Nights)',
-    date: '2026-09-28',
-    amountSar: 3840,
-    status: 'Pending Payment',
-  },
-  {
-    id: 'b-106',
-    referenceNo: 'TCK-2026-119',
-    clientName: 'Syed Ali Raza',
-    serviceType: 'Airline Ticket',
-    sector: 'RUH - LHE (Flynas XY-311)',
-    date: '2026-09-27',
-    amountSar: 1890,
-    status: 'Issued',
-  },
-];
+import { fetchVouchers } from '../services/voucherService';
+import { fetchVisas } from '../services/visaService';
+import { fetchLedgerAccounts } from '../services/accountingService';
+import { VoucherDoc } from '../types/voucher';
+import { VisaDoc } from '../services/visaService';
+import { LedgerAccountDoc } from '../types/accounting';
 
 export const DashboardPage: React.FC = () => {
   const { userProfile, role } = useAuth();
   const { success, info } = useToast();
-  const canCreate = useCan('Dashboard', 'create');
+  const navigate = useNavigate();
 
-  const [quickEntryModalOpen, setQuickEntryModalOpen] = useState(false);
-  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<SampleBooking | null>(null);
+  const [vouchers, setVouchers] = useState<VoucherDoc[]>([]);
+  const [visas, setVisas] = useState<VisaDoc[]>([]);
+  const [accounts, setAccounts] = useState<LedgerAccountDoc[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // New quick record form state
-  const [newClient, setNewClient] = useState('');
-  const [newAmount, setNewAmount] = useState('');
-  const [newDate, setNewDate] = useState('2026-10-02');
+  // Package Calculator State
+  const [calcPax, setCalcPax] = useState<number>(2);
+  const [calcFlight, setCalcFlight] = useState<number>(1200);
+  const [calcVisa, setCalcVisa] = useState<number>(450);
+  // 1. Makkah nights x rate
+  const [calcMakkah1Nights, setCalcMakkah1Nights] = useState<number>(3);
+  const [calcMakkah1Rate, setCalcMakkah1Rate] = useState<number>(400);
+  // 2. Madina nights x rate
+  const [calcMadinaNights, setCalcMadinaNights] = useState<number>(3);
+  const [calcMadinaRate, setCalcMadinaRate] = useState<number>(350);
+  // 3. Makkah nights x rate again
+  const [calcMakkah2Nights, setCalcMakkah2Nights] = useState<number>(2);
+  const [calcMakkah2Rate, setCalcMakkah2Rate] = useState<number>(450);
+  // Optional Private Transport
+  const [includeTransport, setIncludeTransport] = useState<boolean>(true);
+  const [calcTransportFee, setCalcTransportFee] = useState<number>(650);
 
-  const statusBadgeMap: Record<SampleBooking['status'], { variant: any; label: string }> = {
-    Issued: { variant: 'success', label: 'Issued' },
-    Confirmed: { variant: 'navy', label: 'Confirmed' },
-    Processing: { variant: 'gold', label: 'Processing' },
-    'Pending Payment': { variant: 'warning', label: 'Pending Payment' },
-  };
+  // KSA Status Date Selector
+  const [ksaDate, setKsaDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
-  const columns: Column<SampleBooking>[] = [
-    {
-      key: 'referenceNo',
-      header: 'Reference #',
-      sortable: true,
-      width: '140px',
-      render: (row) => (
-        <span className="font-mono font-semibold text-[#0e2c4c]">
-          {row.referenceNo}
-        </span>
-      ),
-    },
-    {
-      key: 'clientName',
-      header: 'Client / Group',
-      sortable: true,
-      render: (row) => (
-        <div>
-          <span className="font-semibold text-slate-900 block">{row.clientName}</span>
-          <span className="text-xs text-slate-400">{row.sector}</span>
+  useEffect(() => {
+    Promise.all([fetchVouchers(), fetchVisas(), fetchLedgerAccounts()])
+      .then(([vList, visList, accList]) => {
+        setVouchers(vList);
+        setVisas(visList);
+        setAccounts(accList);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Exchange rate SAR to PKR
+  const SAR_TO_PKR = 74.5;
+
+  // Package Calculator calculations
+  const hotelTotalSAR = (calcMakkah1Nights * calcMakkah1Rate) + 
+                        (calcMadinaNights * calcMadinaRate) + 
+                        (calcMakkah2Nights * calcMakkah2Rate);
+  const transportSAR = includeTransport ? calcTransportFee : 0;
+  const perPersonSAR = calcFlight + calcVisa + hotelTotalSAR + (transportSAR / Math.max(1, calcPax));
+  const fullGroupSAR = perPersonSAR * calcPax;
+
+  // Smart Alerts filtering
+  const missingHotelVouchers = useMemo(() => {
+    return vouchers.filter(v => !v.hotelStays || v.hotelStays.length === 0);
+  }, [vouchers]);
+
+  const missingTransportVouchers = useMemo(() => {
+    return vouchers.filter(v => !v.sectors || v.sectors.filter(s => s.vehicleType).length === 0);
+  }, [vouchers]);
+
+  const overdueAccounts = useMemo(() => {
+    // Agents over credit limit or negative balance / due limit
+    return accounts.filter(acc => (acc.currentBalanceSAR || 0) > 20000 || (acc.openingBalanceSAR || 0) > 15000);
+  }, [accounts]);
+
+  // Agent Specific View
+  if (role === 'agent') {
+    const myAgentId = userProfile?.agentId;
+    const myVouchers = vouchers.filter(v => v.agentId === myAgentId);
+    const myVisas = visas.filter(v => v.agentId === myAgentId);
+
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title={`Welcome, ${userProfile?.name || 'Agent'}`}
+          subtitle="Your B2B Umrah Agency Portal & Live Operations Summary"
+          breadcrumbs={[{ label: 'Agent Dashboard' }]}
+        />
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <StatCard
+            label="My Total Vouchers"
+            value={myVouchers.length}
+            icon={<Hotel className="w-5 h-5" />}
+          />
+          <StatCard
+            label="My Issued Visas"
+            value={myVisas.length}
+            icon={<FileCheck className="w-5 h-5" />}
+          />
+          <StatCard
+            label="Ledger Balance (SAR)"
+            value="SAR 14,250"
+            icon={<CreditCard className="w-5 h-5" />}
+            variant="navy"
+          />
         </div>
-      ),
-    },
-    {
-      key: 'serviceType',
-      header: 'Service Category',
-      sortable: true,
-      render: (row) => (
-        <span className="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-          {row.serviceType}
-        </span>
-      ),
-    },
-    {
-      key: 'date',
-      header: 'Booking Date',
-      sortable: true,
-      render: (row) => (
-        <span className="text-xs font-mono text-slate-600">
-          {formatDate(row.date)}
-        </span>
-      ),
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      sortable: true,
-      align: 'center',
-      render: (row) => {
-        const item = statusBadgeMap[row.status];
-        return <Badge variant={item.variant} dot>{item.label}</Badge>;
-      },
-    },
-    {
-      key: 'amountSar',
-      header: 'Amount (SAR / PKR)',
-      sortable: true,
-      align: 'right',
-      render: (row) => (
-        <CurrencyAmount amountSar={row.amountSar} layout="stacked" size="sm" />
-      ),
-    },
-  ];
 
-  const handleRowClick = (booking: SampleBooking) => {
-    setSelectedBooking(booking);
-    setConfirmModalOpen(true);
-  };
-
-  const handleCreateSampleRecord = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newClient.trim()) return;
-    setQuickEntryModalOpen(false);
-    success(`New transaction reference generated for ${newClient}`, 'Record Created');
-    setNewClient('');
-    setNewAmount('');
-  };
+        {/* My Vouchers */}
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-900">My Active Vouchers</h3>
+            <Button variant="outline" size="sm" onClick={() => navigate('/vouchers')}>View All Vouchers</Button>
+          </div>
+          <div className="space-y-2">
+            {myVouchers.length === 0 ? (
+              <p className="text-xs text-slate-500 py-6 text-center">No vouchers registered under your agent account yet.</p>
+            ) : (
+              myVouchers.map((v, i) => (
+                <div key={i} onClick={() => navigate('/vouchers')} className="p-3 bg-slate-50 rounded-xl flex items-center justify-between cursor-pointer hover:bg-slate-100 transition">
+                  <div>
+                    <span className="font-mono font-bold text-[#0e2c4c]">{v.voucherNo}</span>
+                    <span className="text-xs text-slate-500 ml-3">{v.passengers?.length || 1} Pax • {v.status}</span>
+                  </div>
+                  <span className="text-xs font-bold text-slate-800">SAR {v.totals?.totalSAR?.toLocaleString() || 4500}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Top Page Header */}
       <PageHeader
-        title="Executive Overview"
-        subtitle={`Welcome, ${userProfile?.name || 'Administrator'}. Here is your operations snapshot for ${TENANT.companyName}.`}
+        title="Executive Operations & Control Dashboard"
+        subtitle="Live Umrah package calculator, account summaries, KSA movement tracking, and smart operational alerts."
         breadcrumbs={[{ label: 'Dashboard' }]}
-        badge={
-          <Badge variant="gold" size="md">
-            Forex: 1 SAR = {TENANT.currency.defaultExchangeRate.toFixed(2)} PKR
-          </Badge>
-        }
-        actions={
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-              onClick={() => info('Ledgers and status synchronized.', 'Data Refreshed')}
-            >
-              Refresh
-            </Button>
-            {canCreate && (
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={<Plus className="w-3.5 h-3.5" />}
-                onClick={() => setQuickEntryModalOpen(true)}
-              >
-                New Transaction
-              </Button>
-            )}
-          </>
-        }
       />
 
-      {/* KPI Stat Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <StatCard
-          label="Total Visas Processed"
-          value="1,428"
-          subValue="Umrah & Tourist Visas"
-          icon={<FileCheck className="w-5 h-5" />}
-          trend={{ value: 14.8, label: 'vs last month' }}
-        />
-
-        <StatCard
-          label="Active Hotel Vouchers"
-          value="342"
-          subValue="Makkah & Madinah Properties"
-          icon={<Building className="w-5 h-5" />}
-          trend={{ value: 8.5, label: 'vs last month' }}
-        />
-
-        <StatCard
-          label="Monthly Ticket Turnover"
-          value={<CurrencyAmount amountSar={425800} layout="sar-only" size="lg" />}
-          subValue={`≈ ${formatMoney(425800 * TENANT.currency.defaultExchangeRate, 'PKR')}`}
-          icon={<Plane className="w-5 h-5" />}
-          trend={{ value: 21.2, label: 'vs last month' }}
-        />
-
-        <StatCard
-          label="Outstanding Receivables"
-          value={<CurrencyAmount amountSar={96450} layout="sar-only" size="lg" />}
-          subValue={`≈ ${formatMoney(96450 * TENANT.currency.defaultExchangeRate, 'PKR')}`}
-          icon={<CreditCard className="w-5 h-5" />}
-          trend={{ value: -4.1, label: 'collected this week' }}
-        />
-      </div>
-
-      {/* Operations Quick Shortcuts & Brand Banner */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left 2 Cols: Recent Bookings & Transactions Table */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
+      {/* 1. Package Calculator at the Very Top */}
+      <div className="bg-gradient-to-br from-[#0e2c4c] to-[#1a4473] text-white rounded-2xl p-6 shadow-xl space-y-5">
+        <div className="flex items-center justify-between border-b border-white/10 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center">
+              <Calculator className="w-5 h-5 text-[#c9a227]" />
+            </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900 tracking-tight">
-                Recent Operations & Bookings
-              </h2>
-              <p className="text-xs text-slate-500">
-                Latest visa applications, hotel vouchers and tickets across agents
-              </p>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-white">Live Umrah Package Cost Calculator</h3>
+              <p className="text-xs text-slate-300">Instant per-person and group costing in SAR and PKR</p>
             </div>
-            <span className="text-xs text-slate-400">
-              Click row to view details
-            </span>
           </div>
-
-          <DataTable
-            columns={columns}
-            data={SAMPLE_BOOKINGS}
-            keyExtractor={(row) => row.id}
-            onRowClick={handleRowClick}
-          />
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-300">Group Pax Count:</span>
+            <input
+              type="number"
+              min={1}
+              value={calcPax}
+              onChange={(e) => setCalcPax(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-16 p-1.5 bg-white/20 border border-white/30 rounded-lg text-center font-mono text-sm font-bold text-white focus:outline-none"
+            />
+          </div>
         </div>
 
-        {/* Right Col: Quick Currency Calculator & System Status */}
-        <div className="space-y-6">
-          <Card padding="md">
-            <CardHeader
-              title="Forex Quick Calculator"
-              subtitle={`Benchmark rate: 1 SAR = ${TENANT.currency.defaultExchangeRate.toFixed(2)} PKR`}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs">
+          <div className="space-y-1.5">
+            <label className="text-slate-300 font-medium">1. Flight Price (SAR / pax)</label>
+            <input
+              type="number"
+              value={calcFlight}
+              onChange={(e) => setCalcFlight(parseFloat(e.target.value) || 0)}
+              className="w-full p-2 bg-white/10 border border-white/20 rounded-xl text-white font-mono font-bold"
             />
-
-            <div className="space-y-3">
-              <div className="p-3 bg-navy-50/70 rounded-lg border border-navy-100 flex items-center justify-between">
-                <div>
-                  <span className="text-xs text-slate-500 block">Umrah Visa Standard (SAR)</span>
-                  <span className="text-lg font-bold font-mono text-[#0e2c4c]">450.00 SAR</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs text-slate-500 block">PKR Equivalent</span>
-                  <span className="text-sm font-semibold font-mono text-slate-700">
-                    {formatMoney(450 * TENANT.currency.defaultExchangeRate, 'PKR')}
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 flex items-center justify-between">
-                <div>
-                  <span className="text-xs text-slate-500 block">Makkah Hotel 5-Star / Night</span>
-                  <span className="text-lg font-bold font-mono text-slate-900">1,250.00 SAR</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs text-slate-500 block">PKR Equivalent</span>
-                  <span className="text-sm font-semibold font-mono text-slate-700">
-                    {formatMoney(1250 * TENANT.currency.defaultExchangeRate, 'PKR')}
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80 flex items-center justify-between">
-                <div>
-                  <span className="text-xs text-slate-500 block">Return Saudia SV Airfare</span>
-                  <span className="text-lg font-bold font-mono text-slate-900">2,850.00 SAR</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs text-slate-500 block">PKR Equivalent</span>
-                  <span className="text-sm font-semibold font-mono text-slate-700">
-                    {formatMoney(2850 * TENANT.currency.defaultExchangeRate, 'PKR')}
-                  </span>
-                </div>
-              </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-slate-300 font-medium">2. Visa Price (SAR / pax)</label>
+            <input
+              type="number"
+              value={calcVisa}
+              onChange={(e) => setCalcVisa(parseFloat(e.target.value) || 0)}
+              className="w-full p-2 bg-white/10 border border-white/20 rounded-xl text-white font-mono font-bold"
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-slate-300 font-medium flex items-center justify-between">
+              <span>3. Makkah Hotel 1: {calcMakkah1Nights} Nights × {calcMakkah1Rate} SAR</span>
+              <span className="font-mono text-[#c9a227]">{calcMakkah1Nights * calcMakkah1Rate} SAR</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="number" value={calcMakkah1Nights} onChange={e => setCalcMakkah1Nights(parseInt(e.target.value) || 0)} placeholder="Nights" className="p-2 bg-white/10 border border-white/20 rounded-xl text-white font-mono" />
+              <input type="number" value={calcMakkah1Rate} onChange={e => setCalcMakkah1Rate(parseFloat(e.target.value) || 0)} placeholder="Rate/Night" className="p-2 bg-white/10 border border-white/20 rounded-xl text-white font-mono" />
             </div>
-          </Card>
+          </div>
+        </div>
 
-          {/* Tenant White-Label Deployment Notice */}
-          <Card padding="md" className="bg-gradient-to-br from-white to-navy-50/30 border-navy-100">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[#0e2c4c] text-white flex items-center justify-center shrink-0 text-xs font-bold">
-                P0
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">
-                  Phase 0 Architecture Ready
-                </h4>
-                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                  Single-file redeployment via <code className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200">src/config.ts</code>. All 8 CRM modules and Firestore collections configured for Phase 1 business logic.
-                </p>
-              </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs border-t border-white/10 pt-4">
+          <div className="space-y-1.5">
+            <label className="text-slate-300 font-medium">4. Madina Hotel: {calcMadinaNights}N × {calcMadinaRate} SAR</label>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="number" value={calcMadinaNights} onChange={e => setCalcMadinaNights(parseInt(e.target.value) || 0)} placeholder="Nights" className="p-2 bg-white/10 border border-white/20 rounded-xl text-white font-mono" />
+              <input type="number" value={calcMadinaRate} onChange={e => setCalcMadinaRate(parseFloat(e.target.value) || 0)} placeholder="Rate/Night" className="p-2 bg-white/10 border border-white/20 rounded-xl text-white font-mono" />
             </div>
-          </Card>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-slate-300 font-medium">5. Makkah Hotel 2: {calcMakkah2Nights}N × {calcMakkah2Rate} SAR</label>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="number" value={calcMakkah2Nights} onChange={e => setCalcMakkah2Nights(parseInt(e.target.value) || 0)} placeholder="Nights" className="p-2 bg-white/10 border border-white/20 rounded-xl text-white font-mono" />
+              <input type="number" value={calcMakkah2Rate} onChange={e => setCalcMakkah2Rate(parseFloat(e.target.value) || 0)} placeholder="Rate/Night" className="p-2 bg-white/10 border border-white/20 rounded-xl text-white font-mono" />
+            </div>
+          </div>
+          <div className="space-y-1.5 flex flex-col justify-end">
+            <label className="flex items-center gap-2 cursor-pointer bg-white/10 p-2.5 rounded-xl border border-white/20">
+              <input
+                type="checkbox"
+                checked={includeTransport}
+                onChange={(e) => setIncludeTransport(e.target.checked)}
+                className="rounded text-[#c9a227] focus:ring-0"
+              />
+              <span className="font-semibold text-white">Private Transport (GMC / Hiace)</span>
+            </label>
+            {includeTransport && (
+              <input
+                type="number"
+                value={calcTransportFee}
+                onChange={(e) => setCalcTransportFee(parseFloat(e.target.value) || 0)}
+                placeholder="Total Transport SAR"
+                className="mt-2 p-2 bg-white/10 border border-white/20 rounded-xl text-white font-mono"
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Live Costing Totals Bar */}
+        <div className="bg-black/20 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 border border-white/10">
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-slate-300 block font-bold">Per Person Cost</span>
+            <div className="flex items-baseline gap-3">
+              <span className="text-xl font-mono font-bold text-white">SAR {perPersonSAR.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              <span className="text-sm font-mono text-[#c9a227]">PKR {(perPersonSAR * SAR_TO_PKR).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+            </div>
+          </div>
+          <div className="h-8 w-px bg-white/20 hidden sm:block" />
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-[#c9a227] block font-bold">Full Group Total ({calcPax} Pax)</span>
+            <div className="flex items-baseline gap-3">
+              <span className="text-2xl font-mono font-bold text-[#c9a227]">SAR {fullGroupSAR.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+              <span className="text-base font-mono text-white">PKR {(fullGroupSAR * SAR_TO_PKR).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Quick Entry Modal */}
-      <Modal
-        isOpen={quickEntryModalOpen}
-        onClose={() => setQuickEntryModalOpen(false)}
-        title="Create New Operational Transaction"
-        subtitle="Quick entry form demonstrating design system input fields"
-        footer={
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setQuickEntryModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleCreateSampleRecord}
-            >
-              Save Record
-            </Button>
-          </>
-        }
-      >
-        <form onSubmit={handleCreateSampleRecord} className="space-y-4">
-          <Input
-            label="Client or Sub-Agent Name"
-            placeholder="e.g. Al-Falah Tours Lahore"
-            value={newClient}
-            onChange={(e) => setNewClient(e.target.value)}
-            required
-          />
+      {/* 2. Account Summary (SAR) Panel */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-[#0e2c4c]" />
+            <h3 className="text-sm font-bold text-slate-900">Account Summary (SAR)</h3>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate('/accounts')}>Detailed Ledger →</Button>
+        </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Amount (SAR)"
-              type="number"
-              placeholder="e.g. 450"
-              value={newAmount}
-              onChange={(e) => setNewAmount(e.target.value)}
-              helperText={`Approx. ${formatMoney(Number(newAmount || 0) * TENANT.currency.defaultExchangeRate, 'PKR')}`}
-            />
-            <DateInput
-              label="Transaction Date"
-              value={newDate}
-              onChange={(e) => setNewDate(e.target.value)}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Bookings</span>
+            <span className="text-sm font-bold font-mono text-slate-900">348 Pax</span>
+            <span className="text-xs font-mono text-[#0e2c4c] block">SAR 542,800</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Tickets</span>
+            <span className="text-sm font-bold font-mono text-slate-900">182 Issued</span>
+            <span className="text-xs font-mono text-[#0e2c4c] block">SAR 312,400</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Refunds</span>
+            <span className="text-sm font-bold font-mono text-slate-900">6 Processed</span>
+            <span className="text-xs font-mono text-rose-600 block">SAR 8,900</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Services</span>
+            <span className="text-sm font-bold font-mono text-slate-900">54 Vouchers</span>
+            <span className="text-xs font-mono text-[#0e2c4c] block">SAR 64,500</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Reservations</span>
+            <span className="text-sm font-bold font-mono text-slate-900">22 Pending</span>
+            <span className="text-xs font-mono text-amber-600 block">SAR 42,000</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Overseas</span>
+            <span className="text-sm font-bold font-mono text-slate-900">14 Partners</span>
+            <span className="text-xs font-mono text-[#0e2c4c] block">SAR 128,000</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Only Accommodation</span>
+            <span className="text-sm font-bold font-mono text-slate-900">96 Stays</span>
+            <span className="text-xs font-mono text-[#0e2c4c] block">SAR 245,000</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Only Transport</span>
+            <span className="text-sm font-bold font-mono text-slate-900">48 Transfers</span>
+            <span className="text-xs font-mono text-[#0e2c4c] block">SAR 38,400</span>
+          </div>
+        </div>
+
+        {/* Totals Bar */}
+        <div className="bg-[#0e2c4c] text-white rounded-xl p-4 grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-slate-300 block font-bold">Openings</span>
+            <span className="text-base font-mono font-bold text-white">SAR 45,200</span>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-slate-300 block font-bold">Invoices</span>
+            <span className="text-base font-mono font-bold text-[#c9a227]">SAR 894,200</span>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-slate-300 block font-bold">Payments</span>
+            <span className="text-base font-mono font-bold text-emerald-400">SAR 782,100</span>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-slate-300 block font-bold">Adjustments</span>
+            <span className="text-base font-mono font-bold text-slate-300">SAR 3,400</span>
+          </div>
+          <div className="col-span-2 sm:col-span-1 bg-white/10 rounded-lg p-1">
+            <span className="text-[10px] uppercase tracking-wider text-[#c9a227] block font-bold">Balance Due</span>
+            <span className="text-base font-mono font-bold text-white">SAR 153,900</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. KSA Status Panel for Any Selected Date */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-[#0e2c4c]" />
+            <h3 className="text-sm font-bold text-slate-900">KSA Movement & Status Tracker</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 font-medium">Select Date:</span>
+            <input
+              type="date"
+              value={ksaDate}
+              onChange={(e) => setKsaDate(e.target.value)}
+              className="p-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-800"
             />
           </div>
-        </form>
-      </Modal>
+        </div>
 
-      {/* Booking View & Confirmation Dialog */}
-      {selectedBooking && (
-        <ConfirmDialog
-          isOpen={confirmModalOpen}
-          onClose={() => setConfirmModalOpen(false)}
-          onConfirm={() => {
-            setConfirmModalOpen(false);
-            success(`Status refreshed for ${selectedBooking.referenceNo}`);
-          }}
-          title={`Booking Details — ${selectedBooking.referenceNo}`}
-          message={
-            <div className="space-y-2 mt-2">
-              <p><strong>Client:</strong> {selectedBooking.clientName}</p>
-              <p><strong>Service:</strong> {selectedBooking.serviceType} ({selectedBooking.sector})</p>
-              <p><strong>Date:</strong> {formatDate(selectedBooking.date)}</p>
-              <div className="p-3 bg-slate-50 rounded border border-slate-200 mt-2">
-                <CurrencyAmount amountSar={selectedBooking.amountSar} layout="inline" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 text-center">
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Arrival</span>
+            <span className="text-lg font-mono font-bold text-emerald-600">24</span>
+            <span className="text-[10px] text-slate-500 block">Pax</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Departure</span>
+            <span className="text-lg font-mono font-bold text-rose-600">18</span>
+            <span className="text-[10px] text-slate-500 block">Pax</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Makkah Check-In</span>
+            <span className="text-lg font-mono font-bold text-[#0e2c4c]">42</span>
+            <span className="text-[10px] text-slate-500 block">Pax</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Makkah Check-Out</span>
+            <span className="text-lg font-mono font-bold text-amber-600">30</span>
+            <span className="text-[10px] text-slate-500 block">Pax</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Madina Check-In</span>
+            <span className="text-lg font-mono font-bold text-[#0e2c4c]">35</span>
+            <span className="text-[10px] text-slate-500 block">Pax</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Madina Check-Out</span>
+            <span className="text-lg font-mono font-bold text-amber-600">22</span>
+            <span className="text-[10px] text-slate-500 block">Pax</span>
+          </div>
+          <div className="bg-navy-50 p-3 rounded-xl border border-navy-100">
+            <span className="text-[10px] text-[#0e2c4c] uppercase font-bold block">Inside KSA</span>
+            <span className="text-lg font-mono font-bold text-[#0e2c4c]">184</span>
+            <span className="text-[10px] text-[#0e2c4c] block">Total Pax</span>
+          </div>
+          <div className="bg-gold-50 p-3 rounded-xl border border-amber-200">
+            <span className="text-[10px] text-amber-800 uppercase font-bold block">In Makkah / Madina</span>
+            <span className="text-lg font-mono font-bold text-amber-800">110 / 74</span>
+            <span className="text-[10px] text-amber-700 block">Split Pax</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Bookings Panel & 5. Vouchers Panel side by side */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* 4. Bookings Panel */}
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <FileCheck className="w-5 h-5 text-[#0e2c4c]" />
+              <h3 className="text-sm font-bold text-slate-900">Bookings Overview</h3>
+            </div>
+            <span className="text-xs font-mono font-bold bg-navy-50 text-[#0e2c4c] px-2.5 py-1 rounded-lg">Total: 142 Bookings</span>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs bg-slate-50 p-3 rounded-xl">
+              <span className="font-semibold text-slate-700">Total Mutamers</span>
+              <span className="font-mono font-bold text-slate-900">348 Pax</span>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-slate-50 p-2.5 rounded-xl text-center">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">Adults</span>
+                <span className="text-sm font-mono font-bold text-slate-900">260</span>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl text-center">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">Children</span>
+                <span className="text-sm font-mono font-bold text-slate-900">64</span>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl text-center">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">Infants</span>
+                <span className="text-sm font-mono font-bold text-slate-900">24</span>
               </div>
             </div>
-          }
-          confirmLabel="Done"
-          variant="primary"
-        />
-      )}
+          </div>
+        </div>
+
+        {/* 5. Vouchers Panel */}
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <Hotel className="w-5 h-5 text-[#0e2c4c]" />
+              <h3 className="text-sm font-bold text-slate-900">Vouchers Overview</h3>
+            </div>
+            <span className="text-xs font-mono font-bold bg-navy-50 text-[#0e2c4c] px-2.5 py-1 rounded-lg">Total: {vouchers.length || 54} Vouchers</span>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs bg-slate-50 p-3 rounded-xl">
+              <span className="font-semibold text-slate-700">Passenger Breakup</span>
+              <span className="font-mono font-bold text-slate-900">188 Total Passengers</span>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-slate-50 p-2.5 rounded-xl text-center">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">Adults</span>
+                <span className="text-sm font-mono font-bold text-slate-900">142</span>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl text-center">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">Children</span>
+                <span className="text-sm font-mono font-bold text-slate-900">32</span>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl text-center">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold">Infants</span>
+                <span className="text-sm font-mono font-bold text-slate-900">14</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 6. Latest Umrah Group Packages Panel */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <Plane className="w-5 h-5 text-[#0e2c4c]" />
+            <h3 className="text-sm font-bold text-slate-900">Latest Umrah Group Packages</h3>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate('/visas')}>View All Groups →</Button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-mono font-bold text-[#0e2c4c]">GRP-2026-01</span>
+              <Badge variant="success">Confirmed</Badge>
+            </div>
+            <span className="text-xs font-semibold text-slate-900 block">Al-Haramain Economy 14 Days</span>
+            <p className="text-[11px] text-slate-500">Makkah (Pullman) + Madina (Dar Al Taqwa) • 42 Pax</p>
+          </div>
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-mono font-bold text-[#0e2c4c]">GRP-2026-02</span>
+              <Badge variant="navy">Processing</Badge>
+            </div>
+            <span className="text-xs font-semibold text-slate-900 block">Bab Al-Umrah VIP Deluxe</span>
+            <p className="text-[11px] text-slate-500">Clock Tower Fairmont + Oberoi Madina • 28 Pax</p>
+          </div>
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-mono font-bold text-[#0e2c4c]">GRP-2026-03</span>
+              <Badge variant="gold">Open for Booking</Badge>
+            </div>
+            <span className="text-xs font-semibold text-slate-900 block">Ramadan First Half Special</span>
+            <p className="text-[11px] text-slate-500">Shaza Makkah + Hilton Madina • 60 Pax</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 7. Smart Alerts Section */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
+        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+          <ShieldAlert className="w-5 h-5 text-amber-600" />
+          <h3 className="text-sm font-bold text-slate-900">Smart Operational Alerts</h3>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Missing Hotel */}
+          <div 
+            onClick={() => navigate('/vouchers')}
+            className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl cursor-pointer hover:bg-amber-100/60 transition space-y-2"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-900 uppercase">Missing Hotel Stay</span>
+              <span className="font-mono font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded-full text-xs">
+                {missingHotelVouchers.length}
+              </span>
+            </div>
+            <p className="text-[11px] text-amber-700">Vouchers registered without hotel accommodation assignments.</p>
+            <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1">Review Vouchers <ArrowRight className="w-3 h-3" /></span>
+          </div>
+
+          {/* Missing Transport */}
+          <div 
+            onClick={() => navigate('/vouchers')}
+            className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl cursor-pointer hover:bg-amber-100/60 transition space-y-2"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-900 uppercase">Missing Transport</span>
+              <span className="font-mono font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded-full text-xs">
+                {missingTransportVouchers.length}
+              </span>
+            </div>
+            <p className="text-[11px] text-amber-700">Vouchers lacking transport sector vehicle or sector bookings.</p>
+            <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1">Review Vouchers <ArrowRight className="w-3 h-3" /></span>
+          </div>
+
+          {/* Over Due Limit */}
+          <div 
+            onClick={() => navigate('/accounts')}
+            className="p-4 bg-rose-50/60 border border-rose-200 rounded-xl cursor-pointer hover:bg-rose-100/60 transition space-y-2"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-rose-900 uppercase">Agents Over Credit Limit</span>
+              <span className="font-mono font-bold text-rose-800 bg-rose-200 px-2 py-0.5 rounded-full text-xs">
+                {overdueAccounts.length || 3}
+              </span>
+            </div>
+            <p className="text-[11px] text-rose-700">Sub-agents exceeding their maximum allowed credit or due payment threshold.</p>
+            <span className="text-[11px] font-bold text-rose-900 flex items-center gap-1">Review Accounts <ArrowRight className="w-3 h-3" /></span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
