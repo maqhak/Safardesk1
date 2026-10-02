@@ -157,6 +157,7 @@ export async function createVisaDistributionBatch(params: {
   const createdInvoices: VisaInvoiceDoc[] = [];
   const newLedgerEntries: LedgerEntryDoc[] = [];
   const updatedVisas: VisaDoc[] = [...allVisas];
+  const visaById = new Map<string, VisaDoc>(updatedVisas.map((v) => [v.id, v]));
 
   let totalVisasAll = 0;
   let totalBuyingAll = 0;
@@ -236,32 +237,42 @@ export async function createVisaDistributionBatch(params: {
     // Ledger postings for this invoice (double-entry into ledgerEntries)
     const baseSeq = currentEntries.length + newLedgerEntries.length + 20000;
 
-    // (a) Debit Agent ledger receivable = sellingTotalSAR
-    const debitAgentPKR = Math.round(batch.sellingTotalSAR * exchangeRate * 100) / 100;
-    newLedgerEntries.push({
-      id: `le-${baseSeq + 1}`,
-      entryNo: `LE-${baseSeq + 1}`,
-      date: params.date,
-      accountId: agentId,
-      entryType: 'Invoice',
-      transNo: invoiceNo,
-      particulars: `Visa Sales Invoice #${invoiceNo} (${batch.totalVisas} Visas distributed)`,
-      invoiceRef: invoiceNo,
-      rate: exchangeRate,
-      debitSAR: batch.sellingTotalSAR,
-      creditSAR: 0,
-      debitPKR: debitAgentPKR,
-      creditPKR: 0,
-      createdBy: params.createdBy,
-      createdAt: now,
-      isVoid: false,
+    // (a) Debit Agent ledger — ONE line PER PAX with name + passport + group detail.
+    // Sum of all pax lines still equals the invoice selling total.
+    let paxCount = 0;
+    batch.groups.forEach((g) => {
+      g.visaIds.forEach((vId) => {
+        const v = visaById.get(vId);
+        const sar = g.sellingPricePerVisa;
+        const pkr = Math.round(sar * exchangeRate * 100) / 100;
+        paxCount += 1;
+        const seq = baseSeq + paxCount;
+        newLedgerEntries.push({
+          id: `le-${seq}`,
+          entryNo: `LE-${seq}`,
+          date: params.date,
+          accountId: agentId,
+          entryType: 'Invoice',
+          transNo: invoiceNo,
+          particulars: `Visa — ${v?.pilgrimName || 'Pilgrim'} | PP: ${v?.passportNumber || '—'} | ${g.groupCode}${g.groupName && g.groupName !== g.groupCode ? ` (${g.groupName})` : ''} — SAR ${sar.toLocaleString()}/visa`,
+          invoiceRef: invoiceNo,
+          rate: exchangeRate,
+          debitSAR: sar,
+          creditSAR: 0,
+          debitPKR: pkr,
+          creditPKR: 0,
+          createdBy: params.createdBy,
+          createdAt: now,
+          isVoid: false,
+        });
+      });
     });
 
     // (b) Credit Vendor (Shirka) ledger payable = buyingTotalSAR
     const creditVendorPKR = Math.round(batch.buyingTotalSAR * exchangeRate * 100) / 100;
     newLedgerEntries.push({
-      id: `le-${baseSeq + 2}`,
-      entryNo: `LE-${baseSeq + 2}`,
+      id: `le-${baseSeq + paxCount + 1}`,
+      entryNo: `LE-${baseSeq + paxCount + 1}`,
       date: params.date,
       accountId: params.vendorId,
       entryType: 'Invoice',
@@ -281,8 +292,8 @@ export async function createVisaDistributionBatch(params: {
     // (c) Credit "Income — Visa Margin" system account = marginSAR
     const creditMarginPKR = Math.round(marginSAR * exchangeRate * 100) / 100;
     newLedgerEntries.push({
-      id: `le-${baseSeq + 3}`,
-      entryNo: `LE-${baseSeq + 3}`,
+      id: `le-${baseSeq + paxCount + 2}`,
+      entryNo: `LE-${baseSeq + paxCount + 2}`,
       date: params.date,
       accountId: marginAccount.id,
       entryType: 'Invoice',

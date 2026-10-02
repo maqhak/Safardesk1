@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Calculator, 
   Search, 
@@ -67,6 +68,7 @@ export const AccountsPage: React.FC = () => {
   const canCreate = useCan('Accounts', 'create') || isOwner;
 
   // Data state
+  const navigate = useNavigate();
   const [loading, setLoading] = useState<boolean>(true);
   const [accounts, setAccounts] = useState<LedgerAccountDoc[]>([]);
   const [entries, setEntries] = useState<LedgerEntryDoc[]>([]);
@@ -895,7 +897,18 @@ export const AccountsPage: React.FC = () => {
                         )}
                       </td>
                       <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">
-                        {e.invoiceRef || '—'}
+                        {e.invoiceRef && /^INV-\d+$/.test(e.invoiceRef) ? (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/visas/invoices?open=${encodeURIComponent(e.invoiceRef as string)}`)}
+                            className="text-indigo-600 hover:text-indigo-800 underline font-bold cursor-pointer"
+                            title="Open invoice"
+                          >
+                            {e.invoiceRef}
+                          </button>
+                        ) : (
+                          e.invoiceRef || '—'
+                        )}
                       </td>
                       <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">
                         {row.formattedRate}

@@ -41,6 +41,7 @@ export const VisasPage: React.FC = () => {
   const [visas, setVisas] = useState<VisaDoc[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState('');
+  const [statusTab, setStatusTab] = useState<'available' | 'distributed' | 'all'>('available');
 
   // Deep link: ?q=<term> presets the search filter (from profile timelines)
   usePresetSearch(setSearch);
@@ -79,14 +80,17 @@ export const VisasPage: React.FC = () => {
   }, []);
 
   const filteredVisas = useMemo(() => {
+    const q = search.toLowerCase();
     return visas.filter(
       (v) =>
-        (v.pilgrimName || '').toLowerCase().includes(search.toLowerCase()) ||
-        (v.passportNumber || '').toLowerCase().includes(search.toLowerCase()) ||
-        (v.groupCode || '').toLowerCase().includes(search.toLowerCase()) ||
-        (v.nationality || '').toLowerCase().includes(search.toLowerCase())
+        (statusTab === 'all' ||
+          (statusTab === 'distributed' ? v.status === 'Distributed' : v.status !== 'Distributed')) &&
+        ((v.pilgrimName || '').toLowerCase().includes(q) ||
+          (v.passportNumber || '').toLowerCase().includes(q) ||
+          (v.groupCode || '').toLowerCase().includes(q) ||
+          (v.nationality || '').toLowerCase().includes(q))
     );
-  }, [visas, search]);
+  }, [visas, search, statusTab]);
 
   // Handle Excel File Upload & Parsing with In-File Duplicate Detection & Auto-Skip
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -450,6 +454,36 @@ export const VisasPage: React.FC = () => {
           value={new Set(visas.map(v => v.groupCode)).size}
           icon={<FileSpreadsheet className="w-5 h-5" />}
         />
+      </div>
+
+      {/* Status Tabs: distributed visas stay out of the working list */}
+      <div className="flex items-center gap-2">
+        {([
+          { key: 'available', label: 'Available' },
+          { key: 'distributed', label: 'Distributed' },
+          { key: 'all', label: 'All' },
+        ] as const).map((tab) => {
+          const count =
+            tab.key === 'all' ? visas.length
+            : tab.key === 'distributed' ? visas.filter((v) => v.status === 'Distributed').length
+            : visas.filter((v) => v.status !== 'Distributed').length;
+          const active = statusTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setStatusTab(tab.key)}
+              className={`px-4 py-2 rounded-full text-xs font-bold transition ${
+                active ? 'bg-[#0e2c4c] text-white shadow' : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-400'
+              }`}
+            >
+              {tab.label}
+              <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Filter & Table */}

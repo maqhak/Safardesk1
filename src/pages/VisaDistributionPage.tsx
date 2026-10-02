@@ -111,6 +111,11 @@ export const VisaDistributionPage: React.FC = () => {
   }, [visas]);
 
   // Group undistributed visas by Group Code
+  const selectedVendorName = useMemo(
+    () => vendors.find((v) => v.id === selectedVendorId)?.name || '',
+    [vendors, selectedVendorId]
+  );
+
   const groupedVisas: GroupedVisaBatch[] = useMemo(() => {
     const map = new Map<string, VisaDoc[]>();
     undistributedVisas.forEach((v) => {
@@ -123,12 +128,20 @@ export const VisaDistributionPage: React.FC = () => {
     const result: GroupedVisaBatch[] = [];
     map.forEach((gVisas, code) => {
       const names = gVisas.slice(0, 3).map(v => v.pilgrimName).join(', ');
-      const dates = gVisas.map(v => v.createdAt?.split('T')[0] || '').filter(Boolean).sort();
+      // Real group name from the Nusuk file (most common value in this group)
+      const nameCounts = new Map<string, number>();
+      gVisas.forEach((v) => {
+        const n = (v.groupName || '').trim();
+        if (n) nameCounts.set(n, (nameCounts.get(n) || 0) + 1);
+      });
+      const realName = [...nameCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || code;
+      // Visa issue-date range (the real booking window of the group)
+      const dates = gVisas.map(v => (v.visaIssueDate || v.createdAt || '').split('T')[0] || '').filter(Boolean).sort();
       const dateRange = dates.length > 0 ? `${dates[0]} to ${dates[dates.length - 1]}` : 'Recent';
 
       result.push({
         groupCode: code,
-        groupName: `Umrah Group ${code}`,
+        groupName: realName,
         visas: gVisas,
         visaCount: gVisas.length,
         sampleNames: gVisas.length > 3 ? `${names} +${gVisas.length - 3} more` : names,
@@ -424,10 +437,12 @@ export const VisaDistributionPage: React.FC = () => {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-mono font-bold text-[#0e2c4c] text-sm">{group.groupCode}</span>
+                          <span className="text-xs font-bold text-slate-800">{group.groupName}</span>
                           <Badge variant="navy" size="sm">{group.visaCount} Visas</Badge>
                         </div>
                         <p className="text-xs text-slate-600 mt-0.5">
                           Applicants: <span className="font-medium">{group.sampleNames}</span> • Issued: {group.dateRange}
+                          {selectedVendorName && (<> • Vendor: <span className="font-bold text-[#0e2c4c]">{selectedVendorName}</span></>)}
                         </p>
                       </div>
                     </div>
