@@ -86,7 +86,7 @@ export const VouchersPage: React.FC = () => {
 
   // Sectors state with AirportSelect & AirlineSelect (transport rate starts blank / 0)
   const [sectors, setSectors] = useState<SectorItem[]>([
-    { type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', vehicleType: 'Staria', transportRateSAR: 0 }
+    { type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', transportRateSAR: 0 }
   ]);
 
   // Hotel Stays state with smart date chaining (rate starts blank / 0)
@@ -176,7 +176,7 @@ export const VouchersPage: React.FC = () => {
     setSelectedCustomerId('');
     setSelectedAgentId('');
     setArrivalDate(new Date().toISOString().split('T')[0]);
-    setSectors([{ type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', vehicleType: 'Staria', transportRateSAR: 0 }]);
+    setSectors([{ type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', transportRateSAR: 0 }]);
     setHotelStays([{ city: 'Makkah', hotelName: '', checkInDate: new Date().toISOString().split('T')[0], checkOutDate: addDays(new Date().toISOString().split('T')[0], 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 0, totalSAR: 0 }]);
     setAllowFlightInfo(false);
     setDepAirline(null);
@@ -194,17 +194,23 @@ export const VouchersPage: React.FC = () => {
     setBuilderOpen(true);
   };
 
-  // Valid hotel stays & sectors (excluding zero/empty lines)
-  const validHotelStays = useMemo(() => {
-    return hotelStays.filter(h => h.hotelName && h.hotelName.trim() !== '' && (h.ratePerNightSAR || 0) > 0);
-  }, [hotelStays]);
-
+  // A sector row counts as "included" when it has a vehicle, Self Gari, or a typed rate
   const validSectors = useMemo(() => {
-    return sectors.filter(s => (s.transportRateSAR || 0) > 0);
+    return sectors.filter(s => !!s.vehicleType || !!s.isSelfGari || (s.transportRateSAR || 0) > 0);
   }, [sectors]);
 
-  const hotelsSAR = useMemo(() => validHotelStays.reduce((sum, h) => sum + (h.totalSAR || 0), 0), [validHotelStays]);
-  const transportSAR = useMemo(() => validSectors.reduce((sum, s) => sum + (s.transportRateSAR || 0), 0), [validSectors]);
+  // Hotel stays included in the voucher: named stays with a rate, or agent self-hotel stays (info only, no company charge)
+  const validHotelStays = useMemo(() => {
+    return hotelStays.filter(h => h.hotelName && h.hotelName.trim() !== '' && ((h.ratePerNightSAR || 0) > 0 || h.isSelfHotel));
+  }, [hotelStays]);
+
+  // Company charges apply only to non-self-hotel stays with a rate (Owner/Staff add charges; agents never do)
+  const chargeableHotelStays = useMemo(() => {
+    return validHotelStays.filter(h => !h.isSelfHotel && (h.ratePerNightSAR || 0) > 0);
+  }, [validHotelStays]);
+
+  const hotelsSAR = useMemo(() => chargeableHotelStays.reduce((sum, h) => sum + (h.totalSAR || 0), 0), [chargeableHotelStays]);
+  const transportSAR = useMemo(() => validSectors.reduce((sum, s) => s.isSelfGari ? sum : sum + (s.transportRateSAR || 0), 0), [validSectors]);
   const lateIntimation = parseFloat(lateIntimationSAR) || 0;
   const totalSAR = hotelsSAR + transportSAR + lateIntimation;
 
@@ -228,6 +234,15 @@ export const VouchersPage: React.FC = () => {
     if (validHotelStays.length === 0 && validSectors.length === 0) {
       showError('Please add at least one valid hotel stay (with name and rate > 0) or transport sector.');
       return;
+    }
+
+    // Mandatory vehicle per included sector (or Self Gari) — locked rule
+    for (let i = 0; i < validSectors.length; i++) {
+      const s = validSectors[i];
+      if (!s.vehicleType && !s.isSelfGari) {
+        showError(`Sector ${i + 1} (${s.type}): vehicle selection is mandatory \u2014 select a vehicle or mark Self Gari.`);
+        return;
+      }
     }
 
     let passengers: any[] = [];
@@ -290,8 +305,8 @@ export const VouchersPage: React.FC = () => {
           lateIntimationChargesSAR: lateIntimation,
         },
         charges: [
-          ...validHotelStays.map((h) => ({ description: `${h.city} - ${h.hotelName} (${h.nights}n @ ${h.ratePerNightSAR} SAR)`, category: 'Hotel' as const, amountSAR: h.totalSAR })),
-          ...validSectors.map((s) => ({ description: `${s.type} Sector (${s.vehicleType || 'Transport'})`, category: 'Transport' as const, amountSAR: s.transportRateSAR || 0 })),
+          ...chargeableHotelStays.map((h) => ({ description: `${h.city} - ${h.hotelName} (${h.nights}n @ ${h.ratePerNightSAR} SAR)`, category: 'Hotel' as const, amountSAR: h.totalSAR })),
+          ...validSectors.map((s) => ({ description: `${s.type} Sector (${s.isSelfGari ? 'Self Gari' : s.vehicleType || 'Transport'})`, category: 'Transport' as const, amountSAR: s.isSelfGari ? 0 : (s.transportRateSAR || 0) })),
           ...(lateIntimation > 0 ? [{ description: 'Late Intimation Charges', category: 'Other' as const, amountSAR: lateIntimation }] : [])
         ],
         totals: {
@@ -810,7 +825,8 @@ export const VouchersPage: React.FC = () => {
                   </div>
                 </fieldset>
 
-                {/* Late Intimation Charges (SAR) */}
+                {/* Late Intimation Charges (SAR) — Owner/Staff only */}
+                {!isAgent && (
                 <div className="pt-2 border-t border-slate-200">
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
                     Late Intimation Charges (SAR)
@@ -826,6 +842,7 @@ export const VouchersPage: React.FC = () => {
                   />
                   <span className="text-[11px] text-slate-500 block mt-1">Manual entry. Empty means zero. Added directly to voucher gross.</span>
                 </div>
+                )}
               </div>
 
               {/* Transport Sectors with mandatory vehicle selection and blank manual rate */}
@@ -833,16 +850,16 @@ export const VouchersPage: React.FC = () => {
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <h4 className="font-bold text-slate-900 text-sm">Ground Transport Sectors</h4>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Arrival', date: arrivalDate, vehicleType: 'Staria', transportRateSAR: 0 }])}>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Arrival', date: arrivalDate, transportRateSAR: 0 }])}>
                       + Arrival
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Departure', date: arrivalDate, vehicleType: 'Staria', transportRateSAR: 0 }])}>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Departure', date: arrivalDate, transportRateSAR: 0 }])}>
                       + Departure
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Makkah to Madina', date: arrivalDate, vehicleType: 'Hiace', transportRateSAR: 0 }])}>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Makkah to Madina', date: arrivalDate, transportRateSAR: 0 }])}>
                       + Makkah ↔ Madina
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Madina to Makkah', date: arrivalDate, vehicleType: 'Hiace', transportRateSAR: 0 }])}>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Madina to Makkah', date: arrivalDate, transportRateSAR: 0 }])}>
                       + Madina ↔ Makkah
                     </Button>
                   </div>
@@ -873,22 +890,44 @@ export const VouchersPage: React.FC = () => {
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Mandatory Vehicle Selection *</label>
                         <select
-                          value={sec.vehicleType || 'Staria'}
+                          value={sec.vehicleType || ''}
+                          disabled={!!sec.isSelfGari}
                           onChange={(e) => {
                             const updated = [...sectors];
-                            updated[idx].vehicleType = e.target.value as any;
+                            updated[idx].vehicleType = (e.target.value || undefined) as any;
                             setSectors(updated);
                           }}
                           required
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-400"
                         >
+                          <option value="">-- Select Vehicle --</option>
                           <option value="Car">Car (4 Seater Sedan)</option>
                           <option value="Staria">Staria VIP Van</option>
                           <option value="Hiace">Hiace (12 Seater High Roof)</option>
                           <option value="Coaster">Toyota Coaster Bus</option>
                           <option value="Bus">49-Seater Luxury Coach</option>
                         </select>
+                        {isAgent && (
+                          <label className="flex items-center gap-2 mt-2 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={!!sec.isSelfGari}
+                              onChange={(e) => {
+                                const updated = [...sectors];
+                                updated[idx].isSelfGari = e.target.checked;
+                                if (e.target.checked) {
+                                  updated[idx].vehicleType = undefined;
+                                  updated[idx].transportRateSAR = 0;
+                                }
+                                setSectors(updated);
+                              }}
+                              className="rounded text-[#0e2c4c]"
+                            />
+                            <span>Self Gari \u2014 I will use my own vehicle (no company charge)</span>
+                          </label>
+                        )}
                       </div>
+                      {!isAgent ? (
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Transport Charge (SAR) [Manual blank input]</label>
                         <input
@@ -905,6 +944,14 @@ export const VouchersPage: React.FC = () => {
                           placeholder="Type rate (SAR)..."
                         />
                       </div>
+                      ) : (
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Transport Charge (SAR)</label>
+                        <div className="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 italic">
+                          {sec.isSelfGari ? 'Self Gari \u2014 no company charge' : 'Added by office staff'}
+                        </div>
+                      </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -918,7 +965,7 @@ export const VouchersPage: React.FC = () => {
                     const lastStay = hotelStays[hotelStays.length - 1];
                     const nextCheckIn = lastStay ? lastStay.checkOutDate : arrivalDate;
                     const nextCheckOut = addDays(nextCheckIn, 3);
-                    setHotelStays([...hotelStays, { city: 'Madinah', hotelName: '', checkInDate: nextCheckIn, checkOutDate: nextCheckOut, nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 0, totalSAR: 0 }]);
+                    setHotelStays([...hotelStays, { city: 'Madinah', hotelName: '', checkInDate: nextCheckIn, checkOutDate: nextCheckOut, nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 0, totalSAR: 0, isSelfHotel: isAgent }]);
                   }}>
                     + Add Hotel Stay
                   </Button>
@@ -960,17 +1007,35 @@ export const VouchersPage: React.FC = () => {
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Hotel Name</label>
                         {isAgent ? (
-                          <input
-                            type="text"
-                            value={stay.hotelName}
-                            onChange={(e) => {
-                              const updated = [...hotelStays];
-                              updated[idx].hotelName = e.target.value;
-                              setHotelStays(updated);
-                            }}
-                            placeholder="Enter hotel name..."
-                            className="w-full p-2 bg-white border border-slate-300 rounded text-xs"
-                          />
+                          <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={stay.isSelfHotel !== false}
+                                onChange={(e) => {
+                                  const updated = [...hotelStays];
+                                  updated[idx].isSelfHotel = e.target.checked;
+                                  if (!e.target.checked) updated[idx].hotelName = '';
+                                  setHotelStays(updated);
+                                }}
+                                className="rounded text-[#0e2c4c]"
+                              />
+                              <span>Self Hotel \u2014 I arrange this hotel myself</span>
+                            </label>
+                            {stay.isSelfHotel !== false && (
+                            <input
+                              type="text"
+                              value={stay.hotelName}
+                              onChange={(e) => {
+                                const updated = [...hotelStays];
+                                updated[idx].hotelName = e.target.value;
+                                setHotelStays(updated);
+                              }}
+                              placeholder="Enter hotel name..."
+                              className="w-full p-2 bg-white border border-slate-300 rounded text-xs"
+                            />
+                            )}
+                          </div>
                         ) : (
                           <select
                             value={stay.hotelName}
@@ -991,6 +1056,7 @@ export const VouchersPage: React.FC = () => {
                           </select>
                         )}
                       </div>
+                      {!isAgent ? (
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Rate per Night (SAR)</label>
                         <input
@@ -1009,6 +1075,14 @@ export const VouchersPage: React.FC = () => {
                           className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-[#0e2c4c]"
                         />
                       </div>
+                      ) : (
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Rate per Night (SAR)</label>
+                        <div className="w-full p-2 bg-slate-100 border border-slate-200 rounded text-xs text-slate-500 italic">
+                          Added by office staff
+                        </div>
+                      </div>
+                      )}
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Check-In Date</label>
                         <input
