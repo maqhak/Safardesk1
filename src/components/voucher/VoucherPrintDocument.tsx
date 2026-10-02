@@ -58,7 +58,7 @@ export const VoucherPrintDocument: React.FC<{
   const includes = ['Return Air Ticket', 'Airport Transfers', 'Umrah Visa', 'Inter City Transportation', 'Hotel Accommodation', 'Ziarat (As Per Itinerary)', 'Daily Breakfast', '24/7 Assistance'];
   const notes = ['Please keep this voucher with you during travel.', 'Present this voucher at the time of check-in.', 'All timings are local and subject to change.', 'The company is not responsible for any loss of personal belongings.', 'For any assistance, contact our representatives.'];
 
-  const brandShort = (company.companyName || 'S').split(/\s+/).map(w => w[0]).join('').slice(0, 3).toUpperCase();
+  const brandShort = (company.companyName || 'S').split(/\s+/).filter(w => /[a-zA-Z]/.test(w[0] || '')).map(w => w[0]).join('').slice(0, 3).toUpperCase();
 
   return (
     <div className="fsv-root">
