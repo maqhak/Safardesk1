@@ -10,9 +10,16 @@ export interface VisaDoc {
   passportNumber: string;
   nationality: string;
   groupCode: string;
+  groupName?: string;
+  gender?: string;
+  age?: number | string;
+  visaIssueDate?: string;
+  dateSource?: 'original' | 'auto';
   agentId?: string;
   status: 'Distributed' | 'Pending' | 'Approved';
   createdAt: string;
+  isDuplicate?: boolean;
+  skipImport?: boolean;
 }
 
 const INITIAL_VISAS: VisaDoc[] = [
@@ -22,6 +29,11 @@ const INITIAL_VISAS: VisaDoc[] = [
     passportNumber: 'AB1234567',
     nationality: 'Pakistani',
     groupCode: 'GRP-2026-01',
+    groupName: 'Al-Haramain Group 01',
+    gender: 'Male',
+    age: 42,
+    visaIssueDate: '2026-02-01',
+    dateSource: 'original',
     status: 'Distributed',
     createdAt: '2026-02-01T00:00:00Z',
   },
@@ -31,6 +43,11 @@ const INITIAL_VISAS: VisaDoc[] = [
     passportNumber: 'CD7654321',
     nationality: 'Pakistani',
     groupCode: 'GRP-2026-01',
+    groupName: 'Al-Haramain Group 01',
+    gender: 'Female',
+    age: 39,
+    visaIssueDate: '2026-02-02',
+    dateSource: 'original',
     agentId: 'agt-001',
     status: 'Distributed',
     createdAt: '2026-02-05T00:00:00Z',
@@ -60,4 +77,18 @@ export async function fetchVisas(): Promise<VisaDoc[]> {
 
   localStorage.setItem(LOCAL_STORAGE_VISAS_KEY, JSON.stringify(INITIAL_VISAS));
   return INITIAL_VISAS;
+}
+
+export async function saveVisasBatch(newVisas: VisaDoc[]): Promise<void> {
+  const existing = await fetchVisas();
+  const combined = [...newVisas, ...existing];
+  localStorage.setItem(LOCAL_STORAGE_VISAS_KEY, JSON.stringify(combined));
+
+  if (!isConfigPlaceholder) {
+    try {
+      await Promise.all(newVisas.map((v) => setDoc(doc(db, VISAS_COLLECTION, v.id), v)));
+    } catch (err) {
+      console.warn('Could not save visa batch to Firestore:', err);
+    }
+  }
 }

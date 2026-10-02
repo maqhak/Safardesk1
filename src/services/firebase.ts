@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { getFirestore, Firestore, disableNetwork } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { firebaseConfig } from '../config';
 
@@ -24,6 +24,10 @@ try {
   auth = getAuth(app);
   db = getFirestore(app);
   storage = getStorage(app);
+
+  if (isConfigPlaceholder && db) {
+    disableNetwork(db).catch(() => {});
+  }
 } catch (error) {
   console.warn('Firebase initialization warning:', error);
   // Fallback to initialized app if already registered
