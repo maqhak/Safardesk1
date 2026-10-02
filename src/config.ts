@@ -83,6 +83,9 @@ export const firebaseConfig: FirebaseConfig = {
 };
 
 export const TENANT_KEY = import.meta.env.VITE_TENANT_KEY || 'safardesk-default-tenant';
+// Fix #31: demo backdoor is gated behind VITE_DEMO_MODE (default off).
+// Set VITE_DEMO_MODE=true in .env only for local UI demos — never in production.
+export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
 export const LICENSE_FIREBASE_CONFIG: FirebaseConfig = {
   apiKey: import.meta.env.VITE_LICENSE_API_KEY || firebaseConfig.apiKey,

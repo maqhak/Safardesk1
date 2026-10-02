@@ -12,6 +12,7 @@ import {
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType, isConfigPlaceholder } from '../services/firebase';
 import { UserRole, UserProfile, AuthContextType, UserDoc } from '../types/auth';
+import { DEMO_MODE } from '../config';
 import { logAuditEvent, fetchAllUsers } from '../services/userService';
 import { createDefaultPermissions } from '../utils/permissions';
 import { useToast } from './ToastContext';
@@ -346,8 +347,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Demo sign in preset
+  // Demo sign in preset — Fix #31: hard-blocked unless VITE_DEMO_MODE=true
   const demoSignIn = async (targetRole: UserRole = 'owner'): Promise<void> => {
+    if (!DEMO_MODE) {
+      throw new Error('Demo access is disabled in this build.');
+    }
     setLoading(true);
     const users = await fetchAllUsers();
     const target = users.find((u) => u.role === targetRole && u.isActive) || users[0];

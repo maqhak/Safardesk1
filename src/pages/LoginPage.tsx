@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { TENANT } from '../config';
+import { TENANT, DEMO_MODE } from '../config';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
@@ -226,7 +226,8 @@ export const LoginPage: React.FC = () => {
             </Button>
           </form>
 
-          {/* Quick Demo Access Bar */}
+          {/* Quick Demo Access Bar — Fix #31: only rendered when VITE_DEMO_MODE=true */}
+          {DEMO_MODE && (
           <div className="mt-8 pt-6 border-t border-slate-100">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
@@ -281,6 +282,7 @@ export const LoginPage: React.FC = () => {
               </button>
             </div>
           </div>
+          )}
         </Card>
 
         {/* Notice: No public registration */}
