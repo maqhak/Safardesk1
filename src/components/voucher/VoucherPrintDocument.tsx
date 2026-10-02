@@ -59,22 +59,35 @@ export const VoucherPrintDocument: React.FC<{
   };
   const createdStr = fmtDate(voucher.createdAt);
 
-  // Condensed transport: consecutive sectors with the same transport mode merge
-  // into ONE line (e.g. "Makkah to Madina + Madina to Makkah + Departure — SHARING BUS")
-  // so the printed voucher never looks bulky.
+  // Single-line transport summary, e.g. "JED - MAK CAR, remaining by BUS".
+  // First group's trip + mode, then the remaining modes — always ONE voucher line.
   const transportGroups: { trips: string; by: string }[] = [];
-  sectors.forEach((s) => {
-    const by = s.isSelfGari ? 'SELF GARI' : (s.vehicleType || '—').toUpperCase();
-    let trip = s.type;
-    const ap = `${s.fromAirport?.iata || ''}${s.toAirport?.iata ? ` - ${s.toAirport.iata}` : ''}`;
-    if (ap.trim() && ap.trim() !== '-') trip += ` (${ap.trim()})`;
-    const last = transportGroups[transportGroups.length - 1];
-    if (last && last.by === by) {
-      last.trips += ' + ' + trip;
-    } else {
-      transportGroups.push({ trips: trip, by });
-    }
-  });
+  {
+    let curBy = '';
+    let curTrips: string[] = [];
+    const flush = () => {
+      if (curTrips.length && curBy) transportGroups.push({ trips: curTrips.join(' + '), by: curBy });
+      curTrips = [];
+    };
+    sectors.forEach((s) => {
+      const by = s.isSelfGari ? 'SELF GARI' : (s.vehicleType || '—').toUpperCase();
+      let trip = s.type;
+      const ap = `${s.fromAirport?.iata || ''}${s.toAirport?.iata ? ` - ${s.toAirport.iata}` : ''}`;
+      if (ap.trim() && ap.trim() !== '-') trip += ` (${ap.trim()})`;
+      if (by !== curBy) { flush(); curBy = by; }
+      curTrips.push(trip);
+    });
+    flush();
+  }
+  let transportLine = '—';
+  if (transportGroups.length === 1) {
+    transportLine = `${transportGroups[0].trips} by ${transportGroups[0].by}`;
+  } else if (transportGroups.length > 1) {
+    const [first, ...rest] = transportGroups;
+    const restModes = [...new Set(rest.map((g) => g.by))].join(' + ');
+    transportLine = `${first.trips} by ${first.by}, remaining by ${restModes}`;
+  }
+  const transportByLine = [...new Set(transportGroups.map((g) => g.by))].join(' + ') || '—';
 
   const half = Math.ceil(pax.length / 2);
   const cols = [pax.slice(0, half), pax.slice(half)];
@@ -263,12 +276,10 @@ export const VoucherPrintDocument: React.FC<{
           <table className="fsv-vt">
             <thead><tr><th>TRANSPORT TRIP</th><th>TRANSPORT BY</th></tr></thead>
             <tbody>
-              {transportGroups.map((g, i) => (
-                <tr key={i}>
-                  <td>{g.trips}</td>
-                  <td>{g.by}</td>
-                </tr>
-              ))}
+              <tr>
+                <td>{transportLine || '—'}</td>
+                <td>{transportByLine}</td>
+              </tr>
             </tbody>
           </table>
 
