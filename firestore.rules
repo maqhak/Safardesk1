@@ -1,0 +1,150 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return isSignedIn() ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data : null;
+    }
+
+    function isOwner() {
+      return isSignedIn() && userDoc().role == 'owner';
+    }
+
+    function isStaff() {
+      return isSignedIn() && userDoc().role == 'staff';
+    }
+
+    function isAgent() {
+      return isSignedIn() && userDoc().role == 'agent';
+    }
+
+    function myAgentId() {
+      return isSignedIn() ? userDoc().agentId : null;
+    }
+
+    function hasPerm(module, action) {
+      return isOwner() || (isStaff() && userDoc().permissions[module][action] == true);
+    }
+
+    // --- Default Deny ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Users Collection ---
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isOwner() || isStaff());
+      allow create: if isOwner();
+      allow update: if isOwner() || (request.auth.uid == userId && request.resource.data.role == resource.data.role);
+      allow delete: if isOwner();
+    }
+
+    // --- Masters (Agents, Vendors, Hotels, Airlines, Banks, Customers) ---
+    match /agents/{id} {
+      allow read: if isSignedIn();
+      allow write: if isOwner() || hasPerm('Masters', 'edit');
+    }
+
+    match /vendors/{id} {
+      allow read: if isSignedIn();
+      allow write: if isOwner() || hasPerm('Masters', 'edit');
+    }
+
+    match /hotels/{id} {
+      allow read: if isSignedIn();
+      allow write: if isOwner() || hasPerm('Masters', 'edit');
+    }
+
+    match /airlines/{id} {
+      allow read: if isSignedIn();
+      allow write: if isOwner() || hasPerm('Masters', 'edit');
+    }
+
+    match /banks/{id} {
+      allow read: if isSignedIn();
+      allow write: if isOwner() || hasPerm('Masters', 'edit');
+    }
+
+    match /customers/{id} {
+      allow read: if isSignedIn();
+      allow write: if isOwner() || hasPerm('Visas', 'create');
+    }
+
+    // --- Visas, Visa Imports, Distributions, Invoices ---
+    match /visas/{id} {
+      allow read: if isOwner() || hasPerm('Visas', 'view') || (isAgent() && resource.data.agentId == myAgentId());
+      allow write: if isOwner() || hasPerm('Visas', 'create');
+    }
+
+    match /visa_imports/{id} {
+      allow read, write: if isOwner() || hasPerm('Visas', 'create');
+    }
+
+    match /visa_distributions/{id} {
+      allow read, write: if isOwner() || hasPerm('Visas', 'create');
+    }
+
+    match /visa_invoices/{id} {
+      allow read: if isOwner() || hasPerm('Visas', 'view') || (isAgent() && resource.data.agentId == myAgentId());
+      allow write: if isOwner() || hasPerm('Visas', 'create');
+    }
+
+    // --- Vouchers ---
+    match /vouchers/{id} {
+      allow read: if isOwner() || hasPerm('Vouchers', 'view') || (isAgent() && resource.data.agentId == myAgentId());
+      allow create: if isOwner() || hasPerm('Vouchers', 'create') || (isAgent() && request.resource.data.agentId == myAgentId() && (!request.resource.data.keys().hasAny(['charges']) || request.resource.data.charges.size() == 0));
+      allow update: if isOwner() || hasPerm('Vouchers', 'edit');
+      allow delete: if isOwner();
+    }
+
+    // --- Tickets ---
+    match /tickets/{id} {
+      allow read: if isOwner() || hasPerm('Tickets', 'view') || (isAgent() && resource.data.agentId == myAgentId());
+      allow create: if isOwner() || hasPerm('Tickets', 'create') || (isAgent() && request.resource.data.agentId == myAgentId());
+      allow update, delete: if isOwner() || hasPerm('Tickets', 'edit');
+    }
+
+    // --- Ledger Entries, Payments, Journal Vouchers ---
+    match /ledger_entries/{id} {
+      allow read: if isOwner() || hasPerm('Accounts', 'view') || (isAgent() && resource.data.accountId == myAgentId());
+      allow write: if isOwner() || hasPerm('Accounts', 'create');
+    }
+
+    match /payments/{id} {
+      allow read: if isOwner() || hasPerm('Accounts', 'view') || (isAgent() && resource.data.accountId == myAgentId());
+      allow write: if isOwner() || hasPerm('Accounts', 'create');
+    }
+
+    match /journal_vouchers/{id} {
+      allow read: if isOwner() || hasPerm('Accounts', 'view');
+      allow write: if isOwner() || hasPerm('Accounts', 'create');
+    }
+
+    // --- Exchange Rates & Settings ---
+    match /exchange_rates/{id} {
+      allow read: if isSignedIn();
+      allow write: if isOwner() || hasPerm('Masters', 'edit');
+    }
+
+    match /settings/company {
+      allow read: if isSignedIn();
+      allow write: if isOwner();
+    }
+
+    match /settings/integrations {
+      allow read, write: if isOwner();
+    }
+
+    // --- Audit Log (Append-only) ---
+    match /audit_log/{id} {
+      allow create: if isSignedIn();
+      allow read: if isOwner();
+      allow update, delete: if false;
+    }
+  }
+}

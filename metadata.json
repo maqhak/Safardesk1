@@ -1,0 +1,6 @@
+{
+  "name": "SafarDesk — Travel Business Management System",
+  "description": "Multi-module travel agency CRM and business management system for visas, vouchers, tickets, accounts, and operations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

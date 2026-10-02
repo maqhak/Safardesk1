@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy-950: #08192b;
+  --color-navy-900: #0e2c4c;
+  --color-navy-800: #163b63;
+  --color-navy-700: #1e4a7a;
+  --color-navy-600: #2b619a;
+  --color-navy-500: #3c7bbb;
+  --color-navy-200: #c4d7ec;
+  --color-navy-100: #e2eaf4;
+  --color-navy-50: #f0f4f9;
+
+  --color-gold-700: #8c6e14;
+  --color-gold-600: #a8851b;
+  --color-gold-500: #c9a227;
+  --color-gold-400: #dfba3f;
+  --color-gold-300: #eed370;
+  --color-gold-100: #fbf4d8;
+  --color-gold-50: #fdfbf3;
+
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+}
+
+/* Custom scrollbars and refined utilities */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Tabular nums for clean financial & data tables */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
