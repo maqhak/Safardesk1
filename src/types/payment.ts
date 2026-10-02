@@ -30,6 +30,8 @@ export interface PaymentDoc {
   amountSAR: number;
   exchangeRate: number; // manual, prefilled per agent where relevant
   amountPKR: number; // computed amountSAR * exchangeRate
+  enteredCurrency?: 'SAR' | 'PKR'; // currency the amount was typed in
+  enteredAmount?: number; // the typed amount before conversion
   againstInvoiceNo?: string | null; // optional link
   particulars: string; // Details Box — free text shown in the ledger statement's Particulars column
   receiptFile: string; // Mandatory receipt photo or PDF (data URL / storage URL)

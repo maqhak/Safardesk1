@@ -51,7 +51,9 @@ import {
   computeLedgerStatement, 
   voidLedgerEntry, 
   postBalancedTransaction, 
-  exportLedgerToCSV 
+  exportLedgerToCSV,
+  exportLedgerToExcel,
+  exportLedgerToPDF 
 } from '../services/accountingService';
 import { VoucherQuickModal } from '../components/accounting/VoucherQuickModal';
 import { ReceiptViewerModal } from '../components/accounting/ReceiptViewerModal';
@@ -321,11 +323,25 @@ export const AccountsPage: React.FC = () => {
     }
   };
 
-  // Export CSV
+  // Export CSV (kept for compatibility)
   const handleExport = () => {
     if (!statement) return;
     exportLedgerToCSV(statement, company.companyName);
     success(`Statement for ${statement.account.accountCode} exported to CSV.`);
+  };
+
+  // Download Excel (.xlsx)
+  const handleExportExcel = () => {
+    if (!statement) return;
+    exportLedgerToExcel(statement, company.companyName);
+    success(`Statement for ${statement.account.accountCode} downloaded as Excel.`);
+  };
+
+  // Download PDF
+  const handleExportPDF = () => {
+    if (!statement) return;
+    exportLedgerToPDF(statement, company.companyName);
+    success(`Statement for ${statement.account.accountCode} downloaded as PDF.`);
   };
 
   // Print view
@@ -460,10 +476,20 @@ export const AccountsPage: React.FC = () => {
                 variant="outline"
                 size="sm"
                 leftIcon={<Download className="w-4 h-4 text-emerald-600" />}
-                onClick={handleExport}
-                title="Download CSV"
+                onClick={handleExportExcel}
+                title="Download as Excel (.xlsx)"
               >
-                Export Excel/CSV
+                Excel
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<Download className="w-4 h-4 text-red-600" />}
+                onClick={handleExportPDF}
+                title="Download as PDF"
+              >
+                PDF
               </Button>
 
               <Button

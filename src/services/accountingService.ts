@@ -587,6 +587,21 @@ export async function fetchLedgerAccounts(): Promise<LedgerAccountDoc[]> {
   return INITIAL_LEDGER_ACCOUNTS;
 }
 
+/** Create or update a ledger account (Firestore + localStorage fallback). */
+export async function saveLedgerAccount(account: LedgerAccountDoc): Promise<LedgerAccountDoc> {
+  const accounts = await fetchLedgerAccounts();
+  const i = accounts.findIndex((a) => a.id === account.id);
+  const next = i >= 0 ? accounts.map((a, j) => (j === i ? account : a)) : [account, ...accounts];
+  try {
+    if (!isConfigPlaceholder) {
+      await setDoc(doc(db, ACCOUNTS_COLLECTION, account.id), account);
+    }
+  } catch (err) {
+    console.warn('Could not save ledger account to Firestore:', err);
+  }
+  localStorage.setItem(LOCAL_STORAGE_ACCOUNTS_KEY, JSON.stringify(next));
+  return account;
+}
 /**
  * Fetch all ledger entries (optionally filtered by accountId)
  */
@@ -936,6 +951,123 @@ export function exportLedgerToCSV(
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+}
+
+function ledgerDownloadName(statement: LedgerStatementSummary, ext: string): string {
+  return `ledger_${statement.account.accountCode}_${statement.currency}_${new Date().toISOString().split('T')[0]}.${ext}`;
+}
+
+function statementTableRows(statement: LedgerStatementSummary): Array<Array<string | number>> {
+  const c = statement.currency;
+  const rows: Array<Array<string | number>> = [];
+  rows.push(['Date', 'Type', 'Trans.#', 'Particulars', 'Inv-Ref', 'Rate', `Debit (${c})`, `Credit (${c})`, `Balance (${c})`]);
+  rows.push(['—', 'Opening', '—', 'Previous Balance (B/F)', '—', '—', 0, 0, Number(statement.previousBalance.toFixed(2))]);
+  statement.rows.forEach((r) => {
+    const e = r.entry;
+    const debit = c === 'SAR' ? e.debitSAR : e.debitPKR;
+    const credit = c === 'SAR' ? e.creditSAR : e.creditPKR;
+    rows.push([
+      e.date, e.entryType, e.transNo || '—',
+      (e.particulars || '') + (e.voucherNo ? ` [Voucher: ${e.voucherNo}]` : '') + (e.isVoid ? ` (VOIDED: ${e.voidReason || 'Voided'})` : ''),
+      e.invoiceRef || '—', Number(e.rate.toFixed(2)),
+      Number(debit.toFixed(2)), Number(credit.toFixed(2)), Number(r.runningBalance.toFixed(2)),
+    ]);
+  });
+  return rows;
+}
+
+/** Real Excel (.xlsx) download of the ledger statement. */
+export function exportLedgerToExcel(statement: LedgerStatementSummary, companyName: string): void {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const XLSX = require('xlsx');
+  const c = statement.currency;
+  const wb = XLSX.utils.book_new();
+  const title = `STATEMENT OF ACCOUNT: ${statement.account.title.toUpperCase()} (${statement.account.accountCode})`;
+  const header: Array<Array<string | number>> = [
+    [title],
+    [`Agency: ${companyName}`],
+    [`Account Type: ${statement.account.accountType.toUpperCase()}`, `Currency: ${c}`],
+    [`Statement Period: ${statement.periodLabel}`, `Generated: ${new Date().toLocaleString()}`],
+    [],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet([...header, ...statementTableRows(statement)]);
+  ws['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 60 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
+  const footerRow = header.length + statementTableRows(statement).length + 2;
+  const footer = [
+    [`SUMMARY & TOTALS (${c})`],
+    ['Previous Balance (B/F)', Number(statement.previousBalance.toFixed(2))],
+    ['Total Period Debit', Number(statement.totalDebit.toFixed(2))],
+    ['Total Period Credit', Number(statement.totalCredit.toFixed(2))],
+    ['Closing Balance', Number(statement.closingBalance.toFixed(2))],
+    ['Total Mofa PAX', statement.totalMofaPax],
+    ['Total Hotel PAX', statement.totalHotelPax],
+  ];
+  XLSX.utils.sheet_add_aoa(ws, footer, { origin: `A${footerRow}` });
+  XLSX.utils.book_append_sheet(wb, ws, 'Statement');
+  XLSX.writeFile(wb, ledgerDownloadName(statement, 'xlsx'));
+}
+
+/** Branded PDF download of the ledger statement. */
+export function exportLedgerToPDF(statement: LedgerStatementSummary, companyName: string): void {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { jsPDF } = require('jspdf');
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require('jspdf-autotable');
+  const c = statement.currency;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+  // Header band
+  doc.setFillColor(14, 44, 76);
+  doc.rect(0, 0, 297, 26, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.text(companyName, 14, 11);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Statement of Account — ${statement.account.title} (${statement.account.accountCode})`, 14, 18);
+
+  doc.setTextColor(40, 40, 40);
+  doc.setFontSize(9);
+  const metaY = 32;
+  doc.text(`Account Type: ${statement.account.accountType.toUpperCase()}`, 14, metaY);
+  doc.text(`Period: ${statement.periodLabel}`, 110, metaY);
+  doc.text(`Currency: ${c}`, 200, metaY);
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, metaY + 6);
+  doc.text(`Previous Balance (B/F): ${c} ${statement.previousBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 110, metaY + 6);
+
+  const body = statement.rows.map((r) => {
+    const e = r.entry;
+    const debit = c === 'SAR' ? e.debitSAR : e.debitPKR;
+    const credit = c === 'SAR' ? e.creditSAR : e.creditPKR;
+    return [
+      e.date, e.entryType, e.transNo || '—',
+      (e.particulars || '') + (e.voucherNo ? ` [Voucher: ${e.voucherNo}]` : '') + (e.isVoid ? ' (VOIDED)' : ''),
+      e.invoiceRef || '—', e.rate.toFixed(2),
+      debit > 0 ? debit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—',
+      credit > 0 ? credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—',
+      r.runningBalance.toLocaleString(undefined, { minimumFractionDigits: 2 }),
+    ];
+  });
+
+  (doc as any).autoTable({
+    startY: metaY + 12,
+    head: [['Date', 'Type', 'Trans.#', 'Particulars', 'Inv-Ref', 'Rate', `Debit (${c})`, `Credit (${c})`, `Balance (${c})`]],
+    body,
+    theme: 'grid',
+    styles: { fontSize: 7.5, cellPadding: 2 },
+    headStyles: { fillColor: [14, 44, 76], textColor: 255, fontStyle: 'bold' },
+    columnStyles: { 3: { cellWidth: 95 } },
+  });
+
+  const fy = (doc as any).lastAutoTable.finalY + 8;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Total Debit: ${c} ${statement.totalDebit.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 14, fy);
+  doc.text(`Total Credit: ${c} ${statement.totalCredit.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 110, fy);
+  doc.text(`Closing Balance: ${c} ${statement.closingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 200, fy);
+
+  doc.save(ledgerDownloadName(statement, 'pdf'));
 }
 
 /**

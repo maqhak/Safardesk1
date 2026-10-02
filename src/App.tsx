@@ -35,9 +35,36 @@ import { VisaInvoicesPage } from './pages/VisaInvoicesPage';
 import { QaReportPage } from './pages/QaReportPage';
 import { LicenseGate } from './components/auth/LicenseGate';
 
+/**
+ * Global number-input behavior: when ANY number field in the CRM is focused,
+ * select its whole value so typing REPLACES it instead of appending.
+ * (Fixes: field shows "1", user types "5" -> "15" and has to delete the "1".)
+ */
+function GlobalNumberInputBehavior() {
+  React.useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && el.tagName === 'INPUT' && (el as HTMLInputElement).type === 'number') {
+        const input = el as HTMLInputElement;
+        requestAnimationFrame(() => {
+          try {
+            input.select();
+          } catch {
+            /* older browsers: no-op */
+          }
+        });
+      }
+    };
+    document.addEventListener('focusin', onFocusIn);
+    return () => document.removeEventListener('focusin', onFocusIn);
+  }, []);
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <GlobalNumberInputBehavior />
       <ToastProvider>
         <AuthProvider>
           <CompanyProvider>

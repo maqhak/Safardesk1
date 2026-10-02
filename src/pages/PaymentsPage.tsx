@@ -58,9 +58,10 @@ import {
   getNextPaymentNumber, 
   processReceiptFile,
   retryDriveUploadForPayment,
-  approvePaymentReceipt
-} from '../services/paymentService';
-import { fetchLedgerAccounts } from '../services/accountingService';
+  approvePaymentReceipt,
+  saveBank,} from '../services/paymentService';
+import { fetchLedgerAccounts,
+  saveLedgerAccount,} from '../services/accountingService';
 import { getDriveIntegration } from '../services/driveService';
 import { ReceiptViewerModal } from '../components/accounting/ReceiptViewerModal';
 import { Link } from 'react-router-dom';
@@ -95,6 +96,15 @@ export const PaymentsPage: React.FC = () => {
 
   // Modals
   const [createModalOpen, setCreateModalOpen] = useState<boolean>(false);
+  const [bankModalOpen, setBankModalOpen] = useState<boolean>(false);
+  const [savingBank, setSavingBank] = useState<boolean>(false);
+  const [newBankName, setNewBankName] = useState('');
+  const [newBankTitle, setNewBankTitle] = useState('');
+  const [newBankNumber, setNewBankNumber] = useState('');
+  const [newBankIban, setNewBankIban] = useState('');
+  const [newBankBranch, setNewBankBranch] = useState('');
+  const [newBankCurrency, setNewBankCurrency] = useState<'SAR' | 'PKR'>('SAR');
+  const [newBankLedgerId, setNewBankLedgerId] = useState<string>('auto');
   const [voidModalOpen, setVoidModalOpen] = useState<boolean>(false);
   const [paymentToVoid, setPaymentToVoid] = useState<PaymentDoc | null>(null);
   const [voidReason, setVoidReason] = useState<string>('');
@@ -122,9 +132,14 @@ export const PaymentsPage: React.FC = () => {
   const [selectedPayerPayeeId, setSelectedPayerPayeeId] = useState<string>('');
   const [selectedCashTillId, setSelectedCashTillId] = useState<string>('');
   const [selectedBankId, setSelectedBankId] = useState<string>('');
-  const [amountSAR, setAmountSAR] = useState<number>(0);
+  const [enteredAmount, setEnteredAmount] = useState<number>(0);
+  const [amountCurrency, setAmountCurrency] = useState<'SAR' | 'PKR'>('SAR');
   const masterRate = useCurrentRate('SAR-PKR');
   const [exchangeRate, setExchangeRate] = useState<number>(masterRate);
+
+  // Payment amount can be entered in SAR or PKR (toggle); ledger always posts both.
+  const amountSAR = amountCurrency === 'SAR' ? enteredAmount : (exchangeRate > 0 ? enteredAmount / exchangeRate : 0);
+  const amountPKR = amountCurrency === 'PKR' ? enteredAmount : enteredAmount * exchangeRate;
 
   useEffect(() => {
     setExchangeRate(masterRate);
@@ -187,7 +202,8 @@ export const PaymentsPage: React.FC = () => {
       setSelectedPayerPayeeId(payerPayeeAccounts[0]?.id || '');
       setSelectedCashTillId(cashAccounts[0]?.id || '');
       setSelectedBankId(banks[0]?.id || '');
-      setAmountSAR(0);
+      setEnteredAmount(0);
+      setAmountCurrency('SAR');
       setExchangeRate(masterRate);
       setAgainstInvoiceNo('');
       setParticulars('');
@@ -217,7 +233,8 @@ export const PaymentsPage: React.FC = () => {
         setSelectedPayerPayeeId(inv.accountId);
       }
       if (inv.balanceSAR > 0) {
-        setAmountSAR(inv.balanceSAR);
+        setEnteredAmount(inv.balanceSAR);
+        setAmountCurrency('SAR');
       }
       setParticulars(`Payment against ${inv.module} Invoice ${inv.invoiceNo} — ${inv.description}`);
     }
@@ -299,8 +316,10 @@ export const PaymentsPage: React.FC = () => {
         fromAccountId: fromAccId,
         toAccountId: toAccId,
         bankAccountId: bankAccId,
-        amountSAR,
+        amountSAR: Math.round(amountSAR * 100) / 100,
         exchangeRate,
+        enteredCurrency: amountCurrency,
+        enteredAmount: enteredAmount,
         againstInvoiceNo: againstInvoiceNo || undefined,
         particulars: particulars.trim() || `${entryType.replace('-', ' ').toUpperCase()} recorded`,
         receiptFile: receiptDataUrl,
@@ -321,6 +340,64 @@ export const PaymentsPage: React.FC = () => {
       showError(err.message || 'Failed to save payment.');
     } finally {
       setSavingPayment(false);
+    }
+  };
+
+  // Add a new Bank (master) with optional auto-created ledger account
+  const handleSaveBank = async () => {
+    if (!newBankName.trim()) {
+      showError('Bank name is required.');
+      return;
+    }
+    if (!newBankTitle.trim()) {
+      showError('Account title is required.');
+      return;
+    }
+    setSavingBank(true);
+    try {
+      const now = new Date().toISOString();
+      let ledgerId = newBankLedgerId;
+      if (newBankLedgerId === 'auto') {
+        const existingCodes = accounts
+          .filter((a) => a.accountType === 'bank' && /^BNK-\d+$/.test(a.accountCode))
+          .map((a) => parseInt(a.accountCode.split('-')[1], 10));
+        const nextNum = String(Math.max(0, ...existingCodes) + 1).padStart(3, '0');
+        ledgerId = `acc-bnk-${Date.now()}`;
+        await saveLedgerAccount({
+          id: ledgerId,
+          accountCode: `BNK-${nextNum}`,
+          accountType: 'bank',
+          title: `${newBankName.trim()} — ${newBankTitle.trim()}`,
+          linkedId: '',
+          isSystem: false,
+          isActive: true,
+          openingBalanceSAR: 0,
+          openingBalancePKR: 0,
+          notes: `Auto-created for bank master ${newBankName.trim()}`,
+          createdAt: now,
+          createdBy: userProfile?.name || 'Operator',
+        } as any);
+      }
+      const bank: BankDoc = {
+        id: `bnk-${Date.now()}`,
+        bankName: newBankName.trim(),
+        accountTitle: newBankTitle.trim(),
+        accountNumber: newBankNumber.trim(),
+        iban: newBankIban.trim(),
+        branch: newBankBranch.trim(),
+        currency: newBankCurrency,
+        linkedLedgerAccountId: ledgerId,
+        isActive: true,
+      };
+      await saveBank(bank);
+      await loadData();
+      setSelectedBankId(bank.id);
+      setBankModalOpen(false);
+      success(`Bank "${bank.bankName}" added and selected.`);
+    } catch (err: any) {
+      showError(err.message || 'Failed to save bank.');
+    } finally {
+      setSavingBank(false);
     }
   };
 
@@ -1228,8 +1305,24 @@ export const PaymentsPage: React.FC = () => {
                 </div>
               ) : (
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Bank Account (Master) *
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>Bank Account (Master) *</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewBankName('');
+                        setNewBankTitle('');
+                        setNewBankNumber('');
+                        setNewBankIban('');
+                        setNewBankBranch('');
+                        setNewBankCurrency('SAR');
+                        setNewBankLedgerId('auto');
+                        setBankModalOpen(true);
+                      }}
+                      className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
+                    >
+                      + Add Bank
+                    </button>
                   </label>
                   <select
                     value={selectedBankId}
@@ -1253,20 +1346,40 @@ export const PaymentsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Amounts & Currency Rates */}
+          {/* Amounts & Currency Rates — amount can be typed in SAR or PKR */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Amount (SAR) *</label>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center justify-between">
+                <span>Amount *</span>
+                <span className="inline-flex rounded-full border border-slate-300 overflow-hidden">
+                  {(['SAR', 'PKR'] as const).map((cur) => (
+                    <button
+                      key={cur}
+                      type="button"
+                      onClick={() => setAmountCurrency(cur)}
+                      className={`px-2.5 py-0.5 text-[10px] font-bold transition ${
+                        amountCurrency === cur ? 'bg-[#0e2c4c] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
+                      }`}
+                    >
+                      {cur}
+                    </button>
+                  ))}
+                </span>
+              </label>
               <input
                 type="number"
                 min="0.01"
                 step="0.01"
-                value={amountSAR || ''}
-                onChange={(e) => setAmountSAR(parseFloat(e.target.value) || 0)}
-                placeholder="0.00"
+                value={enteredAmount || ''}
+                onChange={(e) => setEnteredAmount(parseFloat(e.target.value) || 0)}
+                placeholder={`0.00 (${amountCurrency})`}
                 required
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[#0e2c4c]"
               />
+              <div className="text-[10px] text-slate-500 mt-1 font-mono">
+                = SAR {amountSAR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {' '}• PKR {amountPKR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
             </div>
 
             <div>
@@ -1274,16 +1387,21 @@ export const PaymentsPage: React.FC = () => {
               <input
                 type="number"
                 step="0.01"
-                value={exchangeRate}
-                onChange={(e) => setExchangeRate(parseFloat(e.target.value) || masterRate)}
+                value={exchangeRate || ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setExchangeRate(v === '' ? 0 : parseFloat(v) || 0);
+                }}
+                placeholder={masterRate.toFixed(2)}
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
               />
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Computed PKR</label>
-              <div className="p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs font-mono font-bold text-emerald-700">
-                PKR {Math.round(amountSAR * exchangeRate).toLocaleString()}
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Computed Totals</label>
+              <div className="p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs font-mono font-bold text-emerald-700 space-y-0.5">
+                <div>SAR {amountSAR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                <div>PKR {amountPKR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
               </div>
             </div>
           </div>
@@ -1405,6 +1523,116 @@ export const PaymentsPage: React.FC = () => {
             )}
           </div>
         </form>
+      </Modal>
+
+      {/* Add Bank (Master) Modal */}
+      <Modal
+        isOpen={bankModalOpen}
+        onClose={() => setBankModalOpen(false)}
+        title="Add Bank Account"
+        subtitle="Register your own bank — it becomes selectable in every Bank Transfer payment."
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setBankModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" loading={savingBank} onClick={handleSaveBank}>
+              Save Bank
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3 py-2 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Bank Name *</label>
+              <input
+                type="text"
+                value={newBankName}
+                onChange={(e) => setNewBankName(e.target.value)}
+                placeholder="e.g. Al-Rajhi Bank"
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Account Title *</label>
+              <input
+                type="text"
+                value={newBankTitle}
+                onChange={(e) => setNewBankTitle(e.target.value)}
+                placeholder="e.g. SafarDesk Corporate Treasury"
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Account Number</label>
+              <input
+                type="text"
+                value={newBankNumber}
+                onChange={(e) => setNewBankNumber(e.target.value)}
+                placeholder="e.g. 482001928374"
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">IBAN</label>
+              <input
+                type="text"
+                value={newBankIban}
+                onChange={(e) => setNewBankIban(e.target.value)}
+                placeholder="e.g. SA4480000482001928374"
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Branch</label>
+              <input
+                type="text"
+                value={newBankBranch}
+                onChange={(e) => setNewBankBranch(e.target.value)}
+                placeholder="e.g. Main Branch, Karachi"
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Currency</label>
+              <div className="inline-flex rounded-full border border-slate-300 overflow-hidden">
+                {(['SAR', 'PKR'] as const).map((cur) => (
+                  <button
+                    key={cur}
+                    type="button"
+                    onClick={() => setNewBankCurrency(cur)}
+                    className={`px-4 py-1.5 text-[11px] font-bold transition ${
+                      newBankCurrency === cur ? 'bg-[#0e2c4c] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
+                    }`}
+                  >
+                    {cur}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-slate-700 mb-1">Linked Ledger Account</label>
+            <select
+              value={newBankLedgerId}
+              onChange={(e) => setNewBankLedgerId(e.target.value)}
+              className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+            >
+              <option value="auto">✨ Create new ledger account automatically (BNK-xxx)</option>
+              {accounts
+                .filter((a) => a.accountType === 'bank')
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    [{a.accountCode}] {a.title}
+                  </option>
+                ))}
+            </select>
+            <p className="text-[10px] text-slate-500 mt-1">
+              Every bank posts to its own ledger account — pick an existing one or let the system create it.
+            </p>
+          </div>
+        </div>
       </Modal>
     </div>
   );

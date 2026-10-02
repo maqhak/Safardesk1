@@ -277,6 +277,21 @@ export async function fetchBanks(): Promise<BankDoc[]> {
   return INITIAL_BANKS;
 }
 
+export async function saveBank(bank: BankDoc): Promise<BankDoc> {
+  const banks = await fetchBanks();
+  const idx = banks.findIndex((b) => b.id === bank.id);
+  const next = idx >= 0 ? banks.map((b, i) => (i === idx ? bank : b)) : [bank, ...banks];
+  try {
+    if (!isConfigPlaceholder) {
+      await setDoc(doc(db, BANKS_COLLECTION, bank.id), bank);
+    }
+  } catch (err) {
+    console.warn('Could not save bank to Firestore:', err);
+  }
+  localStorage.setItem(LOCAL_STORAGE_BANKS_KEY, JSON.stringify(next));
+  return bank;
+}
+
 export async function fetchInvoices(): Promise<InvoiceRecord[]> {
   try {
     if (!isConfigPlaceholder) {
@@ -354,6 +369,8 @@ export async function createPayment(params: {
   bankAccountId?: string | null;
   amountSAR: number;
   exchangeRate: number;
+  enteredCurrency?: 'SAR' | 'PKR';
+  enteredAmount?: number;
   againstInvoiceNo?: string | null;
   particulars: string;
   receiptFile: string; // MANDATORY
@@ -472,6 +489,8 @@ export async function createPayment(params: {
     amountSAR: params.amountSAR,
     exchangeRate,
     amountPKR,
+    enteredCurrency: params.enteredCurrency,
+    enteredAmount: params.enteredAmount,
     againstInvoiceNo: params.againstInvoiceNo || null,
     particulars: params.particulars,
     receiptFile: params.receiptFile,
