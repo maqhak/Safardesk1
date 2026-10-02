@@ -39,46 +39,18 @@ import {
 import { LedgerAccountDoc, LedgerEntryDoc } from '../types/accounting';
 import { VoucherQuickModal } from '../components/accounting/VoucherQuickModal';
 import { ReceiptViewerModal } from '../components/accounting/ReceiptViewerModal';
+import { fetchVisas, fetchVisaRequests, submitVisaRequest, VisaDoc, VisaRequestDoc } from '../services/visaService';
+import * as XLSX from 'xlsx';
 
-interface AgentVisaItem {
+interface AgentVisaRow {
   id: string;
   applicantName: string;
   passportNumber: string;
-  visaType: string;
+  category: string;
   date: string;
-  feeSar: number;
-  status: 'Issued' | 'In Process' | 'Draft';
+  source: 'Request' | 'Distribution';
+  status: string;
 }
-
-const SAMPLE_AGENT_VISAS: AgentVisaItem[] = [
-  {
-    id: 'av-01',
-    applicantName: 'Tariq Mehmood',
-    passportNumber: 'AB8920194',
-    visaType: 'Umrah Electronic Visa',
-    date: '2026-10-01',
-    feeSar: 450,
-    status: 'Issued',
-  },
-  {
-    id: 'av-02',
-    applicantName: 'Shabana Tariq',
-    passportNumber: 'AB8920195',
-    visaType: 'Umrah Electronic Visa',
-    date: '2026-10-01',
-    feeSar: 450,
-    status: 'Issued',
-  },
-  {
-    id: 'av-03',
-    applicantName: 'Zahid Hussain',
-    passportNumber: 'CD4902184',
-    visaType: 'Tourist e-Visa',
-    date: '2026-09-30',
-    feeSar: 540,
-    status: 'In Process',
-  },
-];
 
 export const AgentPortalPage: React.FC = () => {
   const { userProfile } = useAuth();
@@ -89,6 +61,9 @@ export const AgentPortalPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [applicantName, setApplicantName] = useState('');
   const [passportNumber, setPassportNumber] = useState('');
+
+  const [agentVisas, setAgentVisas] = useState<VisaDoc[]>([]);
+  const [agentRequests, setAgentRequests] = useState<VisaRequestDoc[]>([]);
 
   // Ledger state for this agent
   const [currency, setCurrency] = useState<'SAR' | 'PKR'>('SAR');
@@ -119,15 +94,24 @@ export const AgentPortalPage: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    Promise.all([fetchLedgerAccounts(), fetchLedgerEntries()]).then(([accs, ents]) => {
-      // Find matching agent account
-      const found = accs.find((a) => a.accountCode === 'AGT-001' || a.linkedId === userProfile?.uid || a.linkedId === userProfile?.agentId) || accs[0];
-      setAgentAccount(found || null);
+  const reloadAgentData = () => {
+    Promise.all([fetchLedgerAccounts(), fetchLedgerEntries(), fetchVisas(), fetchVisaRequests()]).then(([accs, ents, visaList, reqList]) => {
+      // Find matching agent account — never fall back to another account
+      const found = accs.find((a) => a.linkedId === userProfile?.agentId || a.linkedId === userProfile?.uid) || null;
+      setAgentAccount(found);
       if (found) {
         setAgentEntries(ents.filter((e) => e.accountId === found.id));
+      } else {
+        setAgentEntries([]);
       }
+      const myAgentId = userProfile?.agentId;
+      setAgentVisas(visaList.filter((v) => v.agentId && v.agentId === myAgentId));
+      setAgentRequests(reqList.filter((r) => r.agentId === myAgentId));
     });
+  };
+
+  useEffect(() => {
+    reloadAgentData();
   }, [userProfile?.uid, userProfile?.agentId]);
 
   const statement = useMemo(() => {
@@ -135,7 +119,28 @@ export const AgentPortalPage: React.FC = () => {
     return computeLedgerStatement(agentAccount, agentEntries, currency);
   }, [agentAccount, agentEntries, currency]);
 
-  const columns: Column<AgentVisaItem>[] = [
+  const agentVisaRows: AgentVisaRow[] = [
+    ...agentRequests.map((r) => ({
+      id: r.id,
+      applicantName: r.pilgrimName,
+      passportNumber: r.passportNumber,
+      category: 'Visa Application',
+      date: r.createdAt.split('T')[0],
+      source: 'Request' as const,
+      status: r.status,
+    })),
+    ...agentVisas.map((v) => ({
+      id: v.id,
+      applicantName: v.pilgrimName,
+      passportNumber: v.passportNumber,
+      category: 'Umrah Visa',
+      date: v.visaIssueDate || v.createdAt.split('T')[0],
+      source: 'Distribution' as const,
+      status: v.status,
+    })),
+  ];
+
+  const columns: Column<AgentVisaRow>[] = [
     {
       key: 'applicantName',
       header: 'Applicant & Passport',
@@ -148,19 +153,28 @@ export const AgentPortalPage: React.FC = () => {
       ),
     },
     {
-      key: 'visaType',
-      header: 'Visa Category',
+      key: 'category',
+      header: 'Category',
       sortable: true,
       render: (row) => (
-        <span className="text-xs text-slate-700 font-medium">{row.visaType}</span>
+        <span className="text-xs text-slate-700 font-medium">{row.category}</span>
       ),
     },
     {
       key: 'date',
-      header: 'Applied Date',
+      header: 'Date',
       sortable: true,
       render: (row) => (
         <span className="text-xs font-mono text-slate-600">{formatDate(row.date)}</span>
+      ),
+    },
+    {
+      key: 'source',
+      header: 'Source',
+      sortable: true,
+      align: 'center',
+      render: (row) => (
+        <Badge variant={row.source === 'Request' ? 'gold' : 'success'} dot>{row.source}</Badge>
       ),
     },
     {
@@ -169,33 +183,52 @@ export const AgentPortalPage: React.FC = () => {
       sortable: true,
       align: 'center',
       render: (row) => {
-        if (row.status === 'Issued') return <Badge variant="success" dot>Issued</Badge>;
-        if (row.status === 'In Process') return <Badge variant="gold" dot>In Process</Badge>;
-        return <Badge variant="neutral" dot>Draft</Badge>;
+        if (row.status === 'Approved' || row.status === 'Distributed' || row.status === 'Issued') return <Badge variant="success" dot>{row.status}</Badge>;
+        if (row.status === 'Submitted' || row.status === 'Pending') return <Badge variant="gold" dot>{row.status}</Badge>;
+        return <Badge variant="neutral" dot>{row.status}</Badge>;
       },
-    },
-    {
-      key: 'feeSar',
-      header: 'Rate (SAR / PKR)',
-      sortable: true,
-      align: 'right',
-      render: (row) => <CurrencyAmount amountSar={row.feeSar} size="sm" />,
     },
   ];
 
-  const handleApply = (e: React.FormEvent) => {
+  const handleApply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!applicantName || !passportNumber) return;
-    setModalOpen(false);
-    success(`Visa application for ${applicantName} submitted for review.`);
-    setApplicantName('');
-    setPassportNumber('');
+    if (!applicantName || !passportNumber || !userProfile) return;
+    try {
+      await submitVisaRequest(userProfile, {
+        agentId: userProfile.agentId || userProfile.uid,
+        agentName: userProfile.agencyName || userProfile.name || 'Agent',
+        pilgrimName: applicantName,
+        passportNumber: passportNumber,
+      });
+      setModalOpen(false);
+      success(`Visa application for ${applicantName} submitted for review.`);
+      setApplicantName('');
+      setPassportNumber('');
+      reloadAgentData();
+    } catch (err: any) {
+      showError(err?.message || 'Failed to submit visa application.');
+    }
   };
 
   const handleExportStatement = () => {
     if (!statement) return;
     exportLedgerToCSV(statement, company.companyName);
     success('Your agency statement of account has been exported to CSV.');
+  };
+
+  const handleExportManifest = () => {
+    const rows = agentVisaRows.map(r => ({
+      'Applicant Name': r.applicantName,
+      'Passport Number': r.passportNumber,
+      'Category': r.category,
+      'Date': r.date,
+      'Source': r.source,
+      'Status': r.status,
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Visa Manifest');
+    XLSX.writeFile(wb, `agent-visa-manifest-${new Date().toISOString().split('T')[0]}.xlsx`);
+    success('Visa manifest exported to Excel.');
   };
 
   return (
@@ -207,7 +240,7 @@ export const AgentPortalPage: React.FC = () => {
         breadcrumbs={[{ label: 'Agent Portal' }]}
         badge={
           <Badge variant="success" size="md">
-            Agent Code: {agentAccount?.accountCode || userProfile?.agentId || 'AGT-001'}
+            Agent Code: {agentAccount?.accountCode || userProfile?.agentId || '—'}
           </Badge>
         }
         actions={
@@ -262,20 +295,20 @@ export const AgentPortalPage: React.FC = () => {
           value={
             statement 
               ? `${currency} ${statement.closingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}` 
-              : 'SAR 14,250.00'
+              : `${currency} 0.00`
           }
           subValue={statement?.closingBalance && statement.closingBalance > 0 ? 'Payable to Head Office' : 'Clear balance'}
           icon={<CreditCard className="w-5 h-5 text-[#c9a227]" />}
         />
         <StatCard
           label="Approved Credit Limit"
-          value={<CurrencyAmount amountSar={50000} layout="sar-only" size="lg" />}
+          value={<CurrencyAmount amountSar={agentAccount?.creditLimitSAR || 0} layout="sar-only" size="lg" />}
           subValue="Allocated by Head Office"
           icon={<Building className="w-5 h-5 text-emerald-600" />}
         />
         <StatCard
           label="Total Pax Processed"
-          value={statement ? (statement.totalMofaPax + statement.totalHotelPax).toString() : '46'}
+          value={statement ? (statement.totalMofaPax + statement.totalHotelPax).toString() : '0'}
           subValue="MoFA + Hotel pilgrims"
           icon={<CheckCircle2 className="w-5 h-5 text-sky-600" />}
         />
@@ -506,7 +539,7 @@ export const AgentPortalPage: React.FC = () => {
               variant="outline"
               size="sm"
               leftIcon={<Download className="w-3.5 h-3.5" />}
-              onClick={() => success('Exporting agency visa statement.')}
+              onClick={handleExportManifest}
             >
               Export Manifest
             </Button>
@@ -514,8 +547,10 @@ export const AgentPortalPage: React.FC = () => {
 
           <DataTable
             columns={columns}
-            data={SAMPLE_AGENT_VISAS}
+            data={agentVisaRows}
             keyExtractor={(row) => row.id}
+            emptyTitle="No visa applications yet"
+            emptyDescription="Submit a visa application above — it will appear here with its live status."
             onRowClick={(row) => info(`Selected applicant: ${row.applicantName}`)}
           />
         </div>
@@ -575,7 +610,7 @@ export const AgentPortalPage: React.FC = () => {
         webViewLink={receiptViewerUrl?.startsWith('https://drive.google.com') ? receiptViewerUrl : null}
         userRole="agent"
         entryAccountId={receiptViewerAccountId}
-        agentOwnAccountId={agentAccount?.id || 'acc-agt-001'}
+        agentOwnAccountId={agentAccount?.id || ''}
       />
 
       {/* Hidden Audio Player for inline WhatsApp voice note playback */}
