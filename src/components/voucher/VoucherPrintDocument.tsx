@@ -59,6 +59,23 @@ export const VoucherPrintDocument: React.FC<{
   };
   const createdStr = fmtDate(voucher.createdAt);
 
+  // Condensed transport: consecutive sectors with the same transport mode merge
+  // into ONE line (e.g. "Makkah to Madina + Madina to Makkah + Departure — SHARING BUS")
+  // so the printed voucher never looks bulky.
+  const transportGroups: { trips: string; by: string }[] = [];
+  sectors.forEach((s) => {
+    const by = s.isSelfGari ? 'SELF GARI' : (s.vehicleType || '—').toUpperCase();
+    let trip = s.type;
+    const ap = `${s.fromAirport?.iata || ''}${s.toAirport?.iata ? ` - ${s.toAirport.iata}` : ''}`;
+    if (ap.trim() && ap.trim() !== '-') trip += ` (${ap.trim()})`;
+    const last = transportGroups[transportGroups.length - 1];
+    if (last && last.by === by) {
+      last.trips += ' + ' + trip;
+    } else {
+      transportGroups.push({ trips: trip, by });
+    }
+  });
+
   const half = Math.ceil(pax.length / 2);
   const cols = [pax.slice(0, half), pax.slice(half)];
 
@@ -246,10 +263,10 @@ export const VoucherPrintDocument: React.FC<{
           <table className="fsv-vt">
             <thead><tr><th>TRANSPORT TRIP</th><th>TRANSPORT BY</th></tr></thead>
             <tbody>
-              {sectors.map((s, i) => (
+              {transportGroups.map((g, i) => (
                 <tr key={i}>
-                  <td>{s.type}{s.fromAirport?.iata || s.toAirport?.iata ? ` (${s.fromAirport?.iata || ''} - ${s.toAirport?.iata || ''})` : ''}</td>
-                  <td>{s.isSelfGari ? 'SELF GARI' : (s.vehicleType || '—').toUpperCase()}</td>
+                  <td>{g.trips}</td>
+                  <td>{g.by}</td>
                 </tr>
               ))}
             </tbody>
