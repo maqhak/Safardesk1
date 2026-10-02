@@ -57,11 +57,8 @@ export const MovementReportsPage: React.FC = () => {
   const [singleDate, setSingleDate] = useState<string>('');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [selectedSector, setSelectedSector] = useState<string>('all');
-  const [flightSearch, setFlightSearch] = useState<string>('');
-  const [selectedShirka, setSelectedShirka] = useState<string>('all');
-  const [selectedAgent, setSelectedAgent] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showDetailedSummaries, setShowDetailedSummaries] = useState<boolean>(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -99,27 +96,7 @@ export const MovementReportsPage: React.FC = () => {
         if (endDate && rec.date > endDate) return false;
       }
 
-      // Sector filter
-      if (selectedSector !== 'all' && rec.sector !== selectedSector && rec.from !== selectedSector && rec.to !== selectedSector) {
-        return false;
-      }
-
-      // Flight filter
-      if (flightSearch.trim() && !rec.flightOrBusNo.toLowerCase().includes(flightSearch.toLowerCase())) {
-        return false;
-      }
-
-      // Shirka filter
-      if (selectedShirka !== 'all' && !rec.shirka.toLowerCase().includes(selectedShirka.toLowerCase())) {
-        return false;
-      }
-
-      // Agent filter
-      if (selectedAgent !== 'all' && !rec.agent.toLowerCase().includes(selectedAgent.toLowerCase())) {
-        return false;
-      }
-
-      // General query search (group, voucher, agent, etc.)
+      // General query search (group, voucher, agent, shirka, hotel, flight)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matches = 
@@ -142,15 +119,11 @@ export const MovementReportsPage: React.FC = () => {
     });
   }, [
     allRecords, 
-    selectedReportType, 
-    dateMode, 
-    singleDate, 
-    startDate, 
-    endDate, 
-    selectedSector, 
-    flightSearch, 
-    selectedShirka, 
-    selectedAgent, 
+    selectedReportType,
+    dateMode,
+    singleDate,
+    startDate,
+    endDate,
     searchQuery
   ]);
 
@@ -158,17 +131,6 @@ export const MovementReportsPage: React.FC = () => {
   const summaries = useMemo(() => {
     return computeMovementSummaries(filteredRecords);
   }, [filteredRecords]);
-
-  // Distinct available sectors for sector filter dropdown
-  const availableSectors = useMemo(() => {
-    const set = new Set<string>();
-    allRecords
-      .filter((r) => r.reportType === selectedReportType)
-      .forEach((r) => {
-        if (r.sector) set.add(r.sector);
-      });
-    return Array.from(set);
-  }, [allRecords, selectedReportType]);
 
   // CSV Export of both detailed grid and 4 summary panels
   const exportToCSV = () => {
@@ -313,19 +275,20 @@ export const MovementReportsPage: React.FC = () => {
         />
       </div>
 
-      {/* Report Type Selector & Filter Control Bar */}
-      <Card className="p-4 sm:p-5 border-slate-200 shadow-xs print:hidden space-y-4">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-          {/* Requirement 1: Dropdown with EXACTLY these 4 labels */}
-          <div className="w-full lg:w-96">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+      {/* Compact Filter Bar — report type + date + one search box.
+          The report type IS the sector selector (Arrival shows only arrival, etc.).
+          The search box covers flight#, shirka, agent, hotel, group and voucher. */}
+      <Card className="p-3 sm:p-4 border-slate-200 shadow-xs print:hidden">
+        <div className="flex flex-col xl:flex-row items-stretch xl:items-end gap-3">
+          <div className="w-full xl:w-80 shrink-0">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1.5">
               <Compass className="w-3.5 h-3.5 text-[#0e2c4c]" />
-              <span>Select Movement Report Type</span>
+              <span>Report</span>
             </label>
             <select
               value={selectedReportType}
               onChange={(e) => setSelectedReportType(e.target.value as MovementReportType)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-[#0e2c4c] rounded-xl text-sm font-bold text-[#0e2c4c] focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20 shadow-xs cursor-pointer"
+              className="w-full px-3 py-2 bg-slate-50 border-2 border-[#0e2c4c] rounded-xl text-sm font-bold text-[#0e2c4c] focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20 shadow-xs cursor-pointer"
             >
               {MOVEMENT_REPORT_TYPES.map((type) => (
                 <option key={type} value={type} className="font-semibold text-slate-800">
@@ -335,31 +298,78 @@ export const MovementReportsPage: React.FC = () => {
             </select>
           </div>
 
-          {/* Quick Date Mode Switcher */}
-          <div className="flex items-center gap-2 self-stretch lg:self-auto justify-end">
-            <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setDateMode('all')}
-                className={`px-3 py-1.5 rounded-md transition cursor-pointer ${dateMode === 'all' ? 'bg-white text-[#0e2c4c] shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-              >
-                All Dates
-              </button>
-              <button
-                type="button"
-                onClick={() => setDateMode('single')}
-                className={`px-3 py-1.5 rounded-md transition cursor-pointer ${dateMode === 'single' ? 'bg-white text-[#0e2c4c] shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-              >
-                Single Date
-              </button>
-              <button
-                type="button"
-                onClick={() => setDateMode('range')}
-                className={`px-3 py-1.5 rounded-md transition cursor-pointer ${dateMode === 'range' ? 'bg-white text-[#0e2c4c] shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
-              >
-                Date Range
-              </button>
+          <div className="shrink-0">
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Date</label>
+            <div className="flex items-center gap-2">
+              <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setDateMode('all')}
+                  className={`px-2.5 py-1.5 rounded-md transition cursor-pointer ${dateMode === 'all' ? 'bg-white text-[#0e2c4c] shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDateMode('single')}
+                  className={`px-2.5 py-1.5 rounded-md transition cursor-pointer ${dateMode === 'single' ? 'bg-white text-[#0e2c4c] shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Date
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDateMode('range')}
+                  className={`px-2.5 py-1.5 rounded-md transition cursor-pointer ${dateMode === 'range' ? 'bg-white text-[#0e2c4c] shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Range
+                </button>
+              </div>
+              {dateMode === 'single' && (
+                <input
+                  type="date"
+                  value={singleDate}
+                  onChange={(e) => setSingleDate(e.target.value)}
+                  className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800"
+                />
+              )}
+              {dateMode === 'range' && (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800"
+                  />
+                  <span className="text-slate-400 text-xs">–</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800"
+                  />
+                </div>
+              )}
             </div>
+          </div>
+
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Search</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Flight#, shirka, agent, hotel, group#, voucher#..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
+              <strong className="text-[#0e2c4c]">{filteredRecords.length}</strong> rows
+            </span>
             <Button
               variant="outline"
               size="sm"
@@ -371,128 +381,31 @@ export const MovementReportsPage: React.FC = () => {
             </Button>
           </div>
         </div>
-
-        {/* Filter Controls Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
-          {/* Date Picker inputs (past AND future dates fully allowed) */}
-          {dateMode === 'single' ? (
-            <div className="col-span-1 sm:col-span-2 md:col-span-1">
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Date (Past or Future)</label>
-              <input
-                type="date"
-                value={singleDate}
-                onChange={(e) => setSingleDate(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0e2c4c]"
-              />
-            </div>
-          ) : dateMode === 'range' ? (
-            <div className="col-span-1 sm:col-span-2 flex items-center gap-2">
-              <div className="flex-1">
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">From Date</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">To Date</label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800"
-                />
-              </div>
-            </div>
-          ) : null}
-
-          {/* Sector Filter */}
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Sector</label>
-            <select
-              value={selectedSector}
-              onChange={(e) => setSelectedSector(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 font-medium"
-            >
-              <option value="all">All Sectors</option>
-              {availableSectors.map((sec) => (
-                <option key={sec} value={sec}>{sec}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Flight Number Filter */}
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Flight Number</label>
-            <input
-              type="text"
-              placeholder="e.g. SV-734, PK-741"
-              value={flightSearch}
-              onChange={(e) => setFlightSearch(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800"
-            />
-          </div>
-
-          {/* Shirka (Vendor) Filter */}
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Shirka (Vendor)</label>
-            <select
-              value={selectedShirka}
-              onChange={(e) => setSelectedShirka(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 font-medium"
-            >
-              <option value="all">All Shirkas</option>
-              <option value="Al-Haramain Group">Al-Haramain Group (Shirka)</option>
-              <option value="Taiba Investments">Taiba Investments Co.</option>
-              <option value="Dallah Ground">Dallah Ground Services</option>
-              {vendors.map((v) => (
-                <option key={v.id} value={v.name}>{v.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Agent Filter */}
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">B2B Agent</label>
-            <select
-              value={selectedAgent}
-              onChange={(e) => setSelectedAgent(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 font-medium"
-            >
-              <option value="all">All Agents</option>
-              <option value="Al-Noor Travels">Al-Noor Travels</option>
-              <option value="Karwan-e-Haram">Karwan-e-Haram</option>
-              <option value="Falcon Express">Falcon Express Umrah</option>
-              <option value="Direct B2C">Direct B2C Walk-ins</option>
-              {agents.map((a) => (
-                <option key={a.id} value={a.companyName}>{a.companyName}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Global text search input */}
-        <div className="pt-2 flex items-center justify-between border-t border-slate-100">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search group#, voucher#, hotel, or notes..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800"
-            />
-          </div>
-          <div className="text-xs text-slate-500 font-medium">
-            Matching Movements: <strong className="text-[#0e2c4c]">{filteredRecords.length}</strong>
-          </div>
-        </div>
       </Card>
 
-      {/* 3. Summary Area — 4 panels ALWAYS shown for the chosen report */}
-      <div className="space-y-3">
+      {/* 3. Compact Summary Strip — one line; detailed 4-panel summaries behind a toggle */}
+      <div className="bg-[#0e2c4c] text-white px-4 py-3 rounded-xl shadow-xs flex flex-wrap items-center gap-x-6 gap-y-2 text-xs print:hidden">
+        <span className="font-bold uppercase tracking-wider flex items-center gap-2">
+          <Users className="w-4 h-4 text-[#c9a227]" />
+          {selectedReportType}
+        </span>
+        <span><strong className="font-mono text-base">{filteredRecords.length}</strong> <span className="text-slate-300">movements</span></span>
+        <span><strong className="font-mono text-base text-[#c9a227]">{summaries.grandTotal.totalPax}</strong> <span className="text-slate-300">total pax</span></span>
+        <span className="font-mono text-slate-200">
+          Paid {summaries.grandTotal.paidPax} / Infant {summaries.grandTotal.infantPax} / W-o-Bus {summaries.grandTotal.woBusPax}
+        </span>
+        <span className="text-slate-300">{summaries.flightSummary.length} flights • {summaries.hotelSummary.length} hotels • {summaries.voucherHotelSummary.length} groups</span>
+        <button
+          type="button"
+          onClick={() => setShowDetailedSummaries((v) => !v)}
+          className="ml-auto text-[11px] font-bold text-[#c9a227] hover:text-white underline underline-offset-2 cursor-pointer"
+        >
+          {showDetailedSummaries ? 'Hide detailed summaries ▲' : 'Show detailed summaries ▼'}
+        </button>
+      </div>
+
+      {showDetailedSummaries && (
+      <div className="space-y-3 print:hidden">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
             Movement Summaries: {selectedReportType}
@@ -650,6 +563,7 @@ export const MovementReportsPage: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* 4. & 5. Detailed grid below (group/voucher-wise) with NO PAGINATION & sticky header */}
       <Card padding="none" className="border-slate-200 shadow-xs overflow-hidden">
