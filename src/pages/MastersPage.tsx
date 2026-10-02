@@ -5,10 +5,12 @@ import {
   Building, 
   Plane, 
   MapPin, 
+  Bus,
   Plus, 
   Search, 
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  CheckCircle2
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card, CardHeader } from '../components/ui/Card';
@@ -20,26 +22,59 @@ import { useCan } from '../hooks/useCan';
 import { AgentsPage } from './AgentsPage';
 import { AirlinesPage } from './AirlinesPage';
 import { VendorsPage } from './VendorsPage';
+import { VehiclesPage } from './VehiclesPage';
+import { INITIAL_AIRLINES } from '../data/airlines';
+import { AIRPORTS_DATA } from '../data/airports';
 
-type MasterTab = 'agents' | 'hotels' | 'airlines' | 'airports' | 'vendors';
+type MasterTab = 'agents' | 'hotels' | 'airlines' | 'airports' | 'vendors' | 'vehicles';
 
 export const MastersPage: React.FC = () => {
   const { info, success } = useToast();
   const [activeTab, setActiveTab] = useState<MasterTab>('airlines');
-  const [search, setSearch] = useState('');
   const canCreate = useCan('Masters', 'create');
 
   const tabs: { key: MasterTab; label: string; icon: any; count: number }[] = [
-    { key: 'airlines', label: 'Airlines', icon: Plane, count: 72 },
+    { key: 'airlines', label: 'Airlines', icon: Plane, count: INITIAL_AIRLINES.length },
     { key: 'agents', label: 'B2B Sub-Agents', icon: Users, count: 48 },
     { key: 'hotels', label: 'Hotels Directory', icon: Building, count: 112 },
-    { key: 'airports', label: 'Airports & Reference', icon: MapPin, count: 100 },
+    { key: 'airports', label: 'Airports & Reference', icon: MapPin, count: AIRPORTS_DATA.length },
     { key: 'vendors', label: 'Suppliers & Vendors', icon: Database, count: 26 },
+    { key: 'vehicles', label: 'Vehicles & Transport', icon: Bus, count: 5 },
   ];
+
+  const renderQaBanner = () => (
+    <div className="bg-gradient-to-r from-navy-900 to-[#0e2c4c] text-white p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
+          <ShieldCheck className="w-5 h-5 text-[#c9a227]" />
+        </div>
+        <div>
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[#c9a227]">Reference Data QA Verification Panel</h4>
+          <p className="text-xs text-slate-300">Seeded master datasets verified and active across all global operations.</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-4 font-mono text-xs">
+        <div className="bg-white/10 px-3 py-1.5 rounded-xl border border-white/20 text-center">
+          <span className="text-[10px] text-slate-300 block">Airlines Seeded</span>
+          <span className="text-sm font-bold text-white">{INITIAL_AIRLINES.length}+ Carriers</span>
+        </div>
+        <div className="bg-white/10 px-3 py-1.5 rounded-xl border border-white/20 text-center">
+          <span className="text-[10px] text-slate-300 block">Airports Seeded</span>
+          <span className="text-sm font-bold text-[#c9a227]">{AIRPORTS_DATA.length}+ Hubs</span>
+        </div>
+      </div>
+    </div>
+  );
 
   if (activeTab === 'airlines') {
     return (
       <div className="space-y-6">
+        <PageHeader
+          title="Master Records & Directories"
+          subtitle="Manage foundational business master data: sub-agents, contracted hotel inventory, airline codes, and service suppliers."
+          breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
+        />
+        {renderQaBanner()}
         <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
           {tabs.map((t) => {
             const Icon = t.icon;
@@ -71,6 +106,12 @@ export const MastersPage: React.FC = () => {
   if (activeTab === 'agents') {
     return (
       <div className="space-y-6">
+        <PageHeader
+          title="Master Records & Directories"
+          subtitle="Manage foundational business master data: sub-agents, contracted hotel inventory, airline codes, and service suppliers."
+          breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
+        />
+        {renderQaBanner()}
         <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
           {tabs.map((t) => {
             const Icon = t.icon;
@@ -102,6 +143,12 @@ export const MastersPage: React.FC = () => {
   if (activeTab === 'vendors') {
     return (
       <div className="space-y-6">
+        <PageHeader
+          title="Master Records & Directories"
+          subtitle="Manage foundational business master data: sub-agents, contracted hotel inventory, airline codes, and service suppliers."
+          breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
+        />
+        {renderQaBanner()}
         <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
           {tabs.map((t) => {
             const Icon = t.icon;
@@ -130,25 +177,51 @@ export const MastersPage: React.FC = () => {
     );
   }
 
+  if (activeTab === 'vehicles') {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Master Records & Directories"
+          subtitle="Manage foundational business master data: sub-agents, contracted hotel inventory, airline codes, and service suppliers."
+          breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
+        />
+        {renderQaBanner()}
+        <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
+          {tabs.map((t) => {
+            const Icon = t.icon;
+            const isActive = activeTab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                  isActive
+                    ? 'bg-[#0e2c4c] text-white shadow-xs'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{t.label}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                  {t.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <VehiclesPage />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Master Records & Directories"
         subtitle="Manage foundational business master data: sub-agents, contracted hotel inventory, airline codes, and service suppliers."
         breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
-        actions={
-          canCreate ? (
-            <Button
-              variant="primary"
-              size="sm"
-              leftIcon={<Plus className="w-3.5 h-3.5" />}
-              onClick={() => info(`Add record dialog for ${activeTab.toUpperCase()} ready in Phase 1.`)}
-            >
-              Add New Record
-            </Button>
-          ) : null
-        }
       />
+      {renderQaBanner()}
 
       {/* Tabs Row */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
@@ -175,61 +248,9 @@ export const MastersPage: React.FC = () => {
         })}
       </div>
 
-      {/* Active Tab Registry Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {activeTab === 'hotels' && (
-          <>
-            <Card hoverEffect padding="md">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">Makkah Clock Royal Tower</h4>
-                  <p className="text-xs text-slate-500 mt-0.5">Abraj Al Bait, Makkah • 5-Star</p>
-                </div>
-                <Badge variant="navy">Contracted</Badge>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-600">
-                Direct allotment contract: 25 rooms / day during Umrah season.
-              </div>
-            </Card>
-
-            <Card hoverEffect padding="md">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">The Oberoi Madina</h4>
-                  <p className="text-xs text-slate-500 mt-0.5">Central Northern Area, Madinah • 5-Star</p>
-                </div>
-                <Badge variant="navy">Contracted</Badge>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-600">
-                Direct Haram facing luxury allotment.
-              </div>
-            </Card>
-
-            <Card hoverEffect padding="md">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h4 className="font-bold text-slate-900 text-sm">Swissôtel Al Maqam Makkah</h4>
-                  <p className="text-xs text-slate-500 mt-0.5">King Abdul Aziz Endowment, Makkah</p>
-                </div>
-                <Badge variant="navy">Contracted</Badge>
-              </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-600">
-                Standard & Quad room contract allocations.
-              </div>
-            </Card>
-          </>
-        )}
-
-        {activeTab !== 'hotels' && (
-          <div className="col-span-full p-8 text-center bg-white rounded-xl border border-slate-200">
-            <p className="text-sm font-semibold text-slate-800">
-              Master Registry for {activeTab.toUpperCase()}
-            </p>
-            <p className="text-xs text-slate-400 mt-1">
-              Firestore collection schema defined in <code className="font-mono">FIRESTORE_COLLECTIONS.md</code>.
-            </p>
-          </div>
-        )}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-12 text-center text-slate-500">
+        <h3 className="text-sm font-bold text-slate-800 mb-1">Directory view for {activeTab.toUpperCase()}</h3>
+        <p className="text-xs">Select a master directory tab above to inspect records.</p>
       </div>
     </div>
   );

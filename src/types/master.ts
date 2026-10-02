@@ -44,6 +44,7 @@ export interface VehicleDoc {
   referenceRateSAR: number;
   description: string;
   isActive: boolean;
+  usedFromCount?: number;
 }
 
 export interface AirlineDoc {

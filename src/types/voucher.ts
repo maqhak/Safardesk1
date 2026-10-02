@@ -66,6 +66,7 @@ export interface VoucherDoc {
     otherSAR: number;
     totalSAR: number;
     totalPKR: number;
+    exchangeRate?: number;
   };
   commission: VoucherCommission;
   createdBy: string;

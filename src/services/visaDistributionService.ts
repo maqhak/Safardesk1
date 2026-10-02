@@ -1,3 +1,4 @@
+import { getCurrentRate } from './exchangeRateService';
 import { 
   VisaDistributionDoc, 
   VisaInvoiceDoc, 
@@ -143,7 +144,7 @@ export async function createVisaDistributionBatch(params: {
   let totalSellingAll = 0;
 
   for (const [agentId, batch] of agentBatches.entries()) {
-    const exchangeRate = 74.50; // default SAR to PKR rate
+    const exchangeRate = getCurrentRate('SAR-PKR'); // snapshotted active exchange rate
 
     batch.groups.forEach((g) => {
       createdGroups.push({

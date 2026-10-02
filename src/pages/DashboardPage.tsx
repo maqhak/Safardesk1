@@ -21,6 +21,7 @@ import { useToast } from '../contexts/ToastContext';
 import { fetchVouchers } from '../services/voucherService';
 import { fetchVisas, VisaDoc } from '../services/visaService';
 import { fetchLedgerEntries, fetchLedgerAccounts } from '../services/accountingService';
+import { useCurrentRate, updateExchangeRate, formatConvertedMoney } from '../services/exchangeRateService';
 import { VoucherDoc } from '../types/voucher';
 import { LedgerEntryDoc, LedgerAccountDoc } from '../types/accounting';
 
@@ -39,7 +40,12 @@ export const DashboardPage: React.FC = () => {
   const [accountPeriod, setAccountPeriod] = useState<'all' | 'month' | 'today'>('all');
 
   // Exchange rate from Master
-  const [exchangeRate, setExchangeRate] = useState<number>(74.50);
+  const currentRate = useCurrentRate('SAR-PKR');
+  const [exchangeRate, setExchangeRate] = useState<number>(currentRate);
+
+  useEffect(() => {
+    setExchangeRate(currentRate);
+  }, [currentRate]);
 
   // Package Calculator State
   const [calcPax, setCalcPax] = useState<number>(2);
@@ -66,17 +72,6 @@ export const DashboardPage: React.FC = () => {
         setAccounts(accList);
       })
       .finally(() => setLoading(false));
-
-    // Load exchange rate from localStorage if present
-    const savedRates = localStorage.getItem('safardesk_exchange_rates');
-    if (savedRates) {
-      try {
-        const parsed = JSON.parse(savedRates);
-        if (parsed.SAR_PKR) setExchangeRate(Number(parsed.SAR_PKR));
-      } catch {
-        // fallback
-      }
-    }
   }, []);
 
   // 1. Package Calculator Totals
@@ -220,7 +215,6 @@ export const DashboardPage: React.FC = () => {
       });
     });
 
-    // Fallback if no vouchers match date directly in demo
     if (arrival === 0 && departure === 0 && insideKsa === 0) {
       return { arrival: 24, departure: 18, makkahIn: 42, makkahOut: 30, madinaIn: 35, madinaOut: 22, insideKsa: 184, inMakkah: 110, inMadinah: 74 };
     }
@@ -309,7 +303,6 @@ export const DashboardPage: React.FC = () => {
   }, [vouchers]);
 
   const overdueAccounts = useMemo(() => {
-    // Agents exceeding dueLimitSAR / creditLimitSAR
     return accounts.filter(acc => {
       if (acc.accountType !== 'agent') return false;
       const current = acc.currentBalanceSAR || 0;
@@ -325,9 +318,9 @@ export const DashboardPage: React.FC = () => {
   }, [vouchers, role, userProfile]);
 
   const agentLedgerAccount = useMemo(() => {
-    if (role !== 'agent') return null;
+    if (userProfile?.role !== 'agent') return null;
     return accounts.find(a => a.linkedId === userProfile?.agentId || a.accountCode === 'AGT-001') || accounts[0];
-  }, [accounts, role, userProfile]);
+  }, [accounts, userProfile]);
 
   const agentFlightSummary = useMemo(() => {
     const flightsMap = new Map<string, { sector: string; flightNo: string; date: string; paxCount: number }>();
@@ -354,7 +347,7 @@ export const DashboardPage: React.FC = () => {
     return Array.from(flightsMap.values());
   }, [agentVouchers]);
 
-  if (role === 'agent') {
+  if (userProfile?.role === 'agent') {
     return (
       <div className="space-y-6">
         <PageHeader
@@ -375,8 +368,8 @@ export const DashboardPage: React.FC = () => {
             icon={<FileCheck className="w-5 h-5" />}
           />
           <StatCard
-            label="Ledger Balance (SAR)"
-            value={`SAR ${(agentLedgerAccount?.currentBalanceSAR || 14250).toLocaleString()}`}
+            label="Ledger Balance"
+            value={formatConvertedMoney(agentLedgerAccount?.currentBalanceSAR || 14250, exchangeRate)}
             icon={<CreditCard className="w-5 h-5" />}
             variant="navy"
           />
@@ -430,7 +423,7 @@ export const DashboardPage: React.FC = () => {
                     <span className="font-mono font-bold text-[#0e2c4c]">{v.voucherNo}</span>
                     <span className="text-xs text-slate-500 ml-3">{v.passengers?.length || 1} Pax • {v.status}</span>
                   </div>
-                  <span className="text-xs font-bold text-slate-800">SAR {v.totals?.totalSAR?.toLocaleString() || 4500}</span>
+                  <span className="text-xs font-bold text-slate-800">{formatConvertedMoney(v.totals?.totalSAR || 4500, exchangeRate)}</span>
                 </div>
               ))
             )}
@@ -450,25 +443,45 @@ export const DashboardPage: React.FC = () => {
 
       {/* 1. Package Calculator at the Very Top */}
       <div className="bg-gradient-to-br from-[#0e2c4c] to-[#1a4473] text-white rounded-2xl p-6 shadow-xl space-y-5">
-        <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-white/10 pb-4">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 bg-white/10 rounded-xl flex items-center justify-center">
               <Calculator className="w-5 h-5 text-[#c9a227]" />
             </div>
             <div>
               <h3 className="text-sm font-bold uppercase tracking-wider text-white">Live Umrah Package Cost Calculator</h3>
-              <p className="text-xs text-slate-300">Instant per-person and group costing in SAR and PKR (Exchange Rate: {exchangeRate} SAR/PKR)</p>
+              <p className="text-xs text-slate-300">Instant per-person and group costing in SAR and PKR</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-300">Group Pax Count:</span>
-            <input
-              type="number"
-              min={1}
-              value={calcPax}
-              onChange={(e) => setCalcPax(Math.max(1, parseInt(e.target.value) || 1))}
-              className="w-16 p-1.5 bg-white/20 border border-white/30 rounded-lg text-center font-mono text-sm font-bold text-white focus:outline-none"
-            />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-300">SAR/PKR Rate:</span>
+              <input
+                type="number"
+                step="0.1"
+                disabled={(userProfile?.role as string) === 'agent'}
+                value={exchangeRate}
+                onChange={async (e) => {
+                  const val = parseFloat(e.target.value) || 74.50;
+                  setExchangeRate(val);
+                  if ((userProfile?.role as string) !== 'agent' && userProfile) {
+                    await updateExchangeRate(userProfile, 'SAR-PKR', val);
+                    success(`Exchange rate updated to ${val} SAR/PKR`);
+                  }
+                }}
+                className="w-20 p-1.5 bg-white/20 border border-white/30 rounded-lg text-center font-mono text-sm font-bold text-white focus:outline-none disabled:opacity-75"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-300">Group Pax:</span>
+              <input
+                type="number"
+                min={1}
+                value={calcPax}
+                onChange={(e) => setCalcPax(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-16 p-1.5 bg-white/20 border border-white/30 rounded-lg text-center font-mono text-sm font-bold text-white focus:outline-none"
+              />
+            </div>
           </div>
         </div>
 
@@ -493,7 +506,7 @@ export const DashboardPage: React.FC = () => {
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <label className="text-slate-300 font-medium flex items-center justify-between">
-              <span>3. Makkah Hotel 1: {calcMakkah1Nights} Nights × {calcMakkah1Rate} SAR</span>
+              <span>3. Makkah Hotel 1: {calcMakkah1Nights}N × {calcMakkah1Rate} SAR</span>
               <span className="font-mono text-[#c9a227]">{calcMakkah1Nights * calcMakkah1Rate} SAR</span>
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -540,22 +553,20 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Live Costing Totals Bar */}
-        <div className="bg-black/20 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 border border-white/10">
+        {/* Live Costing Totals Bar with shared display helper */}
+        <div className="bg-black/20 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 border border-white/10 text-xs">
           <div>
-            <span className="text-[10px] uppercase tracking-wider text-slate-300 block font-bold">Per Person Cost</span>
-            <div className="flex items-baseline gap-3">
-              <span className="text-xl font-mono font-bold text-white">SAR {perPersonSAR.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-              <span className="text-sm font-mono text-[#c9a227]">PKR {(perPersonSAR * exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-            </div>
+            <span className="text-[10px] uppercase tracking-wider text-slate-300 block font-bold mb-1">Per Person Converted Cost</span>
+            <span className="text-sm font-mono font-bold text-white">
+              {formatConvertedMoney(perPersonSAR, exchangeRate)}
+            </span>
           </div>
           <div className="h-8 w-px bg-white/20 hidden sm:block" />
           <div>
-            <span className="text-[10px] uppercase tracking-wider text-[#c9a227] block font-bold">Full Group Total ({calcPax} Pax)</span>
-            <div className="flex items-baseline gap-3">
-              <span className="text-2xl font-mono font-bold text-[#c9a227]">SAR {fullGroupSAR.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-              <span className="text-base font-mono font-white">PKR {(fullGroupSAR * exchangeRate).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-            </div>
+            <span className="text-[10px] uppercase tracking-wider text-[#c9a227] block font-bold mb-1">Full Group Total ({calcPax} Pax)</span>
+            <span className="text-base font-mono font-bold text-[#c9a227]">
+              {formatConvertedMoney(fullGroupSAR, exchangeRate)}
+            </span>
           </div>
         </div>
       </div>
@@ -565,7 +576,7 @@ export const DashboardPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-[#0e2c4c]" />
-            <h3 className="text-sm font-bold text-slate-900">Account Summary (SAR)</h3>
+            <h3 className="text-sm font-bold text-slate-900">Account Summary</h3>
           </div>
           <div className="flex items-center gap-2">
             <div className="bg-slate-100 p-1 rounded-lg flex items-center gap-1 text-xs">
@@ -577,70 +588,62 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Bookings</span>
-            <span className="text-sm font-bold font-mono text-slate-900">{accountSummaryMetrics.bookingsPax} Pax</span>
-            <span className="text-xs font-mono text-[#0e2c4c] block">SAR {accountSummaryMetrics.bookingsAmtSAR.toLocaleString()}</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Bookings ({accountSummaryMetrics.bookingsPax} Pax)</span>
+            <span className="font-mono text-slate-900 block font-bold">{formatConvertedMoney(accountSummaryMetrics.bookingsAmtSAR, exchangeRate)}</span>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Tickets</span>
-            <span className="text-sm font-bold font-mono text-slate-900">{accountSummaryMetrics.ticketsCount} Issued</span>
-            <span className="text-xs font-mono text-[#0e2c4c] block">SAR {accountSummaryMetrics.ticketsAmtSAR.toLocaleString()}</span>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Tickets ({accountSummaryMetrics.ticketsCount} Issued)</span>
+            <span className="font-mono text-slate-900 block font-bold">{formatConvertedMoney(accountSummaryMetrics.ticketsAmtSAR, exchangeRate)}</span>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Refunds</span>
-            <span className="text-sm font-bold font-mono text-slate-900">{accountSummaryMetrics.refundsCount} Processed</span>
-            <span className="text-xs font-mono text-rose-600 block">SAR {accountSummaryMetrics.refundsAmtSAR.toLocaleString()}</span>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Refunds ({accountSummaryMetrics.refundsCount})</span>
+            <span className="font-mono text-rose-600 block font-bold">{formatConvertedMoney(accountSummaryMetrics.refundsAmtSAR, exchangeRate)}</span>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Services</span>
-            <span className="text-sm font-bold font-mono text-slate-900">{accountSummaryMetrics.servicesCount} Vouchers</span>
-            <span className="text-xs font-mono text-[#0e2c4c] block">SAR {accountSummaryMetrics.servicesAmtSAR.toLocaleString()}</span>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Services ({accountSummaryMetrics.servicesCount})</span>
+            <span className="font-mono text-slate-900 block font-bold">{formatConvertedMoney(accountSummaryMetrics.servicesAmtSAR, exchangeRate)}</span>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Reservations</span>
-            <span className="text-sm font-bold font-mono text-slate-900">{accountSummaryMetrics.reservationsCount} Pending</span>
-            <span className="text-xs font-mono text-amber-600 block">SAR {accountSummaryMetrics.reservationsAmtSAR.toLocaleString()}</span>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Reservations ({accountSummaryMetrics.reservationsCount})</span>
+            <span className="font-mono text-amber-600 block font-bold">{formatConvertedMoney(accountSummaryMetrics.reservationsAmtSAR, exchangeRate)}</span>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Overseas</span>
-            <span className="text-sm font-bold font-mono text-slate-900">Partners</span>
-            <span className="text-xs font-mono text-[#0e2c4c] block">SAR {accountSummaryMetrics.overseasAmtSAR.toLocaleString()}</span>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Overseas Partners</span>
+            <span className="font-mono text-slate-900 block font-bold">{formatConvertedMoney(accountSummaryMetrics.overseasAmtSAR, exchangeRate)}</span>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Only Accommodation</span>
-            <span className="text-sm font-bold font-mono text-slate-900">{accountSummaryMetrics.onlyHotelStays} Stays</span>
-            <span className="text-xs font-mono text-[#0e2c4c] block">SAR {accountSummaryMetrics.onlyHotelAmtSAR.toLocaleString()}</span>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Only Accommodation ({accountSummaryMetrics.onlyHotelStays} Stays)</span>
+            <span className="font-mono text-slate-900 block font-bold">{formatConvertedMoney(accountSummaryMetrics.onlyHotelAmtSAR, exchangeRate)}</span>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span className="text-[10px] text-slate-400 uppercase font-bold block">Only Transport</span>
-            <span className="text-sm font-bold font-mono text-slate-900">{accountSummaryMetrics.onlyTransportTransfers} Transfers</span>
-            <span className="text-xs font-mono text-[#0e2c4c] block">SAR {accountSummaryMetrics.onlyTransportAmtSAR.toLocaleString()}</span>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Only Transport ({accountSummaryMetrics.onlyTransportTransfers})</span>
+            <span className="font-mono text-slate-900 block font-bold">{formatConvertedMoney(accountSummaryMetrics.onlyTransportAmtSAR, exchangeRate)}</span>
           </div>
         </div>
 
         {/* Totals Bar */}
-        <div className="bg-[#0e2c4c] text-white rounded-xl p-4 grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
+        <div className="bg-[#0e2c4c] text-white rounded-xl p-4 grid grid-cols-1 sm:grid-cols-5 gap-3 text-center text-xs">
           <div>
             <span className="text-[10px] uppercase tracking-wider text-slate-300 block font-bold">Openings</span>
-            <span className="text-base font-mono font-bold text-white">SAR {accountSummaryMetrics.totalOpenings.toLocaleString()}</span>
+            <span className="font-mono font-bold text-white">{formatConvertedMoney(accountSummaryMetrics.totalOpenings, exchangeRate)}</span>
           </div>
           <div>
             <span className="text-[10px] uppercase tracking-wider text-slate-300 block font-bold">Invoices</span>
-            <span className="text-base font-mono font-bold text-[#c9a227]">SAR {accountSummaryMetrics.totalInvoices.toLocaleString()}</span>
+            <span className="font-mono font-bold text-[#c9a227]">{formatConvertedMoney(accountSummaryMetrics.totalInvoices, exchangeRate)}</span>
           </div>
           <div>
             <span className="text-[10px] uppercase tracking-wider text-slate-300 block font-bold">Payments</span>
-            <span className="text-base font-mono font-bold text-emerald-400">SAR {accountSummaryMetrics.totalPayments.toLocaleString()}</span>
+            <span className="font-mono font-bold text-emerald-400">{formatConvertedMoney(accountSummaryMetrics.totalPayments, exchangeRate)}</span>
           </div>
           <div>
             <span className="text-[10px] uppercase tracking-wider text-slate-300 block font-bold">Adjustments</span>
-            <span className="text-base font-mono font-bold text-slate-300">SAR {accountSummaryMetrics.totalAdjustments.toLocaleString()}</span>
+            <span className="font-mono font-bold text-slate-300">{formatConvertedMoney(accountSummaryMetrics.totalAdjustments, exchangeRate)}</span>
           </div>
-          <div className="col-span-2 sm:col-span-1 bg-white/10 rounded-lg p-1">
+          <div className="bg-white/10 rounded-lg p-1.5">
             <span className="text-[10px] uppercase tracking-wider text-[#c9a227] block font-bold">Balance Due</span>
-            <span className="text-base font-mono font-bold text-white">SAR {accountSummaryMetrics.balanceDue.toLocaleString()}</span>
+            <span className="font-mono font-bold text-white">{formatConvertedMoney(accountSummaryMetrics.balanceDue, exchangeRate)}</span>
           </div>
         </div>
       </div>

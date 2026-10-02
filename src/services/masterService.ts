@@ -554,6 +554,112 @@ export async function updateVehicleReferenceRate(
   });
 }
 
+export async function createVehicle(
+  actor: UserProfile,
+  data: Omit<VehicleDoc, 'id' | 'isActive' | 'usedFromCount'>
+): Promise<VehicleDoc> {
+  const existing = await fetchVehicles();
+  const vehicleId = `veh-${Date.now()}`;
+  const newVehicle: VehicleDoc = {
+    ...data,
+    id: vehicleId,
+    isActive: true,
+    usedFromCount: 0,
+  };
+
+  const updated = [newVehicle, ...existing];
+  localStorage.setItem(LOCAL_STORAGE_VEHICLES_KEY, JSON.stringify(updated));
+
+  await logAuditEvent({
+    action: 'CREATE_VEHICLE',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: vehicleId,
+    targetUserName: data.vehicleType,
+    details: data,
+  });
+
+  return newVehicle;
+}
+
+export async function updateVehicle(
+  actor: UserProfile,
+  vehicleId: string,
+  updateData: Partial<VehicleDoc>
+): Promise<VehicleDoc> {
+  const existing = await fetchVehicles();
+  const idx = existing.findIndex(v => v.id === vehicleId);
+  if (idx === -1) throw new Error('Vehicle not found.');
+
+  const updated: VehicleDoc = {
+    ...existing[idx],
+    ...updateData,
+  };
+
+  existing[idx] = updated;
+  localStorage.setItem(LOCAL_STORAGE_VEHICLES_KEY, JSON.stringify(existing));
+
+  await logAuditEvent({
+    action: 'UPDATE_VEHICLE',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: vehicleId,
+    targetUserName: updated.vehicleType,
+    details: updateData,
+  });
+
+  return updated;
+}
+
+export async function toggleVehicleStatus(actor: UserProfile, vehicleId: string): Promise<void> {
+  const existing = await fetchVehicles();
+  const v = existing.find(item => item.id === vehicleId);
+  if (!v) throw new Error('Vehicle not found.');
+
+  const newState = !v.isActive;
+  const updated = existing.map(item => item.id === vehicleId ? { ...item, isActive: newState } : item);
+  localStorage.setItem(LOCAL_STORAGE_VEHICLES_KEY, JSON.stringify(updated));
+
+  await logAuditEvent({
+    action: newState ? 'VEHICLE_ACTIVATED' : 'VEHICLE_DEACTIVATED',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: vehicleId,
+    targetUserName: v.vehicleType,
+    details: { newState },
+  });
+}
+
+export async function deleteVehicle(actor: UserProfile, vehicleId: string): Promise<void> {
+  const existing = await fetchVehicles();
+  const v = existing.find(item => item.id === vehicleId);
+  if (!v) throw new Error('Vehicle not found.');
+
+  if ((v.usedFromCount || 0) > 0) {
+    throw new Error(`Cannot delete vehicle type "${v.vehicleType}" because it has been referenced in ${v.usedFromCount} active vouchers. Please deactivate instead.`);
+  }
+
+  const updated = existing.filter(item => item.id !== vehicleId);
+  localStorage.setItem(LOCAL_STORAGE_VEHICLES_KEY, JSON.stringify(updated));
+
+  await logAuditEvent({
+    action: 'DELETE_VEHICLE',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: vehicleId,
+    targetUserName: v.vehicleType,
+    details: {},
+  });
+}
+
 // --- AIRLINES SERVICE ---
 
 export async function fetchAirlines(): Promise<AirlineDoc[]> {

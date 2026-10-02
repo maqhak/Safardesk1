@@ -11,6 +11,7 @@ import { VoucherDoc } from '../types/voucher';
 import { UserProfile } from '../types/auth';
 import { LedgerAccountDoc, LedgerEntryDoc } from '../types/agent';
 import { logAuditEvent } from './userService';
+import { getCurrentRate } from './exchangeRateService';
 
 const VOUCHERS_COLLECTION = 'vouchers';
 const LEDGER_ACCOUNTS_COLLECTION = 'ledgerAccounts';
@@ -96,11 +97,17 @@ export async function createVoucher(
 
   const voucherNo = await nextVoucherNumber();
   const voucherId = `vch-${Date.now()}`;
+  const exchangeRate = getCurrentRate('SAR-PKR');
 
   const newVoucher: VoucherDoc = {
     ...data,
     id: voucherId,
     voucherNo,
+    totals: {
+      ...data.totals,
+      exchangeRate,
+      totalPKR: data.totals.totalSAR * exchangeRate,
+    },
     createdAt: new Date().toISOString(),
     createdBy: actor.uid,
     createdByName: actor.name || actor.email,
