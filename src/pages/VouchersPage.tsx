@@ -31,6 +31,7 @@ import { Modal } from '../components/ui/Modal';
 import { AirportSelect, AirlineSelect } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
+import { VoucherPrintDocument } from '../components/voucher/VoucherPrintDocument';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { useDeepOpen } from '../hooks/useDeepOpen';
@@ -1503,22 +1504,9 @@ export const VouchersPage: React.FC = () => {
             </div>
           }
         >
-          <div className="space-y-4 py-2 text-xs">
-            {/* Branded Print Header (print only) */}
-            <div className="hidden print:block border-b-2 border-slate-900 pb-3 mb-1">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h1 className="text-2xl font-black text-[#0e2c4c] tracking-tight">{company.companyName}</h1>
-                  <p className="text-xs text-slate-700 font-semibold">{company.legalName || 'Hajj & Umrah Tour Operations'}</p>
-                  <p className="text-[11px] text-slate-500">{company.address}, {company.city} • Tel: {company.phone} • Email: {company.email}</p>
-                </div>
-                <div className="text-right">
-                  <span className="inline-block bg-[#0e2c4c] text-white px-3 py-1 rounded text-xs font-bold uppercase tracking-wider">
-                    Umrah Trip Voucher
-                  </span>
-                </div>
-              </div>
-            </div>
+          {/* F&S approved A4 voucher print document (print only) */}
+          <VoucherPrintDocument voucher={selectedVoucher} company={company} groupCode={voucherGroupCode(selectedVoucher)} />
+          <div className="space-y-4 py-2 text-xs print:hidden">
             <div className="bg-[#0e2c4c] text-white rounded-xl p-4 flex items-center justify-between">
               <div>
                 <div className="text-slate-300 uppercase text-[10px]">Official Voucher Reference</div>
