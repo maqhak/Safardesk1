@@ -36,6 +36,7 @@ import { fetchVisas } from '../services/visaService';
 import { fetchHotels, fetchVehicles } from '../services/masterService';
 import { HotelDoc, VehicleDoc } from '../types/master';
 import { convert } from '../services/financeService';
+import { getCurrentRate } from '../services/exchangeRateService';
 
 export const VouchersPage: React.FC = () => {
   const { userProfile, role } = useAuth();
@@ -134,7 +135,7 @@ export const VouchersPage: React.FC = () => {
     const hotelsSAR = hotelStays.reduce((sum, h) => sum + (h.totalSAR || 0), 0);
     const transportSAR = sectors.reduce((sum, s) => sum + (s.transportRateSAR || 0), 0);
     const totalSAR = hotelsSAR + transportSAR;
-    const totalPKR = convert(totalSAR, 74.50); // using SAR/PKR benchmark
+    const totalPKR = convert(totalSAR, getCurrentRate('SAR-PKR')); // using active SAR/PKR master rate
 
     setSaving(true);
     try {

@@ -9,6 +9,7 @@ import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { postBalancedTransaction, voidLedgerEntry, fetchLedgerEntries } from './accountingService';
 import { uploadReceiptToDrive, verifyReceiptWithAI } from './driveService';
+import { getCurrentRate } from './exchangeRateService';
 
 const PAYMENTS_COLLECTION = 'payments';
 const BANKS_COLLECTION = 'banks';
@@ -366,7 +367,8 @@ export async function createPayment(params: {
   }
 
   const paymentNo = await getNextPaymentNumber();
-  const amountPKR = Math.round(params.amountSAR * params.exchangeRate * 100) / 100;
+  const exchangeRate = params.exchangeRate || getCurrentRate('SAR-PKR');
+  const amountPKR = Math.round(params.amountSAR * exchangeRate * 100) / 100;
   const now = new Date().toISOString();
 
   const isReceived = params.entryType === 'cash-received' || params.entryType === 'bank-received';

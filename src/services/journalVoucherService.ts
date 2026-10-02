@@ -10,6 +10,7 @@ import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { fetchLedgerAccounts, fetchLedgerEntries, voidLedgerEntry } from './accountingService';
 import { uploadReceiptToDrive } from './driveService';
+import { getCurrentRate } from './exchangeRateService';
 
 const JV_COLLECTION = 'journal_vouchers';
 const LOCAL_STORAGE_JV_KEY = 'safardesk_journal_vouchers_v1';

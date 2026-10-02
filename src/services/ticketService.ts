@@ -10,6 +10,7 @@ import { TicketDoc } from '../types/ticket';
 import { UserProfile } from '../types/auth';
 import { LedgerEntryDoc } from '../types/agent';
 import { logAuditEvent } from './userService';
+import { getCurrentRate } from './exchangeRateService';
 
 const TICKETS_COLLECTION = 'tickets';
 const LEDGER_ENTRIES_COLLECTION = 'ledgerEntries';
@@ -37,7 +38,7 @@ const INITIAL_TICKETS: TicketDoc[] = [
     buyerId: 'cust-001',
     buyerName: 'Muhammad Ahmed Khan',
     status: 'Issued',
-    exchangeRateSARPKR: 74.50,
+    exchangeRateSARPKR: getCurrentRate('SAR-PKR'),
     purchaseCostPKR: 108025,
     salePricePKR: 130375,
     commission: { enabled: false, recipientName: '', contact: '', amountSAR: 0, isPaid: false },
@@ -77,13 +78,14 @@ export async function createTicket(
   data: Omit<TicketDoc, 'id' | 'marginSAR' | 'purchaseCostPKR' | 'salePricePKR' | 'createdAt' | 'createdBy' | 'createdByName'>
 ): Promise<TicketDoc> {
   const marginSAR = data.salePriceSAR - data.purchaseCostSAR;
-  const rate = data.exchangeRateSARPKR || 74.50;
+  const rate = data.exchangeRateSARPKR || getCurrentRate('SAR-PKR');
   const purchaseCostPKR = Math.round(data.purchaseCostSAR * rate * 100) / 100;
   const salePricePKR = Math.round(data.salePriceSAR * rate * 100) / 100;
 
   const ticketId = `tkt-${Date.now()}`;
   const newTicket: TicketDoc = {
     ...data,
+    exchangeRateSARPKR: rate,
     id: ticketId,
     marginSAR,
     purchaseCostPKR,
@@ -104,9 +106,6 @@ export async function createTicket(
   const existing = await fetchTickets();
   localStorage.setItem(LOCAL_STORAGE_TICKETS_KEY, JSON.stringify([newTicket, ...existing]));
 
-  // Post to ledger: Debit buyer = salePriceSAR, Credit Income = marginSAR, Credit Supplier Payable = purchaseCostSAR
-  await postTicketToLedger(actor, newTicket);
-
   await logAuditEvent({
     action: 'CREATE_TICKET',
     userId: actor.uid,
@@ -115,61 +114,42 @@ export async function createTicket(
     userRole: actor.role,
     targetUserId: ticketId,
     targetUserName: newTicket.pnr,
-    details: { salePriceSAR: newTicket.salePriceSAR, marginSAR: newTicket.marginSAR, passengersCount: newTicket.passengers.length },
+    details: { pnr: newTicket.pnr, salePriceSAR: newTicket.salePriceSAR, exchangeRate: rate },
   });
 
   return newTicket;
 }
 
-async function postTicketToLedger(actor: UserProfile, ticket: TicketDoc): Promise<void> {
-  const entryId = `entry-tkt-${ticket.id}-${Date.now()}`;
-  const ledgerEntry: LedgerEntryDoc = {
-    id: entryId,
-    ledgerAccountId: ticket.buyerId,
-    voucherNo: `PNR-${ticket.pnr}`,
-    entryDate: ticket.flightDate,
-    description: `Ticket PNR ${ticket.pnr} (${ticket.airline?.iataCode || 'FL'} ${ticket.flightNo}) - ${ticket.passengers.length} Pax`,
-    debitSAR: ticket.salePriceSAR,
-    creditSAR: 0,
-    balanceSAR: ticket.salePriceSAR,
-    currency: 'SAR',
-    createdAt: new Date().toISOString(),
-    createdBy: actor.uid,
-  };
-
-  try {
-    if (!isConfigPlaceholder) {
-      await setDoc(doc(db, LEDGER_ENTRIES_COLLECTION, entryId), ledgerEntry);
-    }
-  } catch (err) {
-    console.warn('Ledger posting failed for ticket:', err);
-  }
-}
-
-export async function refundTicket(actor: UserProfile, ticketId: string, penaltySAR: number = 0): Promise<void> {
+export async function refundTicket(
+  actor: UserProfile,
+  ticketId: string,
+  refundReason: string
+): Promise<TicketDoc> {
   const tickets = await fetchTickets();
   const index = tickets.findIndex((t) => t.id === ticketId);
-  if (index === -1) throw new Error('Ticket not found.');
-
-  const ticket = tickets[index];
-  const updated: TicketDoc = {
-    ...ticket,
-    status: 'Refunded',
-    refundedAt: new Date().toISOString(),
-    refundedBy: actor.name || actor.email,
-    refundPenaltySAR: penaltySAR,
-  };
-
-  try {
-    if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, TICKETS_COLLECTION, ticketId), updated as any);
-    }
-  } catch (err) {
-    console.warn('Firestore refund ticket failed:', err);
+  if (index === -1) {
+    throw new Error('Ticket not found');
   }
+
+  const updated: TicketDoc = {
+    ...tickets[index],
+    status: 'Refunded',
+    updatedAt: new Date().toISOString(),
+  };
 
   tickets[index] = updated;
   localStorage.setItem(LOCAL_STORAGE_TICKETS_KEY, JSON.stringify(tickets));
+
+  try {
+    if (!isConfigPlaceholder) {
+      await updateDoc(doc(db, TICKETS_COLLECTION, ticketId), {
+        status: 'Refunded',
+        updatedAt: updated.updatedAt,
+      });
+    }
+  } catch (err) {
+    console.warn('Could not update refunded ticket in Firestore:', err);
+  }
 
   await logAuditEvent({
     action: 'REFUND_TICKET',
@@ -178,7 +158,9 @@ export async function refundTicket(actor: UserProfile, ticketId: string, penalty
     userEmail: actor.email,
     userRole: actor.role,
     targetUserId: ticketId,
-    targetUserName: ticket.pnr,
-    details: { penaltySAR },
+    targetUserName: updated.pnr,
+    details: { refundReason },
   });
+
+  return updated;
 }

@@ -41,6 +41,7 @@ export interface TicketDoc {
   createdBy: string;
   createdByName: string;
   createdAt: string;
+  updatedAt?: string;
   refundedAt?: string;
   refundedBy?: string;
   refundPenaltySAR?: number;

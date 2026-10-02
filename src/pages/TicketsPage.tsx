@@ -31,6 +31,7 @@ import { useCan } from '../hooks/useCan';
 import { TicketDoc, TicketPassenger } from '../types/ticket';
 import { AirlineDoc, AirportRef } from '../types/master';
 import { fetchTickets, createTicket, refundTicket } from '../services/ticketService';
+import { getCurrentRate, useCurrentRate } from '../services/exchangeRateService';
 import { fetchCustomers } from '../services/customerService';
 import { fetchAgents } from '../services/agentService';
 
@@ -49,6 +50,13 @@ export const TicketsPage: React.FC = () => {
   const [search, setSearch] = useState<string>('');
 
   // New Ticket Modal Form
+  const currentRate = useCurrentRate('SAR-PKR');
+  const [exchangeRate, setExchangeRate] = useState<number>(currentRate);
+
+  useEffect(() => {
+    setExchangeRate(currentRate);
+  }, [currentRate]);
+
   const [addModalOpen, setAddModalOpen] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [pnr, setPnr] = useState<string>('');
@@ -143,7 +151,7 @@ export const TicketsPage: React.FC = () => {
         buyerId,
         buyerName: buyerObj?.fullName || buyerObj?.companyName || 'General Buyer',
         status: 'Issued',
-        exchangeRateSARPKR: 74.50,
+        exchangeRateSARPKR: exchangeRate,
         commission: { enabled: false, recipientName: '', contact: '', amountSAR: 0, isPaid: false },
       });
 
@@ -581,7 +589,7 @@ export const TicketsPage: React.FC = () => {
           footer={
             <div className="flex items-center justify-between w-full">
               {isOwner && selectedTicket.status !== 'Refunded' && (
-                <Button variant="danger" size="sm" onClick={async () => { await refundTicket(userProfile!, selectedTicket.id, 100); success('Ticket refunded.'); setDetailModalOpen(false); await loadData(); }}>
+                <Button variant="danger" size="sm" onClick={async () => { await refundTicket(userProfile!, selectedTicket.id, 'Full refund'); success('Ticket refunded.'); setDetailModalOpen(false); await loadData(); }}>
                   Process Refund
                 </Button>
               )}
