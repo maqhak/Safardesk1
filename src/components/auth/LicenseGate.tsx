@@ -1,39 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { ShieldAlert, AlertTriangle, Calendar, Building2, Phone, Mail, CheckCircle2 } from 'lucide-react';
-import { fetchTenantLicense, LicenseDoc } from '../../services/licenseService';
+import React from 'react';
+import { ShieldAlert, Calendar, Phone, Eye } from 'lucide-react';
+import { LicenseProvider, useLicense } from '../../contexts/LicenseContext';
 import { TENANT_KEY, TENANT } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
-import { Button } from '../ui/Button';
-import { Card } from '../ui/Card';
 
 interface LicenseGateProps {
   children: React.ReactNode;
 }
 
-export const LicenseGate: React.FC<LicenseGateProps> = ({ children }) => {
-  const { userProfile, role } = useAuth();
-  const [loading, setLoading] = useState<boolean>(true);
-  const [license, setLicense] = useState<LicenseDoc | null>(null);
+/** Persistent banner shown while the app runs in read-only mode. */
+const ReadOnlyBanner: React.FC = () => (
+  <div className="bg-rose-600 text-white text-center text-[11px] font-bold py-1.5 px-4 flex items-center justify-center gap-2">
+    <Eye className="w-3.5 h-3.5" />
+    <span>
+      Read-Only Mode — the SafarDesk license has expired. You can view records, but creating, editing, or deleting is disabled.
+      Contact {TENANT.contact.phone} to renew.
+    </span>
+  </div>
+);
 
-  useEffect(() => {
-    fetchTenantLicense()
-      .then((lic) => {
-        setLicense(lic);
-      })
-      .catch(() => {
-        // Fallback active
-        setLicense({
-          companyName: TENANT.companyName,
-          status: 'active',
-          validUntil: '2027-12-31',
-          plan: 'Enterprise',
-          supportContact: TENANT.contact.phone,
-        });
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, []);
+const LicenseGateInner: React.FC<LicenseGateProps> = ({ children }) => {
+  const { license, loading, isReadOnly, enterReadOnly, isExpiredOrBlocked, daysRemaining } = useLicense();
+  const { role } = useAuth();
 
   if (loading) {
     return (
@@ -50,13 +38,9 @@ export const LicenseGate: React.FC<LicenseGateProps> = ({ children }) => {
     return <>{children}</>;
   }
 
-  // Check expiration or block
-  const isExpiredOrBlocked = 
-    license.status === 'expired' || 
-    license.status === 'blocked' || 
-    (license.validUntil && new Date(license.validUntil).getTime() < Date.now());
-
-  if (isExpiredOrBlocked) {
+  // Fix #28: expired/blocked licenses switch the app to READ-ONLY mode instead of
+  // a dead end — data stays visible and untouched, but nothing can be changed.
+  if (isExpiredOrBlocked && !isReadOnly) {
     const isOwner = role === 'owner';
 
     return (
@@ -71,7 +55,7 @@ export const LicenseGate: React.FC<LicenseGateProps> = ({ children }) => {
               Subscription Expired
             </h2>
             <p className="text-xs text-slate-600 leading-relaxed">
-              The subscription for <strong>{license.companyName}</strong> has expired as of <strong>{license.validUntil}</strong>. Your agency data remains 100% intact, secure, and unmodified. Please contact your system provider to renew your enterprise plan.
+              The subscription for <strong>{license.companyName}</strong> has expired{license.validUntil ? <> as of <strong>{license.validUntil}</strong></> : ''}. Your agency data remains 100% intact, secure, and unmodified. You may continue in read-only mode, or contact your system provider to renew.
             </p>
           </div>
 
@@ -81,11 +65,15 @@ export const LicenseGate: React.FC<LicenseGateProps> = ({ children }) => {
               <strong className="font-mono text-slate-900">{TENANT_KEY}</strong>
             </div>
             <div className="flex items-center justify-between text-slate-600">
+              <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />Valid Until:</span>
+              <strong className="text-slate-900">{license.validUntil || '—'}{daysRemaining !== null && daysRemaining < 0 ? ` (${Math.abs(daysRemaining)} days ago)` : ''}</strong>
+            </div>
+            <div className="flex items-center justify-between text-slate-600">
               <span>Status:</span>
               <span className="font-bold uppercase text-rose-600">{license.status}</span>
             </div>
             <div className="flex items-center justify-between text-slate-600">
-              <span>Support Contact:</span>
+              <span className="flex items-center gap-1"><Phone className="w-3.5 h-3.5" />Support:</span>
               <strong className="text-slate-900">{license.supportContact || TENANT.contact.phone}</strong>
             </div>
           </div>
@@ -94,15 +82,23 @@ export const LicenseGate: React.FC<LicenseGateProps> = ({ children }) => {
             <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-left space-y-1 text-xs text-amber-900">
               <strong>Owner License Control Panel:</strong>
               <p className="text-[11px] text-amber-800">
-                You are logged in as Owner. You may contact billing support to refresh the secure Firestore license token.
+                You are logged in as Owner. Contact billing support to refresh the secure license token and restore full access.
               </p>
             </div>
           )}
 
-          <div className="pt-2">
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={enterReadOnly}
+              className="inline-flex items-center justify-center gap-2 w-full py-2.5 bg-[#0e2c4c] hover:bg-[#0e2c4c]/90 text-white font-bold rounded-xl text-xs shadow-md transition cursor-pointer"
+            >
+              <Eye className="w-4 h-4" />
+              Continue in Read-Only Mode
+            </button>
             <a
               href={`mailto:support@safardesk.com?subject=License Renewal for ${license.companyName} (${TENANT_KEY})`}
-              className="inline-block w-full py-2.5 bg-[#0e2c4c] hover:bg-[#0e2c4c]/90 text-white font-bold rounded-xl text-xs shadow-md transition text-center"
+              className="inline-block w-full py-2.5 border border-slate-300 text-slate-700 font-bold rounded-xl text-xs transition text-center hover:bg-slate-50"
             >
               Contact Renewal Support →
             </a>
@@ -112,5 +108,16 @@ export const LicenseGate: React.FC<LicenseGateProps> = ({ children }) => {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {isReadOnly && <ReadOnlyBanner />}
+      {children}
+    </>
+  );
 };
+
+export const LicenseGate: React.FC<LicenseGateProps> = ({ children }) => (
+  <LicenseProvider>
+    <LicenseGateInner>{children}</LicenseGateInner>
+  </LicenseProvider>
+);

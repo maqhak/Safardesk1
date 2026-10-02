@@ -1,4 +1,5 @@
 import { useAuth } from '../contexts/AuthContext';
+import { useLicense } from '../contexts/LicenseContext';
 import { AppModule, PermissionAction, UserProfile } from '../types/auth';
 
 /**
@@ -49,6 +50,9 @@ export function checkCan(
  */
 export function useCan(module: AppModule, action: PermissionAction = 'view'): boolean {
   const { userProfile } = useAuth();
+  const { isReadOnly } = useLicense();
+  // Fix #28: in license read-only mode, every mutation is denied app-wide.
+  if (isReadOnly && action !== 'view') return false;
   return checkCan(userProfile, module, action);
 }
 

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { TENANT } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { LicensePill } from '../auth/LicensePill';
 import { useToast } from '../../contexts/ToastContext';
 import { UserRole, AppModule } from '../../types/auth';
 import { GlobalSearchModal } from './GlobalSearchModal';
@@ -256,6 +257,9 @@ export const TopNavbar: React.FC = () => {
                   </kbd>
                 </button>
               )}
+
+              {/* License Status Pill */}
+              <LicensePill />
 
               {/* Forex Indicator Pill (SAR / PKR) */}
               <div 
