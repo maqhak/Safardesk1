@@ -25,6 +25,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
+import { EmptyState } from '../components/ui/EmptyState';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
@@ -93,6 +94,7 @@ export const AgentPortalPage: React.FC = () => {
   // Ledger state for this agent
   const [currency, setCurrency] = useState<'SAR' | 'PKR'>('SAR');
   const [agentAccount, setAgentAccount] = useState<LedgerAccountDoc | null>(null);
+  const [accountLoaded, setAccountLoaded] = useState(false);
   const [agentEntries, setAgentEntries] = useState<LedgerEntryDoc[]>([]);
   const [activeVoucherNo, setActiveVoucherNo] = useState<string | null>(null);
 
@@ -121,12 +123,15 @@ export const AgentPortalPage: React.FC = () => {
 
   useEffect(() => {
     Promise.all([fetchLedgerAccounts(), fetchLedgerEntries()]).then(([accs, ents]) => {
-      // Find matching agent account
-      const found = accs.find((a) => a.accountCode === 'AGT-001' || a.linkedId === userProfile?.uid || a.linkedId === userProfile?.agentId) || accs[0];
-      setAgentAccount(found || null);
-      if (found) {
-        setAgentEntries(ents.filter((e) => e.accountId === found.id));
-      }
+      // SECURITY: find ONLY this agent's own ledger account by linked login id.
+      // Never fall back to a demo account or another agent's account.
+      const uid = userProfile?.uid;
+      const aid = userProfile?.agentId;
+      const found =
+        accs.find((a) => (uid && a.linkedId === uid) || (aid && a.linkedId === aid)) || null;
+      setAgentAccount(found);
+      setAgentEntries(found ? ents.filter((e) => e.accountId === found.id) : []);
+      setAccountLoaded(true);
     });
   }, [userProfile?.uid, userProfile?.agentId]);
 
@@ -198,6 +203,38 @@ export const AgentPortalPage: React.FC = () => {
     success('Your agency statement of account has been exported to CSV.');
   };
 
+  if (!accountLoaded) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Agent B2B Portal"
+          subtitle="Loading your agency workspace\u2026"
+          breadcrumbs={[{ label: 'Agent Portal' }]}
+        />
+        <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-sm text-slate-500">
+          Loading your ledger account\u2026
+        </div>
+      </div>
+    );
+  }
+
+  if (!agentAccount) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Agent B2B Portal"
+          subtitle="Your agency workspace"
+          breadcrumbs={[{ label: 'Agent Portal' }]}
+        />
+        <EmptyState
+          icon={Building}
+          title="No ledger account linked"
+          description="Your login is not linked to an agent ledger account yet. Please contact the head office to link your account before using the portal."
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -207,7 +244,7 @@ export const AgentPortalPage: React.FC = () => {
         breadcrumbs={[{ label: 'Agent Portal' }]}
         badge={
           <Badge variant="success" size="md">
-            Agent Code: {agentAccount?.accountCode || userProfile?.agentId || 'AGT-001'}
+            Agent Code: {agentAccount?.accountCode || userProfile?.agentId || '\u2014'}
           </Badge>
         }
         actions={
@@ -575,7 +612,7 @@ export const AgentPortalPage: React.FC = () => {
         webViewLink={receiptViewerUrl?.startsWith('https://drive.google.com') ? receiptViewerUrl : null}
         userRole="agent"
         entryAccountId={receiptViewerAccountId}
-        agentOwnAccountId={agentAccount?.id || 'acc-agt-001'}
+        agentOwnAccountId={agentAccount?.id ?? ''}
       />
 
       {/* Hidden Audio Player for inline WhatsApp voice note playback */}
