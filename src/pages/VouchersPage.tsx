@@ -55,6 +55,7 @@ export const VouchersPage: React.FC = () => {
   const { success, error: showError, info } = useToast();
   const canCreate = useCan('Vouchers', 'create');
   const isOwner = role === 'owner';
+  const isAgent = role === 'agent';
 
   const [vouchers, setVouchers] = useState<VoucherDoc[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -83,14 +84,14 @@ export const VouchersPage: React.FC = () => {
   // Smart Date Chaining Anchor
   const [arrivalDate, setArrivalDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
-  // Sectors state with AirportSelect & AirlineSelect
+  // Sectors state with AirportSelect & AirlineSelect (transport rate starts blank / 0)
   const [sectors, setSectors] = useState<SectorItem[]>([
-    { type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', vehicleType: 'Staria', transportRateSAR: 350 }
+    { type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', vehicleType: 'Staria', transportRateSAR: 0 }
   ]);
 
-  // Hotel Stays state with smart date chaining
+  // Hotel Stays state with smart date chaining (rate starts blank / 0)
   const [hotelStays, setHotelStays] = useState<HotelStayItem[]>([
-    { city: 'Makkah', hotelName: '', checkInDate: new Date().toISOString().split('T')[0], checkOutDate: addDays(new Date().toISOString().split('T')[0], 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 950, totalSAR: 2850 }
+    { city: 'Makkah', hotelName: '', checkInDate: new Date().toISOString().split('T')[0], checkOutDate: addDays(new Date().toISOString().split('T')[0], 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 0, totalSAR: 0 }
   ]);
 
   // Flight Details Section State
@@ -175,8 +176,8 @@ export const VouchersPage: React.FC = () => {
     setSelectedCustomerId('');
     setSelectedAgentId('');
     setArrivalDate(new Date().toISOString().split('T')[0]);
-    setSectors([{ type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', vehicleType: 'Staria', transportRateSAR: 350 }]);
-    setHotelStays([{ city: 'Makkah', hotelName: '', checkInDate: new Date().toISOString().split('T')[0], checkOutDate: addDays(new Date().toISOString().split('T')[0], 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 950, totalSAR: 2850 }]);
+    setSectors([{ type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', vehicleType: 'Staria', transportRateSAR: 0 }]);
+    setHotelStays([{ city: 'Makkah', hotelName: '', checkInDate: new Date().toISOString().split('T')[0], checkOutDate: addDays(new Date().toISOString().split('T')[0], 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 0, totalSAR: 0 }]);
     setAllowFlightInfo(false);
     setDepAirline(null);
     setDepFlightNo('');
@@ -187,8 +188,25 @@ export const VouchersPage: React.FC = () => {
     setRetFrom(null);
     setRetTo(null);
     setLateIntimationSAR('');
+    setCommissionEnabled(false);
+    setCommissionName('');
+    setCommissionAmount('');
     setBuilderOpen(true);
   };
+
+  // Valid hotel stays & sectors (excluding zero/empty lines)
+  const validHotelStays = useMemo(() => {
+    return hotelStays.filter(h => h.hotelName && h.hotelName.trim() !== '' && (h.ratePerNightSAR || 0) > 0);
+  }, [hotelStays]);
+
+  const validSectors = useMemo(() => {
+    return sectors.filter(s => (s.transportRateSAR || 0) > 0);
+  }, [sectors]);
+
+  const hotelsSAR = useMemo(() => validHotelStays.reduce((sum, h) => sum + (h.totalSAR || 0), 0), [validHotelStays]);
+  const transportSAR = useMemo(() => validSectors.reduce((sum, s) => sum + (s.transportRateSAR || 0), 0), [validSectors]);
+  const lateIntimation = parseFloat(lateIntimationSAR) || 0;
+  const totalSAR = hotelsSAR + transportSAR + lateIntimation;
 
   const handleSaveVoucher = async () => {
     if (!userProfile) return;
@@ -204,6 +222,11 @@ export const VouchersPage: React.FC = () => {
     }
     if (linkType === 'agent' && !selectedAgentId) {
       showError('No-orphan rule: Voucher linked to a B2B sub-agent must select a sub-agent.');
+      return;
+    }
+
+    if (validHotelStays.length === 0 && validSectors.length === 0) {
+      showError('Please add at least one valid hotel stay (with name and rate > 0) or transport sector.');
       return;
     }
 
@@ -231,11 +254,6 @@ export const VouchersPage: React.FC = () => {
       }];
     }
 
-    // Calculate totals including late intimation charges
-    const lateIntimation = parseFloat(lateIntimationSAR) || 0;
-    const hotelsSAR = hotelStays.reduce((sum, h) => sum + (h.totalSAR || 0), 0);
-    const transportSAR = sectors.reduce((sum, s) => sum + (s.transportRateSAR || 0), 0);
-    const totalSAR = hotelsSAR + transportSAR + lateIntimation;
     const totalPKR = convert(totalSAR, getCurrentRate('SAR-PKR'));
 
     setSaving(true);
@@ -247,8 +265,8 @@ export const VouchersPage: React.FC = () => {
         agentId: linkType === 'agent' ? selectedAgentId : undefined,
         status: 'Confirmed',
         passengers,
-        sectors,
-        hotelStays,
+        sectors: validSectors,
+        hotelStays: validHotelStays,
         flightDetails: {
           allowFlightInfo,
           departureFlight: {
@@ -272,8 +290,8 @@ export const VouchersPage: React.FC = () => {
           lateIntimationChargesSAR: lateIntimation,
         },
         charges: [
-          ...hotelStays.map((h) => ({ description: `${h.city} - ${h.hotelName} (${h.nights}n)`, category: 'Hotel' as const, amountSAR: h.totalSAR })),
-          ...sectors.map((s) => ({ description: `${s.type} Sector (${s.vehicleType || 'Transport'})`, category: 'Transport' as const, amountSAR: s.transportRateSAR || 0 })),
+          ...validHotelStays.map((h) => ({ description: `${h.city} - ${h.hotelName} (${h.nights}n @ ${h.ratePerNightSAR} SAR)`, category: 'Hotel' as const, amountSAR: h.totalSAR })),
+          ...validSectors.map((s) => ({ description: `${s.type} Sector (${s.vehicleType || 'Transport'})`, category: 'Transport' as const, amountSAR: s.transportRateSAR || 0 })),
           ...(lateIntimation > 0 ? [{ description: 'Late Intimation Charges', category: 'Other' as const, amountSAR: lateIntimation }] : [])
         ],
         totals: {
@@ -399,7 +417,7 @@ export const VouchersPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Umrah Trip & Hotel Vouchers"
-        subtitle="Manage unified Umrah vouchers with remaining visa filtering, multi-link options, flight details section, and smart date chaining."
+        subtitle="Manage unified Umrah vouchers with remaining visa filtering, multi-link options, flight details section, and manual rate entry."
         breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Vouchers' }]}
         actions={
           <div className="flex items-center gap-2">
@@ -601,7 +619,7 @@ export const VouchersPage: React.FC = () => {
             </div>
           )}
 
-          {/* Step 2: Smart Date Chaining, Flight Details Section, Transport Sectors & Hotel Stays */}
+          {/* Step 2: Smart Date Chaining, Flight Details Section, Transport Sectors & Hotel Stays with Manual Blank Rates */}
           {builderStep === 2 && (
             <div className="space-y-6">
               {/* Smart Date Chaining Anchor */}
@@ -810,21 +828,21 @@ export const VouchersPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Transport Sectors with mandatory vehicle selection */}
+              {/* Transport Sectors with mandatory vehicle selection and blank manual rate */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <h4 className="font-bold text-slate-900 text-sm">Ground Transport Sectors</h4>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Arrival', date: arrivalDate, vehicleType: 'Staria', transportRateSAR: 350 }])}>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Arrival', date: arrivalDate, vehicleType: 'Staria', transportRateSAR: 0 }])}>
                       + Arrival
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Departure', date: arrivalDate, vehicleType: 'Staria', transportRateSAR: 350 }])}>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Departure', date: arrivalDate, vehicleType: 'Staria', transportRateSAR: 0 }])}>
                       + Departure
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Makkah to Madina', date: arrivalDate, vehicleType: 'Hiace', transportRateSAR: 500 }])}>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Makkah to Madina', date: arrivalDate, vehicleType: 'Hiace', transportRateSAR: 0 }])}>
                       + Makkah ↔ Madina
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Madina to Makkah', date: arrivalDate, vehicleType: 'Hiace', transportRateSAR: 500 }])}>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Madina to Makkah', date: arrivalDate, vehicleType: 'Hiace', transportRateSAR: 0 }])}>
                       + Madina ↔ Makkah
                     </Button>
                   </div>
@@ -872,17 +890,19 @@ export const VouchersPage: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Transport Charge (SAR)</label>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Transport Charge (SAR) [Manual blank input]</label>
                         <input
                           type="number"
-                          value={sec.transportRateSAR || 0}
+                          min="0"
+                          step="10"
+                          value={sec.transportRateSAR || ''}
                           onChange={(e) => {
                             const updated = [...sectors];
                             updated[idx].transportRateSAR = parseFloat(e.target.value) || 0;
                             setSectors(updated);
                           }}
                           className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[#0e2c4c]"
-                          placeholder="SAR"
+                          placeholder="Type rate (SAR)..."
                         />
                       </div>
                     </div>
@@ -890,15 +910,15 @@ export const VouchersPage: React.FC = () => {
                 ))}
               </div>
 
-              {/* Accommodation section with smart date chaining */}
+              {/* Accommodation section with smart date chaining and manual blank rate */}
               <div className="space-y-3 pt-4 border-t border-slate-200">
                 <h4 className="font-bold text-slate-900 text-sm flex items-center justify-between">
-                  <span>Accommodation Stays (Smart Date Chaining)</span>
+                  <span>Accommodation Stays (Smart Chaining & Manual Rates)</span>
                   <Button variant="outline" size="sm" onClick={() => {
                     const lastStay = hotelStays[hotelStays.length - 1];
                     const nextCheckIn = lastStay ? lastStay.checkOutDate : arrivalDate;
                     const nextCheckOut = addDays(nextCheckIn, 3);
-                    setHotelStays([...hotelStays, { city: 'Madinah', hotelName: '', checkInDate: nextCheckIn, checkOutDate: nextCheckOut, nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 900, totalSAR: 2700 }]);
+                    setHotelStays([...hotelStays, { city: 'Madinah', hotelName: '', checkInDate: nextCheckIn, checkOutDate: nextCheckOut, nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 0, totalSAR: 0 }]);
                   }}>
                     + Add Hotel Stay
                   </Button>
@@ -907,22 +927,20 @@ export const VouchersPage: React.FC = () => {
                   <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-[#0e2c4c]">Stay #{idx + 1} ({stay.city}) — Chained Stay</span>
-                      {hotelStays.length > 1 && (
-                        <button onClick={() => {
-                          const updated = hotelStays.filter((_, i) => i !== idx);
-                          for (let i = 0; i < updated.length; i++) {
-                            if (i === 0) {
-                              updated[i].checkInDate = arrivalDate;
-                            } else {
-                              updated[i].checkInDate = updated[i - 1].checkOutDate;
-                            }
-                            updated[i].checkOutDate = addDays(updated[i].checkInDate, updated[i].nights);
+                      <button onClick={() => {
+                        const updated = hotelStays.filter((_, i) => i !== idx);
+                        for (let i = 0; i < updated.length; i++) {
+                          if (i === 0) {
+                            updated[i].checkInDate = arrivalDate;
+                          } else {
+                            updated[i].checkInDate = updated[i - 1].checkOutDate;
                           }
-                          setHotelStays(updated);
-                        }} className="text-red-500 hover:text-red-700 font-semibold">Remove</button>
-                      )}
+                          updated[i].checkOutDate = addDays(updated[i].checkInDate, updated[i].nights);
+                        }
+                        setHotelStays(updated);
+                      }} className="text-red-500 hover:text-red-700 font-semibold">Remove Stay</button>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">City</label>
                         <select
@@ -941,28 +959,58 @@ export const VouchersPage: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Hotel Name</label>
-                        <select
-                          value={stay.hotelName}
-                          onChange={(e) => {
-                            const hName = e.target.value;
-                            const matched = hotelsMaster.find(h => h.name === hName);
-                            const rate = matched?.roomTypes?.[0]?.nightlyRateSAR || 950;
-                            const updated = [...hotelStays];
-                            updated[idx].hotelName = hName;
-                            updated[idx].ratePerNightSAR = rate;
-                            updated[idx].totalSAR = rate * updated[idx].nights * updated[idx].roomCount;
-                            setHotelStays(updated);
-                          }}
-                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-semibold"
-                        >
-                          <option value="">-- Choose Hotel --</option>
-                          {hotelsMaster.filter(h => h.city.toLowerCase() === stay.city.toLowerCase()).map(h => (
-                            <option key={h.id} value={h.name}>{h.name} ({h.starRating}★)</option>
-                          ))}
-                        </select>
+                        {isAgent ? (
+                          <input
+                            type="text"
+                            value={stay.hotelName}
+                            onChange={(e) => {
+                              const updated = [...hotelStays];
+                              updated[idx].hotelName = e.target.value;
+                              setHotelStays(updated);
+                            }}
+                            placeholder="Enter hotel name..."
+                            className="w-full p-2 bg-white border border-slate-300 rounded text-xs"
+                          />
+                        ) : (
+                          <select
+                            value={stay.hotelName}
+                            onChange={(e) => {
+                              const hName = e.target.value;
+                              const updated = [...hotelStays];
+                              updated[idx].hotelName = hName;
+                              setHotelStays(updated);
+                            }}
+                            className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-semibold"
+                          >
+                            <option value="">-- Choose Hotel from Master --</option>
+                            {hotelsMaster.filter(h => h.city.toLowerCase() === stay.city.toLowerCase()).map(h => (
+                              <option key={h.id} value={h.name}>
+                                {h.name} {h.availabilityNote ? `(${h.availabilityNote})` : ''} - {h.starRating}★
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Check-In Date (Chained)</label>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Rate per Night (SAR)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="10"
+                          value={stay.ratePerNightSAR || ''}
+                          onChange={(e) => {
+                            const r = parseFloat(e.target.value) || 0;
+                            const updated = [...hotelStays];
+                            updated[idx].ratePerNightSAR = r;
+                            updated[idx].totalSAR = r * updated[idx].nights * updated[idx].roomCount;
+                            setHotelStays(updated);
+                          }}
+                          placeholder="Type rate manually..."
+                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-[#0e2c4c]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Check-In Date</label>
                         <input
                           type="date"
                           value={stay.checkInDate}
@@ -1002,7 +1050,7 @@ export const VouchersPage: React.FC = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Check-Out Date & Total</label>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Check-Out & Total</label>
                         <div className="flex gap-1">
                           <input
                             type="date"
@@ -1042,23 +1090,23 @@ export const VouchersPage: React.FC = () => {
               <h4 className="font-bold text-slate-900 text-sm">Charges & Agent Commission</h4>
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3 text-xs">
                 <div className="flex justify-between font-semibold text-slate-700">
-                  <span>Total Hotel Stays:</span>
-                  <span>SAR {hotelStays.reduce((s, h) => s + h.totalSAR, 0).toLocaleString()}</span>
+                  <span>Total Hotel Stays ({validHotelStays.length} active stays):</span>
+                  <span>SAR {hotelsSAR.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between font-semibold text-slate-700">
-                  <span>Total Transport Sectors:</span>
-                  <span>SAR {sectors.reduce((s, sec) => s + (sec.transportRateSAR || 0), 0).toLocaleString()}</span>
+                  <span>Total Transport Sectors ({validSectors.length} active sectors):</span>
+                  <span>SAR {transportSAR.toLocaleString()}</span>
                 </div>
-                {parseFloat(lateIntimationSAR) > 0 && (
+                {lateIntimation > 0 && (
                   <div className="flex justify-between font-semibold text-slate-700">
                     <span>Late Intimation Charges:</span>
-                    <span>SAR {parseFloat(lateIntimationSAR).toLocaleString()}</span>
+                    <span>SAR {lateIntimation.toLocaleString()}</span>
                   </div>
                 )}
                 <div className="pt-2 border-t border-slate-200 flex justify-between font-bold text-slate-900 text-sm">
                   <span>Gross Voucher Total:</span>
                   <span className="font-mono text-[#0e2c4c]">
-                    SAR {(hotelStays.reduce((s, h) => s + h.totalSAR, 0) + sectors.reduce((s, sec) => s + (sec.transportRateSAR || 0), 0) + (parseFloat(lateIntimationSAR) || 0)).toLocaleString()}
+                    SAR {totalSAR.toLocaleString()}
                   </span>
                 </div>
               </div>
@@ -1101,26 +1149,26 @@ export const VouchersPage: React.FC = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Flight Information:</span>
-                  <span className="font-bold text-slate-800">{allowFlightInfo ? 'Enabled (Departure & Return)' : 'Disabled'}</span>
+                  <span className="font-bold text-slate-800">{allowFlightInfo ? 'Enabled' : 'Disabled'}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Transport Sectors:</span>
-                  <span className="font-bold text-slate-800">{sectors.length} Sectors</span>
+                  <span className="text-slate-500">Active Transport Sectors:</span>
+                  <span className="font-bold text-slate-800">{validSectors.length} Sectors</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Hotel Stays:</span>
-                  <span className="font-bold text-slate-800">{hotelStays.length} Stays</span>
+                  <span className="text-slate-500">Active Hotel Stays:</span>
+                  <span className="font-bold text-slate-800">{validHotelStays.length} Stays</span>
                 </div>
-                {parseFloat(lateIntimationSAR) > 0 && (
+                {lateIntimation > 0 && (
                   <div className="flex justify-between">
                     <span className="text-slate-500">Late Intimation Charges:</span>
-                    <span className="font-bold text-amber-600">SAR {parseFloat(lateIntimationSAR).toLocaleString()}</span>
+                    <span className="font-bold text-amber-600">SAR {lateIntimation.toLocaleString()}</span>
                   </div>
                 )}
                 <div className="pt-3 border-t border-slate-200 flex justify-between font-bold text-base">
                   <span>Total Amount:</span>
                   <span className="font-mono text-[#0e2c4c]">
-                    SAR {(hotelStays.reduce((s, h) => s + h.totalSAR, 0) + sectors.reduce((s, sec) => s + (sec.transportRateSAR || 0), 0) + (parseFloat(lateIntimationSAR) || 0)).toLocaleString()}
+                    SAR {totalSAR.toLocaleString()}
                   </span>
                 </div>
               </div>
@@ -1188,7 +1236,7 @@ export const VouchersPage: React.FC = () => {
               <div className="space-y-1">
                 {selectedVoucher.hotelStays.map((h, i) => (
                   <div key={i} className="p-2 bg-slate-50 border border-slate-200 rounded flex justify-between">
-                    <span>{h.city} — <strong>{h.hotelName}</strong> ({h.nights} nights)</span>
+                    <span>{h.city} — <strong>{h.hotelName}</strong> ({h.nights} nights @ {h.ratePerNightSAR} SAR)</span>
                     <span className="font-mono">SAR {h.totalSAR.toLocaleString()}</span>
                   </div>
                 ))}
