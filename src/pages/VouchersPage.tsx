@@ -128,6 +128,7 @@ export const VouchersPage: React.FC = () => {
   // Commission state
   const [commissionEnabled, setCommissionEnabled] = useState<boolean>(false);
   const [commissionName, setCommissionName] = useState<string>('');
+  const [commissionContact, setCommissionContact] = useState<string>('');
   const [commissionAmount, setCommissionAmount] = useState<string>('');
 
   // Voucher Detail Review Modal
@@ -224,6 +225,7 @@ export const VouchersPage: React.FC = () => {
     setLateIntimationSAR('');
     setCommissionEnabled(false);
     setCommissionName('');
+    setCommissionContact('');
     setCommissionAmount('');
     setBuilderOpen(true);
   };
@@ -272,6 +274,22 @@ export const VouchersPage: React.FC = () => {
     if (missingVehicle.length > 0) {
       showError('Transport rule: every sector needs a vehicle selected, or mark Self Gari.');
       return;
+    }
+
+    // Fix #32: commission contact number is required when commission is enabled
+    if (commissionEnabled) {
+      if (!commissionName.trim()) {
+        showError('Commission: please enter the recipient name.');
+        return;
+      }
+      if (!commissionContact.trim()) {
+        showError('Commission: please enter the recipient contact number.');
+        return;
+      }
+      if (!(parseFloat(commissionAmount) > 0)) {
+        showError('Commission: please enter a valid commission amount.');
+        return;
+      }
     }
 
     if (namedHotelStays.length === 0 && sectorsWithTransport.length === 0) {
@@ -352,8 +370,8 @@ export const VouchersPage: React.FC = () => {
         },
         commission: {
           enabled: commissionEnabled,
-          recipientName: commissionName,
-          contact: '',
+          recipientName: commissionName.trim(),
+          contact: commissionContact.trim(),
           amountSAR: parseFloat(commissionAmount) || 0,
           isPaid: false,
         },
@@ -1397,8 +1415,9 @@ export const VouchersPage: React.FC = () => {
                 </label>
                 {commissionEnabled && (
                   <div className="grid grid-cols-2 gap-3 pt-2">
-                    <Input label="Recipient Name" placeholder="e.g. Al-Noor Agency" value={commissionName} onChange={(e) => setCommissionName(e.target.value)} />
-                    <Input label="Commission Amount (SAR)" type="number" placeholder="e.g. 250" value={commissionAmount} onChange={(e) => setCommissionAmount(e.target.value)} />
+                    <Input label="Recipient Name *" placeholder="e.g. Al-Noor Agency" value={commissionName} onChange={(e) => setCommissionName(e.target.value)} />
+                    <Input label="Contact Number *" placeholder="e.g. +92 300 1234567" value={commissionContact} onChange={(e) => setCommissionContact(e.target.value)} />
+                    <Input label="Commission Amount (SAR) *" type="number" placeholder="e.g. 250" value={commissionAmount} onChange={(e) => setCommissionAmount(e.target.value)} />
                   </div>
                 )}
               </div>
@@ -1583,7 +1602,7 @@ export const VouchersPage: React.FC = () => {
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
                 <div>
                   <div className="font-bold text-amber-900 text-xs">Commission: {selectedVoucher.commission.recipientName || '—'}</div>
-                  <div className="text-amber-800 text-[11px]">SAR {selectedVoucher.commission.amountSAR.toLocaleString()} • {selectedVoucher.commission.isPaid ? 'Paid' : 'Unpaid'}</div>
+                  <div className="text-amber-800 text-[11px]">{selectedVoucher.commission.contact || '—'} • SAR {selectedVoucher.commission.amountSAR.toLocaleString()} • {selectedVoucher.commission.isPaid ? 'Paid' : 'Unpaid'}</div>
                 </div>
                 {isOwner && !selectedVoucher.commission.isPaid && selectedVoucher.status !== 'Cancelled' && (
                   <Button variant="primary" onClick={handleMarkCommissionPaid}>Mark Paid</Button>
