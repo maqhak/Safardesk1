@@ -1,142 +1,123 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
-  FileText, 
-  Ticket, 
-  Hotel, 
-  CreditCard, 
-  Users, 
-  Plane, 
-  Settings, 
   ArrowRight,
   Command,
   X
 } from 'lucide-react';
-import { Modal } from '../ui/Modal';
 import { Badge } from '../ui/Badge';
 import { useAuth } from '../../contexts/AuthContext';
-import { checkCan } from '../../hooks/useCan';
-import { AppModule } from '../../types/auth';
+import { fetchVouchers } from '../../services/voucherService';
+import { fetchVendors } from '../../services/masterService';
+import { VoucherDoc } from '../../types/voucher';
+import { VendorDoc } from '../../types/master';
 
 interface GlobalSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-interface SearchItem {
-  id: string;
-  category: 'Visas' | 'Tickets' | 'Vouchers' | 'Accounts' | 'Masters' | 'Pages';
-  title: string;
-  subtitle: string;
-  path: string;
-  badge?: string;
-  icon: any;
-}
-
-const QUICK_SEARCH_INDEX: SearchItem[] = [
-  {
-    id: 'page-dashboard',
-    category: 'Pages',
-    title: 'Dashboard Overview',
-    subtitle: 'System KPIs, active operations and quick metrics',
-    path: '/',
-    icon: Command,
-  },
-  {
-    id: 'visa-sample-1',
-    category: 'Visas',
-    title: 'Mohammed Tariq Al-Ghamdi',
-    subtitle: 'Passport A9823411 • Umrah Visa • Issued',
-    path: '/visas',
-    badge: 'SAR 450',
-    icon: FileText,
-  },
-  {
-    id: 'visa-sample-2',
-    category: 'Visas',
-    title: 'Amina Bibi Shah',
-    subtitle: 'Passport B4302910 • Tourist Visa • Processing',
-    path: '/visas',
-    badge: 'SAR 520',
-    icon: FileText,
-  },
-  {
-    id: 'voucher-sample-1',
-    category: 'Vouchers',
-    title: 'Voucher #VCH-2026-081',
-    subtitle: 'Makkah Clock Royal Tower • 4 Nights • Deluxe Room',
-    path: '/vouchers',
-    badge: 'SAR 4,800',
-    icon: Hotel,
-  },
-  {
-    id: 'ticket-sample-1',
-    category: 'Tickets',
-    title: 'PNR 9KJ2XA — Saudia SV-721',
-    subtitle: 'JED -> KHI • 2 Pax • Confirmed',
-    path: '/tickets',
-    badge: 'SAR 2,350',
-    icon: Ticket,
-  },
-  {
-    id: 'account-sample-1',
-    category: 'Accounts',
-    title: 'Al-Barakah Travel & Tours Karachi',
-    subtitle: 'Agent Ledger • Outstanding Balance: SAR 14,250',
-    path: '/accounts',
-    badge: 'Receivable',
-    icon: CreditCard,
-  },
-  {
-    id: 'master-sample-1',
-    category: 'Masters',
-    title: 'Hotel Directory & Rate Contracts',
-    subtitle: 'Makkah & Madinah contracted partner inventory',
-    path: '/masters',
-    icon: Users,
-  },
-  {
-    id: 'settings-rates',
-    category: 'Pages',
-    title: 'Exchange Rates & Tenant Settings',
-    subtitle: 'SAR / PKR daily forex benchmarks and agency profiles',
-    path: '/settings',
-    icon: Settings,
-  },
-];
-
 export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }) => {
   const [query, setQuery] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [vouchers, setVouchers] = useState<VoucherDoc[]>([]);
+  const [vendors, setVendors] = useState<VendorDoc[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  
   const navigate = useNavigate();
   const { userProfile, role } = useAuth();
 
   useEffect(() => {
     if (isOpen) {
       setQuery('');
-      setSelectedIndex(0);
+      setLoading(true);
+      Promise.all([fetchVouchers(), fetchVendors()])
+        .then(([vList, vndList]) => {
+          setVouchers(vList);
+          setVendors(vndList);
+        })
+        .finally(() => setLoading(false));
+
+      // Load recent searches from localStorage
+      const savedRecent = localStorage.getItem('safardesk_recent_searches');
+      if (savedRecent) {
+        try {
+          setRecentSearches(JSON.parse(savedRecent));
+        } catch {
+          // ignore
+        }
+      }
     }
   }, [isOpen]);
 
-  const filteredItems = QUICK_SEARCH_INDEX.filter((item) => {
-    // Permission check for Staff
-    if (role === 'staff' && item.category !== 'Pages') {
-      const mod = item.category as AppModule;
-      if (!checkCan(userProfile, mod, 'view')) return false;
+  const vendorMap = useMemo(() => new Map(vendors.map(v => [v.id, v.name])), [vendors]);
+
+  // Server-side / query-side role filtering (Agents see ONLY their own vouchers)
+  const accessibleVouchers = useMemo(() => {
+    if (role === 'agent') {
+      const myAgentId = userProfile?.agentId;
+      return vouchers.filter(v => v.agentId === myAgentId);
+    }
+    return vouchers;
+  }, [vouchers, role, userProfile]);
+
+  // Search filter matching Voucher No, Passport Number, Group Code, Passenger Name, Shirka
+  const searchResults = useMemo(() => {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase().trim();
+
+    const matches: Array<{
+      voucher: VoucherDoc;
+      matchedPassenger?: { name: string; passportNumber: string };
+      shirkaName: string;
+      groupCode: string;
+    }> = [];
+
+    accessibleVouchers.forEach((v) => {
+      const voucherNo = (v.voucherNo || '').toLowerCase();
+      const groupCode = (v as any).groupCode || 'GRP-DEFAULT';
+      const vendorId = (v as any).vendorId;
+      const shirkaName = (vendorId ? vendorMap.get(vendorId) : '') || v.hotelStays?.[0]?.hotelName || 'Official Shirka Partner';
+      const shirkaLower = shirkaName.toLowerCase();
+
+      let matchedPassenger = v.passengers?.[0];
+      let hasMatch = 
+        voucherNo.includes(q) || 
+        groupCode.toLowerCase().includes(q) || 
+        shirkaLower.includes(q);
+
+      if (!hasMatch && v.passengers) {
+        const foundPassenger = v.passengers.find(
+          p => (p.name || '').toLowerCase().includes(q) || (p.passportNumber || '').toLowerCase().includes(q)
+        );
+        if (foundPassenger) {
+          hasMatch = true;
+          matchedPassenger = foundPassenger;
+        }
+      }
+
+      if (hasMatch) {
+        matches.push({
+          voucher: v,
+          matchedPassenger,
+          shirkaName,
+          groupCode,
+        });
+      }
+    });
+
+    return matches;
+  }, [accessibleVouchers, query, vendorMap]);
+
+  const handleSelectVoucher = (voucherNo: string) => {
+    if (query.trim() && !recentSearches.includes(query.trim())) {
+      const updated = [query.trim(), ...recentSearches.slice(0, 4)];
+      setRecentSearches(updated);
+      localStorage.setItem('safardesk_recent_searches', JSON.stringify(updated));
     }
 
-    if (!query.trim()) return true;
-    const q = query.toLowerCase();
-    return (
-      item.title.toLowerCase().includes(q) ||
-      item.subtitle.toLowerCase().includes(q) ||
-      item.category.toLowerCase().includes(q)
-    );
-  });
-
-  const handleSelect = (item: SearchItem) => {
-    navigate(item.path);
+    navigate('/vouchers', { state: { highlightVoucherNo: voucherNo } });
     onClose();
   };
 
@@ -159,84 +140,104 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
             autoFocus
             type="text"
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setSelectedIndex(0);
-            }}
-            placeholder="Search Visas, Passports, PNR, Vouchers, Ledgers, Masters..."
-            className="w-full bg-transparent border-0 text-slate-900 placeholder:text-slate-400 focus:outline-none text-base font-medium"
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search vouchers by Voucher No, Passport Number, Group Code, Passenger Name, or Shirka..."
+            className="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
           />
           {query && (
-            <button
+            <button 
               onClick={() => setQuery('')}
-              className="text-slate-400 hover:text-slate-600 p-1 text-xs"
+              className="p-1 text-slate-400 hover:text-slate-600 rounded-full"
             >
               <X className="w-4 h-4" />
             </button>
           )}
-          <kbd className="hidden sm:inline-block ml-2 px-2 py-0.5 text-[11px] font-mono text-slate-400 bg-white border border-slate-200 rounded">
-            ESC
-          </kbd>
         </div>
 
-        {/* Results List */}
-        <div className="max-h-[380px] overflow-y-auto p-2">
-          {filteredItems.length === 0 ? (
-            <div className="py-10 text-center text-slate-400">
-              <p className="text-sm font-medium">No results found for "{query}"</p>
-              <p className="text-xs text-slate-400 mt-1">Try searching by passport, agent name, or PNR</p>
+        {/* Results / Empty State */}
+        <div className="max-h-96 overflow-y-auto p-2 divide-y divide-slate-100">
+          {loading ? (
+            <div className="py-12 text-center text-slate-500 text-xs">
+              Loading live Firestore vouchers directory...
             </div>
-          ) : (
-            filteredItems.map((item, idx) => {
-              const Icon = item.icon;
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => handleSelect(item)}
-                  className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-150 ${
-                    idx === selectedIndex ? 'bg-navy-50/80 border border-navy-100' : 'hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-[#0e2c4c] shrink-0 shadow-2xs">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-slate-900 truncate">
-                          {item.title}
-                        </span>
-                        <span className="text-[10px] font-medium uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                          {item.category}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 truncate mt-0.5">
-                        {item.subtitle}
-                      </p>
-                    </div>
-                  </div>
+          ) : !query.trim() ? (
+            <div className="p-6 text-center space-y-3">
+              <div className="w-10 h-10 bg-navy-50 text-[#0e2c4c] rounded-xl flex items-center justify-center mx-auto">
+                <Command className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">Whole-Website Vouchers Search</h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Type to search live company vouchers by Voucher No, Passport Number, Group Code, Mutamer Name, or Shirka.
+                </p>
+              </div>
 
-                  <div className="flex items-center gap-2 shrink-0 ml-3">
-                    {item.badge && (
-                      <span className="text-xs font-mono font-semibold text-[#0e2c4c] bg-white border border-slate-200 px-2 py-0.5 rounded shadow-2xs">
-                        {item.badge}
-                      </span>
-                    )}
-                    <ArrowRight className="w-4 h-4 text-slate-400 opacity-60" />
+              {recentSearches.length > 0 && (
+                <div className="pt-2 text-left max-w-xs mx-auto">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Recent Searches</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {recentSearches.map((rec, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setQuery(rec)}
+                        className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg font-medium transition"
+                      >
+                        {rec}
+                      </button>
+                    ))}
                   </div>
                 </div>
-              );
-            })
+              )}
+            </div>
+          ) : searchResults.length === 0 ? (
+            <div className="py-12 text-center space-y-2">
+              <div className="text-xs font-bold text-slate-800">No matching vouchers found</div>
+              <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                No vouchers match "{query}". Please check your search parameters or passport number.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1 py-1">
+              <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Voucher Results ({searchResults.length})
+              </div>
+              {searchResults.map(({ voucher, matchedPassenger, shirkaName, groupCode }, idx) => (
+                <div
+                  key={voucher.id || idx}
+                  onClick={() => handleSelectVoucher(voucher.voucherNo)}
+                  className="p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition flex items-center justify-between group"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-[#0e2c4c] text-sm group-hover:underline">
+                        {voucher.voucherNo}
+                      </span>
+                      <Badge variant="navy" size="sm">{groupCode}</Badge>
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        Shirka: <strong>{shirkaName}</strong>
+                      </span>
+                    </div>
+                    <div className="text-xs font-semibold text-slate-900">
+                      Passenger: {matchedPassenger?.name || voucher.passengers?.[0]?.name || 'N/A'} 
+                      <span className="font-mono font-normal text-slate-500 ml-2">
+                        Passport: {matchedPassenger?.passportNumber || voucher.passengers?.[0]?.passportNumber || 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-[#0e2c4c]">
+                    <span className="text-xs font-bold">Open Voucher</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
-        {/* Footer shortcuts */}
-        <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 text-xs text-slate-400 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span>Navigation: <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px]">↑</kbd> <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px]">↓</kbd></span>
-            <span>Select: <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px]">↵</kbd></span>
-          </div>
-          <span>SafarDesk Global Registry</span>
+        {/* Footer */}
+        <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+          <span>Press ESC to close</span>
+          <span className="font-mono">SafarDesk Global Search</span>
         </div>
       </div>
     </div>
