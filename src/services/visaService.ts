@@ -1,8 +1,12 @@
 import { collection, getDocs, setDoc, doc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
+import { logAuditEvent } from './userService';
+import { UserProfile } from '../types/auth';
 
 const VISAS_COLLECTION = 'visas';
+const VISA_IMPORTS_COLLECTION = 'visa_imports';
 const LOCAL_STORAGE_VISAS_KEY = 'safardesk_visas_directory';
+const LOCAL_STORAGE_VISA_IMPORTS_KEY = 'safardesk_visa_imports_v1';
 
 export interface VisaDoc {
   id: string;
@@ -20,6 +24,16 @@ export interface VisaDoc {
   createdAt: string;
   isDuplicate?: boolean;
   skipImport?: boolean;
+}
+
+export interface VisaImportBatchDoc {
+  id: string;
+  fileName: string;
+  uploadedBy: string;
+  uploadedAt: string;
+  totalRows: number;
+  importedRows: number;
+  skippedDuplicates: number;
 }
 
 const INITIAL_VISAS: VisaDoc[] = [
@@ -89,6 +103,20 @@ export async function saveVisasBatch(newVisas: VisaDoc[]): Promise<void> {
       await Promise.all(newVisas.map((v) => setDoc(doc(db, VISAS_COLLECTION, v.id), v)));
     } catch (err) {
       console.warn('Could not save visa batch to Firestore:', err);
+    }
+  }
+}
+
+export async function saveVisaImportBatch(batch: VisaImportBatchDoc): Promise<void> {
+  const stored = localStorage.getItem(LOCAL_STORAGE_VISA_IMPORTS_KEY);
+  const existing: VisaImportBatchDoc[] = stored ? JSON.parse(stored) : [];
+  localStorage.setItem(LOCAL_STORAGE_VISA_IMPORTS_KEY, JSON.stringify([batch, ...existing]));
+
+  if (!isConfigPlaceholder) {
+    try {
+      await setDoc(doc(db, VISA_IMPORTS_COLLECTION, batch.id), batch);
+    } catch (err) {
+      console.warn('Could not save visa import batch to Firestore:', err);
     }
   }
 }

@@ -26,7 +26,8 @@ import { Modal } from '../components/ui/Modal';
 import { formatDate } from '../utils/formatters';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
-import { fetchVisas, saveVisasBatch, VisaDoc } from '../services/visaService';
+import { fetchVisas, saveVisasBatch, saveVisaImportBatch, VisaDoc } from '../services/visaService';
+import { logAuditEvent } from '../services/userService';
 import { useAuth } from '../contexts/AuthContext';
 
 export const VisasPage: React.FC = () => {
@@ -39,8 +40,18 @@ export const VisasPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
 
+  // Manual Visa Form State
+  const [manualName, setManualName] = useState('');
+  const [manualPassport, setManualPassport] = useState('');
+  const [manualNationality, setManualNationality] = useState('Pakistani');
+  const [manualGroupCode, setManualGroupCode] = useState('GRP-2026-03');
+  const [manualGroupName, setManualGroupName] = useState('Manual Umrah Group');
+  const [manualGender, setManualGender] = useState('Male');
+  const [manualAge, setManualAge] = useState<number>(30);
+
   // Import Wizard Modal States
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importFileName, setImportFileName] = useState('');
   const [importStep, setImportStep] = useState<'upload' | 'preview' | 'importing'>('upload');
   const [parsedRows, setParsedRows] = useState<VisaDoc[]>([]);
   const [uploadDateTag, setUploadDateTag] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -71,11 +82,12 @@ export const VisasPage: React.FC = () => {
     );
   }, [visas, search]);
 
-  // Handle Excel File Upload & Parsing
+  // Handle Excel File Upload & Parsing with In-File Duplicate Detection & Auto-Skip
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setImportFileName(file.name);
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
@@ -93,37 +105,17 @@ export const VisasPage: React.FC = () => {
         const todayStr = new Date().toISOString().split('T')[0];
         setUploadDateTag(todayStr);
 
-        // Step 1: Extract and Map raw rows
-        let rawMapped: Array<{
-          groupCode: string;
-          groupName: string;
-          pilgrimName: string;
-          nationality: string;
-          gender: string;
-          passportNumber: string;
-          age: string | number;
-          visaIssueDate: string;
-          dateSource: 'original' | 'auto';
-        }> = data.map((row) => {
+        let rawMapped = data.map((row) => {
           const groupCode = String(row['Group Number'] || row['Group Code'] || row['GroupNo'] || 'GRP-IMPORT');
           const groupName = String(row['Group Name'] || row['GroupName'] || 'Imported Umrah Group');
           const pilgrimName = String(row['Mutamer Name'] || row['Passenger Name'] || row['Name'] || 'Unknown Pilgrim');
           const nationality = String(row['Nationality'] || 'Pakistani');
-          
-          // Map IncentiveDiscountType to Gender as requested by the rule
           const gender = String(row['Gender'] || row['Sex'] || row['IncentiveDiscountType'] || 'Male');
           const passportNumber = String(row['Passport Number'] || row['Passport'] || '').trim();
           const age = row['Mutamer Age'] || row['Age'] || 30;
 
-          // Visa Issue Date with time stripping
           let rawDate = String(row['Visa Issue Date'] || row['Issue Date'] || row['Date'] || '').trim();
-          let visaIssueDate = '';
-          let dateSource: 'original' | 'auto' = 'original';
-
-          if (rawDate) {
-            // Strip time if present (e.g. "2026-03-15 00:00:00" -> "2026-03-15")
-            visaIssueDate = rawDate.split(' ')[0].split('T')[0];
-          }
+          let visaIssueDate = rawDate ? rawDate.split(' ')[0].split('T')[0] : '';
 
           return {
             groupCode,
@@ -134,12 +126,11 @@ export const VisasPage: React.FC = () => {
             passportNumber,
             age,
             visaIssueDate,
-            dateSource,
+            dateSource: 'original' as const,
           };
         });
 
-        // Step 2: Blank-date fallback chain per group
-        // Calculate most common date per group
+        // Blank-date fallback chain per group
         const groupDateCounts = new Map<string, Map<string, number>>();
         rawMapped.forEach((r) => {
           if (r.visaIssueDate) {
@@ -162,8 +153,8 @@ export const VisasPage: React.FC = () => {
           if (bestDate) groupMostCommonDate.set(gCode, bestDate);
         });
 
-        // Apply fallback chain
-        const existingPassports = new Set(visas.map(v => v.passportNumber));
+        const dbPassports = new Set(visas.map(v => v.passportNumber));
+        const filePassports = new Set<string>();
 
         const finalProcessed: VisaDoc[] = rawMapped.map((r, idx) => {
           let finalDate = r.visaIssueDate;
@@ -180,9 +171,14 @@ export const VisasPage: React.FC = () => {
             }
           }
 
-          // Duplicate check on passport number only
-          // Treat Roman-numeral-suffixed passport numbers (e.g. NR3102243I) as brand-new records.
-          const isDuplicate = existingPassports.has(r.passportNumber);
+          // Check DB duplicate OR in-file duplicate
+          const inDbDuplicate = dbPassports.has(r.passportNumber);
+          const inFileDuplicate = filePassports.has(r.passportNumber);
+          const isDuplicate = inDbDuplicate || inFileDuplicate;
+
+          if (r.passportNumber) {
+            filePassports.add(r.passportNumber);
+          }
 
           return {
             id: `visa-imp-${Date.now()}-${idx}`,
@@ -198,13 +194,14 @@ export const VisasPage: React.FC = () => {
             status: 'Pending',
             createdAt: new Date().toISOString(),
             isDuplicate,
-            skipImport: false,
+            skipImport: isDuplicate, // Auto-skip duplicates by default
           };
         });
 
         setParsedRows(finalProcessed);
         setImportStep('preview');
-        success(`Successfully parsed ${finalProcessed.length} rows from Nusuk Excel file.`);
+        const dupCount = finalProcessed.filter(r => r.isDuplicate).length;
+        success(`Parsed ${finalProcessed.length} rows. Auto-skipped ${dupCount} duplicate passports.`);
       } catch (err: any) {
         showError('Failed to parse Excel workbook: ' + (err.message || 'Invalid format'));
       }
@@ -220,23 +217,109 @@ export const VisasPage: React.FC = () => {
     setParsedRows(prev => prev.map(r => r.id === id ? { ...r, [field]: val } : r));
   };
 
+  // Group-wise counts in preview
+  const previewGroupSummary = useMemo(() => {
+    const map = new Map<string, { count: number; skipped: number }>();
+    parsedRows.forEach(r => {
+      const cur = map.get(r.groupCode) || { count: 0, skipped: 0 };
+      cur.count += 1;
+      if (r.skipImport) cur.skipped += 1;
+      map.set(r.groupCode, cur);
+    });
+    return Array.from(map.entries()).map(([code, data]) => ({ code, ...data }));
+  }, [parsedRows]);
+
   const handleConfirmImport = async () => {
     const validRowsToImport = parsedRows.filter(r => !r.skipImport && r.passportNumber);
-    if (validRowsToImport.length === 0) {
-      showError('No valid rows selected for import.');
-      return;
-    }
+    const skippedCount = parsedRows.filter(r => r.skipImport).length;
 
     setImportStep('importing');
     try {
-      await saveVisasBatch(validRowsToImport);
-      success(`Successfully imported ${validRowsToImport.length} visa records into inventory.`);
+      if (validRowsToImport.length > 0) {
+        await saveVisasBatch(validRowsToImport);
+      }
+
+      // Save Visa Import Batch Doc
+      await saveVisaImportBatch({
+        id: `batch-${Date.now()}`,
+        fileName: importFileName || 'nusuk_import.xlsx',
+        uploadedBy: userProfile?.name || 'Operator',
+        uploadedAt: new Date().toISOString(),
+        totalRows: parsedRows.length,
+        importedRows: validRowsToImport.length,
+        skippedDuplicates: skippedCount,
+      });
+
+      // Write audit log entry
+      if (userProfile) {
+        await logAuditEvent({
+          action: 'IMPORT_VISA_BATCH',
+          userId: userProfile.uid,
+          userName: userProfile.name || 'User',
+          userEmail: userProfile.email,
+          userRole: userProfile.role,
+          details: { fileName: importFileName, importedRows: validRowsToImport.length, skippedDuplicates: skippedCount },
+        });
+      }
+
+      success(`Successfully imported ${validRowsToImport.length} visa records (${skippedCount} duplicates auto-skipped).`);
       setImportModalOpen(false);
       setImportStep('upload');
       loadVisas();
     } catch {
       showError('Failed to save imported visa batch.');
       setImportStep('preview');
+    }
+  };
+
+  // Handle Manual Visa Application Submission
+  const handleManualSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualName || !manualPassport) {
+      showError('Applicant Name and Passport Number are required.');
+      return;
+    }
+
+    try {
+      const newVisa: VisaDoc = {
+        id: `visa-manual-${Date.now()}`,
+        pilgrimName: manualName,
+        passportNumber: manualPassport,
+        nationality: manualNationality,
+        groupCode: manualGroupCode,
+        groupName: manualGroupName,
+        gender: manualGender,
+        age: manualAge,
+        visaIssueDate: new Date().toISOString().split('T')[0],
+        dateSource: 'original',
+        status: 'Pending',
+        createdAt: new Date().toISOString(),
+        isDuplicate: false,
+        skipImport: false,
+      };
+
+      await saveVisasBatch([newVisa]);
+
+      if (userProfile) {
+        await logAuditEvent({
+          action: 'CREATE_VISA',
+          userId: userProfile.uid,
+          userName: userProfile.name || 'User',
+          userEmail: userProfile.email,
+          userRole: userProfile.role,
+          targetUserId: newVisa.id,
+          targetUserName: manualName,
+          details: { passportNumber: manualPassport, groupCode: manualGroupCode },
+        });
+      }
+
+      success(`Visa application for "${manualName}" registered successfully.`);
+      setModalOpen(false);
+      setManualName('');
+      setManualPassport('');
+      loadVisas();
+    } catch (err: any) {
+      showError(err.message || 'Failed to register manual visa application.');
     }
   };
 
@@ -396,7 +479,7 @@ export const VisasPage: React.FC = () => {
         isOpen={importModalOpen}
         onClose={() => setImportModalOpen(false)}
         title="Nusuk Excel Visa Batch Import Wizard"
-        subtitle="Upload Nusuk Excel workbook. Maps IncentiveDiscountType to Gender, applies blank-date fallback chain, and checks passport duplicates."
+        subtitle="Upload Nusuk Excel workbook. Auto-skips duplicates, checks in-file & DB passports, and logs batch audit."
         size="xl"
         footer={
           <div className="flex items-center justify-between w-full">
@@ -435,7 +518,7 @@ export const VisasPage: React.FC = () => {
             <div className="space-y-1">
               <h3 className="text-sm font-bold text-slate-900">Upload Nusuk Excel Workbook (.xlsx / .xls)</h3>
               <p className="text-xs text-slate-500 max-w-md mx-auto">
-                Ensure columns include Group Number, Group Name, Mutamer Name, Nationality, IncentiveDiscountType (mapped to Gender), Passport Number, Mutamer Age, and Visa Issue Date.
+                Duplicates within file or database are automatically skipped and counted.
               </p>
             </div>
             <div>
@@ -454,19 +537,29 @@ export const VisasPage: React.FC = () => {
 
         {importStep === 'preview' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between bg-slate-100 p-3 rounded-xl">
+            <div className="flex flex-col sm:flex-row items-center justify-between bg-slate-100 p-3 rounded-xl gap-3">
               <div>
                 <span className="text-xs font-bold text-slate-900">Preview Parsed Rows ({parsedRows.length} total)</span>
-                <p className="text-[11px] text-slate-500">Review auto-detected dates (tagged 'auto') and duplicate passport warnings.</p>
+                <p className="text-[11px] text-slate-500">Duplicates are auto-skipped. Mutamer Age is fully editable below.</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-mono">
                 <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">
                   Importing: {parsedRows.filter(r => !r.skipImport).length}
                 </span>
-                <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-bold">
-                  Skipped: {parsedRows.filter(r => r.skipImport).length}
+                <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-bold">
+                  Auto-Skipped Duplicates: {parsedRows.filter(r => r.skipImport).length}
                 </span>
               </div>
+            </div>
+
+            {/* Group-wise Counts Summary */}
+            <div className="flex items-center gap-2 flex-wrap bg-navy-50 p-3 rounded-xl border border-navy-100">
+              <span className="text-xs font-bold text-[#0e2c4c] uppercase tracking-wider">Group-Wise Counts:</span>
+              {previewGroupSummary.map(g => (
+                <span key={g.code} className="text-xs font-mono bg-white text-slate-800 px-2 py-1 rounded-lg border border-slate-200 shadow-2xs font-semibold">
+                  {g.code}: <strong className="text-[#0e2c4c]">{g.count - g.skipped}</strong> valid ({g.skipped} skipped)
+                </span>
+              ))}
             </div>
 
             <div className="max-h-96 overflow-y-auto border border-slate-200 rounded-xl">
@@ -477,7 +570,7 @@ export const VisasPage: React.FC = () => {
                     <th className="p-2.5">Group #</th>
                     <th className="p-2.5">Mutamer Name</th>
                     <th className="p-2.5">Passport #</th>
-                    <th className="p-2.5">Gender (Incentive Type)</th>
+                    <th className="p-2.5">Gender</th>
                     <th className="p-2.5">Age</th>
                     <th className="p-2.5">Issue Date</th>
                     <th className="p-2.5 text-center">Action</th>
@@ -485,16 +578,15 @@ export const VisasPage: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
                   {parsedRows.map((row) => (
-                    <tr key={row.id} className={row.skipImport ? 'opacity-40 bg-slate-50' : row.isDuplicate ? 'bg-amber-50/50' : ''}>
+                    <tr key={row.id} className={row.skipImport ? 'opacity-50 bg-amber-50/40' : ''}>
                       <td className="p-2.5 whitespace-nowrap">
-                        {row.isDuplicate && (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded font-bold">
-                            <AlertTriangle className="w-3 h-3" /> Duplicate Passport
+                        {row.isDuplicate ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded font-bold">
+                            <AlertTriangle className="w-3 h-3" /> Duplicate (Auto-Skipped)
                           </span>
-                        )}
-                        {!row.isDuplicate && (
+                        ) : (
                           <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold">
-                            <CheckCircle2 className="w-3 h-3" /> New
+                            <CheckCircle2 className="w-3 h-3" /> Valid
                           </span>
                         )}
                       </td>
@@ -506,10 +598,17 @@ export const VisasPage: React.FC = () => {
                           type="text"
                           value={row.gender || ''}
                           onChange={(e) => handleUpdateRowField(row.id, 'gender', e.target.value)}
-                          className="w-28 p-1 bg-slate-50 border border-slate-200 rounded text-xs"
+                          className="w-24 p-1 bg-slate-50 border border-slate-200 rounded text-xs"
                         />
                       </td>
-                      <td className="p-2.5 font-mono">{row.age}</td>
+                      <td className="p-2.5 font-mono">
+                        <input
+                          type="number"
+                          value={row.age || 30}
+                          onChange={(e) => handleUpdateRowField(row.id, 'age', parseInt(e.target.value) || 0)}
+                          className="w-16 p-1 bg-slate-50 border border-slate-200 rounded text-xs font-mono font-bold"
+                        />
+                      </td>
                       <td className="p-2.5 font-mono">
                         <input
                           type="date"
@@ -528,7 +627,7 @@ export const VisasPage: React.FC = () => {
                           className={`px-2 py-1 rounded text-[11px] font-bold ${
                             row.skipImport 
                               ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
-                              : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                              : 'bg-amber-600 text-white hover:bg-amber-700'
                           }`}
                         >
                           {row.skipImport ? 'Include' : 'Skip'}
@@ -545,7 +644,7 @@ export const VisasPage: React.FC = () => {
         {importStep === 'importing' && (
           <div className="py-12 text-center space-y-4">
             <div className="w-12 h-12 border-4 border-[#0e2c4c] border-t-transparent rounded-full animate-spin mx-auto" />
-            <div className="text-sm font-bold text-slate-900">Saving imported visa batch to database...</div>
+            <div className="text-sm font-bold text-slate-900">Saving imported visa batch & writing audit log...</div>
           </div>
         )}
       </Modal>
@@ -555,37 +654,67 @@ export const VisasPage: React.FC = () => {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title="Register New Visa Application"
-        subtitle="Manual single visa registration form"
-        footer={
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                setModalOpen(false);
-                success('Visa application recorded to draft ledger.');
-              }}
-              className="bg-[#0e2c4c] hover:bg-[#1a4473] text-white"
-            >
-              Submit Application
-            </Button>
-          </div>
-        }
+        subtitle="Manual single visa registration form (Persists to database)"
+        size="md"
       >
-        <div className="space-y-4">
-          <Input label="Applicant Full Name" placeholder="As written in passport" required />
+        <form onSubmit={handleManualSubmit} className="space-y-4">
+          <Input 
+            label="Applicant Full Name" 
+            placeholder="As written in passport" 
+            required 
+            value={manualName}
+            onChange={(e) => setManualName(e.target.value)}
+          />
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Passport Number" placeholder="e.g. AB1234567" required />
-            <Input label="Nationality" placeholder="e.g. Pakistani" defaultValue="Pakistani" />
+            <Input 
+              label="Passport Number" 
+              placeholder="e.g. AB1234567" 
+              required 
+              value={manualPassport}
+              onChange={(e) => setManualPassport(e.target.value)}
+            />
+            <Input 
+              label="Nationality" 
+              placeholder="e.g. Pakistani" 
+              value={manualNationality}
+              onChange={(e) => setManualNationality(e.target.value)}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Group Code" placeholder="e.g. GRP-2026-03" defaultValue="GRP-2026-03" />
-            <Input label="Gender" placeholder="Male / Female" defaultValue="Male" />
+            <Input 
+              label="Group Code" 
+              placeholder="e.g. GRP-2026-03" 
+              value={manualGroupCode}
+              onChange={(e) => setManualGroupCode(e.target.value)}
+            />
+            <Input 
+              label="Gender" 
+              placeholder="Male / Female" 
+              value={manualGender}
+              onChange={(e) => setManualGender(e.target.value)}
+            />
           </div>
-        </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input 
+              label="Mutamer Age" 
+              type="number"
+              placeholder="Age" 
+              value={manualAge}
+              onChange={(e) => setManualAge(parseInt(e.target.value) || 0)}
+            />
+            <Input 
+              label="Group Name" 
+              placeholder="Group Name" 
+              value={manualGroupName}
+              onChange={(e) => setManualGroupName(e.target.value)}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button type="button" variant="outline" size="sm" onClick={() => setModalOpen(false)}>Cancel</Button>
+            <Button type="submit" variant="primary" size="sm" className="bg-[#0e2c4c] hover:bg-[#1a4473] text-white">Submit & Save</Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

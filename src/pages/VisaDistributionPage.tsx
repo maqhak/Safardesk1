@@ -76,7 +76,6 @@ export const VisaDistributionPage: React.FC = () => {
 
       setVisas(vList);
       setVendors(vndList.filter(v => v.isActive));
-      // Filter agent accounts
       setAgents(accList.filter(a => a.accountType === 'agent' || a.accountCode.startsWith('AGT')));
     } catch {
       showError('Failed to load undistributed visas and master lists.');
@@ -301,13 +300,12 @@ export const VisaDistributionPage: React.FC = () => {
             </label>
             <input
               type="number"
-              min="1"
+              min="0"
               step="1"
               value={buyingPrice || ''}
               onChange={(e) => setBuyingPrice(parseFloat(e.target.value) || 0)}
-              placeholder="e.g. 380"
-              required
-              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[#0e2c4c]"
+              placeholder="e.g. 350"
+              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900"
             />
           </div>
 
@@ -319,86 +317,77 @@ export const VisaDistributionPage: React.FC = () => {
               type="date"
               value={distributionDate}
               onChange={(e) => setDistributionDate(e.target.value)}
-              required
-              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900"
             />
           </div>
         </div>
       </Card>
 
-      {/* STEP 2: Undistributed Visas Grouped by Group Code */}
-      <Card padding="none" className="border-slate-200 shadow-xs overflow-hidden">
-        <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+      {/* STEP 2: Group Assignment Checklist */}
+      <Card padding="md" className="border-slate-200 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
             <Users className="w-4 h-4 text-[#0e2c4c]" />
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-              Undistributed Visa Batches ({groupedVisas.length} Groups • {undistributedVisas.length} Total Visas)
-            </h3>
-          </div>
-          <span className="text-[11px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-            ⚠ Manual Assignment Required: Nothing is pre-selected
+            <span>Step 2: Assign Undistributed Groups to B2B Agents (Manual Selection Required)</span>
+          </h3>
+          <span className="text-[11px] text-slate-500 font-medium">
+            {groupedVisas.length} Available Group Batches ({undistributedVisas.length} total visas)
           </span>
         </div>
 
-        {groupedVisas.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 text-xs">
-            No undistributed visa stock available in inventory. All imported visas have been distributed.
+        {loading ? (
+          <div className="p-8 text-center text-slate-400 text-xs">Loading undistributed visa batches...</div>
+        ) : groupedVisas.length === 0 ? (
+          <div className="p-12 text-center text-slate-500 text-xs space-y-2">
+            <p className="font-bold text-slate-700">No undistributed visas available in inventory.</p>
+            <p>Upload a Nusuk Excel batch or register new visa applications to begin distribution.</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-200 bg-white">
+          <div className="space-y-3">
             {groupedVisas.map((group) => {
               const selection = groupSelections.get(group.groupCode) || { agentId: '', sellingPricePerVisa: 0 };
               const isExpanded = expandedGroups.has(group.groupCode);
 
               return (
-                <div key={group.groupCode} className="p-4 space-y-3 hover:bg-slate-50/50 transition">
-                  <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                    {/* Group info */}
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-sm text-[#0e2c4c] bg-navy-50 px-2 py-0.5 rounded border border-navy-100">
-                          {group.groupCode}
-                        </span>
-                        <span className="font-bold text-slate-900">{group.groupName}</span>
-                        <Badge variant="navy" size="sm">{group.visaCount} Visas</Badge>
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        Passengers: <strong>{group.sampleNames}</strong> • Issue Dates: {group.dateRange}
-                      </div>
+                <div key={group.groupCode} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 transition hover:bg-slate-100/50">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
                       <button
                         type="button"
                         onClick={() => toggleExpandGroup(group.groupCode)}
-                        className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 cursor-pointer pt-0.5"
+                        className="p-1 text-slate-400 hover:text-slate-700 rounded transition"
                       >
-                        {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                        <span>{isExpanded ? 'Hide Pilgrim Manifest' : `View Pilgrim Manifest (${group.visaCount})`}</span>
+                        {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                       </button>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-[#0e2c4c] text-sm">{group.groupCode}</span>
+                          <Badge variant="navy" size="sm">{group.visaCount} Visas</Badge>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-0.5">
+                          Applicants: <span className="font-medium">{group.sampleNames}</span> • Issued: {group.dateRange}
+                        </p>
+                      </div>
                     </div>
 
-                    {/* Manual Agent Assignment & Selling Price */}
-                    <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                    {/* Assignment Controls */}
+                    <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                       <div className="w-full sm:w-56">
-                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                          Assign Agent (BLANK by default) *
-                        </label>
+                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5">Assign B2B Agent *</label>
                         <select
                           value={selection.agentId}
                           onChange={(e) => handleGroupSelectionChange(group.groupCode, 'agentId', e.target.value)}
                           className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none"
                         >
-                          <option value="">-- Choose Agent --</option>
+                          <option value="">-- Select Agent (No Auto-Fill) --</option>
                           {agents.map((a) => (
-                            <option key={a.id} value={a.id}>
-                              [{a.accountCode}] {a.title}
-                            </option>
+                            <option key={a.id} value={a.id}>{a.title} ({a.accountCode})</option>
                           ))}
                         </select>
                       </div>
 
                       <div className="w-full sm:w-36">
-                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                          Selling Price / Visa *
-                        </label>
+                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5">Selling Price / Visa *</label>
                         <input
                           type="number"
                           min="0"
@@ -447,7 +436,7 @@ export const VisaDistributionPage: React.FC = () => {
         )}
       </Card>
 
-      {/* STEP 3: Live Batch Summary Panel */}
+      {/* STEP 3: Live Batch Summary Panel & Per-Agent Totals Breakdown */}
       <Card padding="md" className="border-slate-200 shadow-xs bg-[#0e2c4c] text-white space-y-4">
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <h3 className="text-xs font-bold text-[#c9a227] uppercase tracking-wider flex items-center gap-2">
@@ -459,7 +448,7 @@ export const VisaDistributionPage: React.FC = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white/10 p-3 rounded-xl border border-white/10">
             <span className="text-[10px] text-slate-300 uppercase font-bold block">Total Buying Cost (Shirka)</span>
             <div className="text-xl font-mono font-bold text-rose-300 mt-1">
@@ -483,19 +472,41 @@ export const VisaDistributionPage: React.FC = () => {
             </div>
             <span className="text-[10px] text-slate-400">Company Income (Selling − Buying)</span>
           </div>
+        </div>
 
-          <div className="flex items-center justify-end">
-            <Button
-              variant="primary"
-              size="lg"
-              onClick={handleSaveDistribution}
-              disabled={!canSave || submitting}
-              loading={submitting}
-              className="w-full bg-[#c9a227] hover:bg-[#b08d20] text-slate-950 font-bold"
-            >
-              Save Distribution & Generate Invoices →
-            </Button>
+        {/* Per-Agent Totals Breakdown */}
+        {summary.agentTotals.length > 0 && (
+          <div className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#c9a227] block">Per-Agent Distribution Breakdown</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {summary.agentTotals.map((at, idx) => (
+                <div key={idx} className="bg-white/10 p-2.5 rounded-lg border border-white/10 text-xs space-y-1">
+                  <div className="font-bold text-white">{at.name}</div>
+                  <div className="flex items-center justify-between font-mono text-slate-300 text-[11px]">
+                    <span>Assigned Visas:</span>
+                    <strong className="text-[#c9a227]">{at.visas} Pax</strong>
+                  </div>
+                  <div className="flex items-center justify-between font-mono text-slate-300 text-[11px]">
+                    <span>Total Selling:</span>
+                    <strong className="text-emerald-300">SAR {at.selling.toLocaleString()}</strong>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
+        )}
+
+        <div className="flex justify-end pt-2">
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={handleSaveDistribution}
+            disabled={!canSave || submitting}
+            loading={submitting}
+            className="w-full sm:w-auto bg-[#c9a227] hover:bg-[#b08d20] text-slate-950 font-bold"
+          >
+            Save Distribution & Generate Invoices →
+          </Button>
         </div>
       </Card>
     </div>
