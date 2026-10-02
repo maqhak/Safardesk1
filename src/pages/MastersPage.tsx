@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Database, 
   Users, 
@@ -23,20 +23,27 @@ import { AgentsPage } from './AgentsPage';
 import { AirlinesPage } from './AirlinesPage';
 import { VendorsPage } from './VendorsPage';
 import { VehiclesPage } from './VehiclesPage';
+import { HotelsPage } from './HotelsPage';
 import { INITIAL_AIRLINES } from '../data/airlines';
 import { AIRPORTS_DATA } from '../data/airports';
+import { fetchHotels } from '../services/masterService';
 
 type MasterTab = 'agents' | 'hotels' | 'airlines' | 'airports' | 'vendors' | 'vehicles';
 
 export const MastersPage: React.FC = () => {
   const { info, success } = useToast();
   const [activeTab, setActiveTab] = useState<MasterTab>('airlines');
+  const [hotelCount, setHotelCount] = useState<number>(0);
   const canCreate = useCan('Masters', 'create');
+
+  useEffect(() => {
+    fetchHotels().then((h) => setHotelCount(h.length)).catch(() => setHotelCount(10));
+  }, []);
 
   const tabs: { key: MasterTab; label: string; icon: any; count: number }[] = [
     { key: 'airlines', label: 'Airlines', icon: Plane, count: INITIAL_AIRLINES.length },
     { key: 'agents', label: 'B2B Sub-Agents', icon: Users, count: 48 },
-    { key: 'hotels', label: 'Hotels Directory', icon: Building, count: 112 },
+    { key: 'hotels', label: 'Hotels Directory', icon: Building, count: hotelCount },
     { key: 'airports', label: 'Airports & Reference', icon: MapPin, count: AIRPORTS_DATA.length },
     { key: 'vendors', label: 'Suppliers & Vendors', icon: Database, count: 26 },
     { key: 'vehicles', label: 'Vehicles & Transport', icon: Bus, count: 5 },
@@ -66,6 +73,32 @@ export const MastersPage: React.FC = () => {
     </div>
   );
 
+  const renderTabsBar = () => (
+    <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
+      {tabs.map((t) => {
+        const Icon = t.icon;
+        const isActive = activeTab === t.key;
+        return (
+          <button
+            key={t.key}
+            onClick={() => setActiveTab(t.key)}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+              isActive
+                ? 'bg-[#0e2c4c] text-white shadow-xs'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            <span>{t.label}</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+              {t.count}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   if (activeTab === 'airlines') {
     return (
       <div className="space-y-6">
@@ -75,30 +108,23 @@ export const MastersPage: React.FC = () => {
           breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
         />
         {renderQaBanner()}
-        <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
-          {tabs.map((t) => {
-            const Icon = t.icon;
-            const isActive = activeTab === t.key;
-            return (
-              <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-                  isActive
-                    ? 'bg-[#0e2c4c] text-white shadow-xs'
-                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{t.label}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                  {t.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        {renderTabsBar()}
         <AirlinesPage />
+      </div>
+    );
+  }
+
+  if (activeTab === 'hotels') {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Master Records & Directories"
+          subtitle="Manage foundational business master data: sub-agents, contracted hotel inventory, airline codes, and service suppliers."
+          breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
+        />
+        {renderQaBanner()}
+        {renderTabsBar()}
+        <HotelsPage />
       </div>
     );
   }
@@ -112,29 +138,7 @@ export const MastersPage: React.FC = () => {
           breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
         />
         {renderQaBanner()}
-        <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
-          {tabs.map((t) => {
-            const Icon = t.icon;
-            const isActive = activeTab === t.key;
-            return (
-              <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-                  isActive
-                    ? 'bg-[#0e2c4c] text-white shadow-xs'
-                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{t.label}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                  {t.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        {renderTabsBar()}
         <AgentsPage />
       </div>
     );
@@ -149,29 +153,7 @@ export const MastersPage: React.FC = () => {
           breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
         />
         {renderQaBanner()}
-        <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
-          {tabs.map((t) => {
-            const Icon = t.icon;
-            const isActive = activeTab === t.key;
-            return (
-              <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-                  isActive
-                    ? 'bg-[#0e2c4c] text-white shadow-xs'
-                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{t.label}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                  {t.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        {renderTabsBar()}
         <VendorsPage />
       </div>
     );
@@ -186,29 +168,7 @@ export const MastersPage: React.FC = () => {
           breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
         />
         {renderQaBanner()}
-        <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
-          {tabs.map((t) => {
-            const Icon = t.icon;
-            const isActive = activeTab === t.key;
-            return (
-              <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-                  isActive
-                    ? 'bg-[#0e2c4c] text-white shadow-xs'
-                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{t.label}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                  {t.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        {renderTabsBar()}
         <VehiclesPage />
       </div>
     );
@@ -222,31 +182,7 @@ export const MastersPage: React.FC = () => {
         breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
       />
       {renderQaBanner()}
-
-      {/* Tabs Row */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const isActive = activeTab === t.key;
-          return (
-            <button
-              key={t.key}
-              onClick={() => setActiveTab(t.key)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
-                isActive
-                  ? 'bg-[#0e2c4c] text-white shadow-xs'
-                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{t.label}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                {t.count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      {renderTabsBar()}
 
       <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-12 text-center text-slate-500">
         <h3 className="text-sm font-bold text-slate-800 mb-1">Directory view for {activeTab.toUpperCase()}</h3>
