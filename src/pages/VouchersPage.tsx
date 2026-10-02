@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Building, 
   Plus, 
@@ -42,6 +43,13 @@ import { AgentDoc } from '../types/agent';
 import { convert } from '../services/financeService';
 import { getCurrentRate } from '../services/exchangeRateService';
 
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
 export const VouchersPage: React.FC = () => {
   const { userProfile, role } = useAuth();
   const { success, error: showError, info } = useToast();
@@ -72,15 +80,17 @@ export const VouchersPage: React.FC = () => {
   const [hotelsMaster, setHotelsMaster] = useState<HotelDoc[]>([]);
   const [vehiclesMaster, setVehiclesMaster] = useState<VehicleDoc[]>([]);
 
-  // Sectors state
+  // Smart Date Chaining Anchor
+  const [arrivalDate, setArrivalDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
+  // Sectors state with AirportSelect & AirlineSelect
   const [sectors, setSectors] = useState<SectorItem[]>([
-    { type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', vehicleType: 'Staria', transportRateSAR: 350 }
+    { type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', vehicleType: 'Staria', transportRateSAR: 350 }
   ]);
 
   // Hotel Stays state with smart date chaining
-  const [arrivalDate, setArrivalDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [hotelStays, setHotelStays] = useState<HotelStayItem[]>([
-    { city: 'Makkah', hotelName: '', checkInDate: new Date().toISOString().split('T')[0], checkOutDate: new Date().toISOString().split('T')[0], nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 950, totalSAR: 2850 }
+    { city: 'Makkah', hotelName: '', checkInDate: new Date().toISOString().split('T')[0], checkOutDate: addDays(new Date().toISOString().split('T')[0], 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 950, totalSAR: 2850 }
   ]);
 
   // Charges state
@@ -145,6 +155,9 @@ export const VouchersPage: React.FC = () => {
     setSelectedVisaIds([]);
     setSelectedCustomerId('');
     setSelectedAgentId('');
+    setArrivalDate(new Date().toISOString().split('T')[0]);
+    setSectors([{ type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', vehicleType: 'Staria', transportRateSAR: 350 }]);
+    setHotelStays([{ city: 'Makkah', hotelName: '', checkInDate: new Date().toISOString().split('T')[0], checkOutDate: addDays(new Date().toISOString().split('T')[0], 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 950, totalSAR: 2850 }]);
     setBuilderOpen(true);
   };
 
@@ -333,7 +346,7 @@ export const VouchersPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Umrah Trip & Hotel Vouchers"
-        subtitle="Manage unified Umrah vouchers with remaining visa filtering, multi-link options (Visas, B2C Customer, B2B Agent), and ledger posting."
+        subtitle="Manage unified Umrah vouchers with remaining visa filtering, multi-link options, smart date chaining, and airport/airline selectors."
         breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Vouchers' }]}
         actions={
           <div className="flex items-center gap-2">
@@ -431,7 +444,7 @@ export const VouchersPage: React.FC = () => {
         }
       >
         <div className="py-2">
-          {/* Step 1: Linking Rules (No-Orphan Rule & Remaining Visas) */}
+          {/* Step 1: Linking Rules */}
           {builderStep === 1 && (
             <div className="space-y-4">
               <div>
@@ -535,28 +548,59 @@ export const VouchersPage: React.FC = () => {
             </div>
           )}
 
-          {/* Step 2: Sectors & Hotel Stays */}
+          {/* Step 2: Smart Date Chaining, Airport/Airline Sectors & Hotel Stays */}
           {builderStep === 2 && (
             <div className="space-y-6">
-              {/* Sectors */}
+              {/* Smart Date Chaining Anchor */}
+              <div className="p-4 bg-[#0e2c4c]/5 border border-[#0e2c4c]/20 rounded-xl space-y-2">
+                <label className="block text-xs font-bold text-[#0e2c4c] uppercase tracking-wider">Trip Arrival Date (Smart Chain Anchor)</label>
+                <input
+                  type="date"
+                  value={arrivalDate}
+                  onChange={(e) => {
+                    const newDate = e.target.value;
+                    setArrivalDate(newDate);
+                    if (hotelStays.length > 0) {
+                      const updated = [...hotelStays];
+                      updated[0].checkInDate = newDate;
+                      updated[0].checkOutDate = addDays(newDate, updated[0].nights);
+                      for (let i = 1; i < updated.length; i++) {
+                        updated[i].checkInDate = updated[i - 1].checkOutDate;
+                        updated[i].checkOutDate = addDays(updated[i].checkInDate, updated[i].nights);
+                      }
+                      setHotelStays(updated);
+                    }
+                  }}
+                  className="w-full sm:w-64 p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[#0e2c4c]"
+                />
+                <div className="text-[11px] text-slate-500">Changing arrival date automatically shifts and chains subsequent hotel check-in/check-out dates.</div>
+              </div>
+
+              {/* Sectors with AirportSelect & AirlineSelect */}
               <div className="space-y-3">
-                <h4 className="font-bold text-slate-900 text-sm flex items-center justify-between">
-                  <span>Flight Sectors</span>
-                  <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Makkah to Madina', date: arrivalDate, vehicleType: 'Hiace', transportRateSAR: 500 }])}>
-                    + Add Sector
-                  </Button>
-                </h4>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h4 className="font-bold text-slate-900 text-sm">Flight / Transport Sectors</h4>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Arrival', date: arrivalDate, flightNo: '', time: '12:00', vehicleType: 'Staria', transportRateSAR: 350 }])}>
+                      + Arrival
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Departure', date: arrivalDate, flightNo: '', time: '12:00', vehicleType: 'Staria', transportRateSAR: 350 }])}>
+                      + Departure
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Makkah to Madina', date: arrivalDate, vehicleType: 'Hiace', transportRateSAR: 500 }])}>
+                      + Makkah → Madina
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Madina to Makkah', date: arrivalDate, vehicleType: 'Hiace', transportRateSAR: 500 }])}>
+                      + Madina → Makkah
+                    </Button>
+                  </div>
+                </div>
+
                 {sectors.map((sec, idx) => (
-                  <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-3 text-xs">
+                  <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-[#0e2c4c]">{sec.type} Sector</span>
-                      {sectors.length > 1 && (
-                        <button onClick={() => setSectors(sectors.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700">Remove</button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Date</label>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-[#0e2c4c] px-2.5 py-1 bg-[#0e2c4c]/10 rounded uppercase text-[10px]">{sec.type} Sector</span>
                         <input
                           type="date"
                           value={sec.date}
@@ -565,39 +609,107 @@ export const VouchersPage: React.FC = () => {
                             updated[idx].date = e.target.value;
                             setSectors(updated);
                           }}
-                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs"
+                          className="p-1.5 bg-white border border-slate-300 rounded text-xs font-mono"
+                        />
+                      </div>
+                      {sectors.length > 1 && (
+                        <button onClick={() => setSectors(sectors.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 font-semibold">Remove</button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                      <div>
+                        <AirportSelect
+                          label="From Airport"
+                          value={sec.fromAirport || null}
+                          onChange={(apt) => {
+                            const updated = [...sectors];
+                            updated[idx].fromAirport = apt;
+                            setSectors(updated);
+                          }}
+                          placeholder="Departure hub..."
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Transport Vehicle Type</label>
-                        <select
-                          value={sec.vehicleType}
-                          onChange={(e) => {
+                        <AirportSelect
+                          label="To Airport"
+                          value={sec.toAirport || null}
+                          onChange={(apt) => {
                             const updated = [...sectors];
-                            updated[idx].vehicleType = e.target.value as any;
+                            updated[idx].toAirport = apt;
                             setSectors(updated);
                           }}
-                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs"
-                        >
-                          <option value="Car">Car (4 Seater)</option>
-                          <option value="Staria">Staria VIP Van</option>
-                          <option value="Hiace">Hiace (12 Seater)</option>
-                          <option value="Coaster">Coaster Bus</option>
-                          <option value="Bus">49-Seater Coach</option>
-                        </select>
+                          placeholder="Arrival hub..."
+                        />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Transport Charge (SAR)</label>
-                        <input
-                          type="number"
-                          value={sec.transportRateSAR || 0}
-                          onChange={(e) => {
+                        <AirlineSelect
+                          label="Airline"
+                          value={sec.airline || null}
+                          onChange={(air) => {
                             const updated = [...sectors];
-                            updated[idx].transportRateSAR = parseFloat(e.target.value) || 0;
+                            updated[idx].airline = air;
                             setSectors(updated);
                           }}
-                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs"
+                          placeholder="Select carrier..."
                         />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Flight Number & Time</label>
+                        <div className="flex gap-1">
+                          <input
+                            type="text"
+                            value={sec.flightNo || ''}
+                            onChange={(e) => {
+                              const updated = [...sectors];
+                              updated[idx].flightNo = e.target.value;
+                              setSectors(updated);
+                            }}
+                            placeholder="e.g. SV-734"
+                            className="w-2/3 p-2 bg-white border border-slate-300 rounded text-xs font-mono"
+                          />
+                          <input
+                            type="time"
+                            value={sec.time || '12:00'}
+                            onChange={(e) => {
+                              const updated = [...sectors];
+                              updated[idx].time = e.target.value;
+                              setSectors(updated);
+                            }}
+                            className="w-1/3 p-2 bg-white border border-slate-300 rounded text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Transport & Cost (SAR)</label>
+                        <div className="flex gap-1">
+                          <select
+                            value={sec.vehicleType || 'Staria'}
+                            onChange={(e) => {
+                              const updated = [...sectors];
+                              updated[idx].vehicleType = e.target.value as any;
+                              setSectors(updated);
+                            }}
+                            className="w-1/2 p-2 bg-white border border-slate-300 rounded text-xs"
+                          >
+                            <option value="Car">Car</option>
+                            <option value="Staria">Staria</option>
+                            <option value="Hiace">Hiace</option>
+                            <option value="Coaster">Coaster</option>
+                            <option value="Bus">Coach</option>
+                          </select>
+                          <input
+                            type="number"
+                            value={sec.transportRateSAR || 0}
+                            onChange={(e) => {
+                              const updated = [...sectors];
+                              updated[idx].transportRateSAR = parseFloat(e.target.value) || 0;
+                              setSectors(updated);
+                            }}
+                            className="w-1/2 p-2 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-[#0e2c4c]"
+                            placeholder="SAR"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -607,22 +719,38 @@ export const VouchersPage: React.FC = () => {
               {/* Accommodation section with smart date chaining */}
               <div className="space-y-3 pt-4 border-t border-slate-200">
                 <h4 className="font-bold text-slate-900 text-sm flex items-center justify-between">
-                  <span>Accommodation Stays (Hotel-Only or Vouchered)</span>
-                  <Button variant="outline" size="sm" onClick={() => setHotelStays([...hotelStays, { city: 'Madinah', hotelName: '', checkInDate: hotelStays[hotelStays.length - 1]?.checkOutDate || arrivalDate, checkOutDate: '', nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 900, totalSAR: 2700 }])}>
+                  <span>Accommodation Stays (Smart Date Chaining)</span>
+                  <Button variant="outline" size="sm" onClick={() => {
+                    const lastStay = hotelStays[hotelStays.length - 1];
+                    const nextCheckIn = lastStay ? lastStay.checkOutDate : arrivalDate;
+                    const nextCheckOut = addDays(nextCheckIn, 3);
+                    setHotelStays([...hotelStays, { city: 'Madinah', hotelName: '', checkInDate: nextCheckIn, checkOutDate: nextCheckOut, nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 900, totalSAR: 2700 }]);
+                  }}>
                     + Add Hotel Stay
                   </Button>
                 </h4>
                 {hotelStays.map((stay, idx) => (
-                  <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-3 text-xs">
+                  <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-[#0e2c4c]">Stay #{idx + 1} ({stay.city})</span>
+                      <span className="font-bold text-[#0e2c4c]">Stay #{idx + 1} ({stay.city}) — Chained Stay</span>
                       {hotelStays.length > 1 && (
-                        <button onClick={() => setHotelStays(hotelStays.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700">Remove</button>
+                        <button onClick={() => {
+                          const updated = hotelStays.filter((_, i) => i !== idx);
+                          for (let i = 0; i < updated.length; i++) {
+                            if (i === 0) {
+                              updated[i].checkInDate = arrivalDate;
+                            } else {
+                              updated[i].checkInDate = updated[i - 1].checkOutDate;
+                            }
+                            updated[i].checkOutDate = addDays(updated[i].checkInDate, updated[i].nights);
+                          }
+                          setHotelStays(updated);
+                        }} className="text-red-500 hover:text-red-700 font-semibold">Remove</button>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">City</label>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">City</label>
                         <select
                           value={stay.city}
                           onChange={(e) => {
@@ -638,7 +766,7 @@ export const VouchersPage: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Hotel Name</label>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Hotel Name</label>
                         <select
                           value={stay.hotelName}
                           onChange={(e) => {
@@ -651,7 +779,7 @@ export const VouchersPage: React.FC = () => {
                             updated[idx].totalSAR = rate * updated[idx].nights * updated[idx].roomCount;
                             setHotelStays(updated);
                           }}
-                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs"
+                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-semibold"
                         >
                           <option value="">-- Choose Hotel --</option>
                           {hotelsMaster.filter(h => h.city.toLowerCase() === stay.city.toLowerCase()).map(h => (
@@ -660,47 +788,71 @@ export const VouchersPage: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Check-In</label>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Check-In Date (Chained)</label>
                         <input
                           type="date"
                           value={stay.checkInDate}
                           onChange={(e) => {
+                            const newIn = e.target.value;
                             const updated = [...hotelStays];
-                            updated[idx].checkInDate = e.target.value;
+                            updated[idx].checkInDate = newIn;
+                            updated[idx].checkOutDate = addDays(newIn, updated[idx].nights);
+                            for (let i = idx + 1; i < updated.length; i++) {
+                              updated[i].checkInDate = updated[i - 1].checkOutDate;
+                              updated[i].checkOutDate = addDays(updated[i].checkInDate, updated[i].nights);
+                            }
                             setHotelStays(updated);
                           }}
-                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs"
+                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-mono"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">Nights & Rate (SAR)</label>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Nights</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={stay.nights}
+                          onChange={(e) => {
+                            const n = parseInt(e.target.value) || 1;
+                            const updated = [...hotelStays];
+                            updated[idx].nights = n;
+                            updated[idx].checkOutDate = addDays(updated[idx].checkInDate, n);
+                            updated[idx].totalSAR = n * updated[idx].ratePerNightSAR * updated[idx].roomCount;
+                            for (let i = idx + 1; i < updated.length; i++) {
+                              updated[i].checkInDate = updated[i - 1].checkOutDate;
+                              updated[i].checkOutDate = addDays(updated[i].checkInDate, updated[i].nights);
+                            }
+                            setHotelStays(updated);
+                          }}
+                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Check-Out Date & Total</label>
                         <div className="flex gap-1">
                           <input
-                            type="number"
-                            value={stay.nights}
+                            type="date"
+                            value={stay.checkOutDate}
                             onChange={(e) => {
+                              const newOut = e.target.value;
                               const updated = [...hotelStays];
-                              const n = parseInt(e.target.value) || 1;
-                              updated[idx].nights = n;
-                              updated[idx].totalSAR = n * updated[idx].ratePerNightSAR * updated[idx].roomCount;
+                              updated[idx].checkOutDate = newOut;
+                              const d1 = new Date(updated[idx].checkInDate);
+                              const d2 = new Date(newOut);
+                              const diffDays = Math.max(1, Math.round((d2.getTime() - d1.getTime()) / (1000 * 3600 * 24)));
+                              updated[idx].nights = diffDays;
+                              updated[idx].totalSAR = diffDays * updated[idx].ratePerNightSAR * updated[idx].roomCount;
+                              for (let i = idx + 1; i < updated.length; i++) {
+                                updated[i].checkInDate = updated[i - 1].checkOutDate;
+                                updated[i].checkOutDate = addDays(updated[i].checkInDate, updated[i].nights);
+                              }
                               setHotelStays(updated);
                             }}
-                            className="w-1/2 p-2 bg-white border border-slate-300 rounded text-xs"
-                            placeholder="Nights"
+                            className="w-3/5 p-2 bg-white border border-slate-300 rounded text-xs font-mono text-rose-600 font-bold"
                           />
-                          <input
-                            type="number"
-                            value={stay.ratePerNightSAR}
-                            onChange={(e) => {
-                              const updated = [...hotelStays];
-                              const r = parseFloat(e.target.value) || 0;
-                              updated[idx].ratePerNightSAR = r;
-                              updated[idx].totalSAR = updated[idx].nights * r * updated[idx].roomCount;
-                              setHotelStays(updated);
-                            }}
-                            className="w-1/2 p-2 bg-white border border-slate-300 rounded text-xs font-mono"
-                            placeholder="Rate"
-                          />
+                          <span className="w-2/5 p-2 bg-slate-100 rounded text-xs font-mono font-bold text-[#0e2c4c] flex items-center justify-center">
+                            SAR {stay.totalSAR}
+                          </span>
                         </div>
                       </div>
                     </div>
