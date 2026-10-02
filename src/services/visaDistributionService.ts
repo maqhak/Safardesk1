@@ -77,6 +77,7 @@ export async function createVisaDistributionBatch(params: {
     groupCode: string; 
     groupName: string; 
     visaIds: string[];
+    exchangeRateSARPKR: number; // Fix #29: manually entered per-agent SAR->PKR rate
     commission?: {
       enabled: boolean;
       recipientName: string;
@@ -119,6 +120,7 @@ export async function createVisaDistributionBatch(params: {
     totalVisas: number;
     sellingTotalSAR: number;
     buyingTotalSAR: number;
+    exchangeRateSARPKR: number;
     commission?: { enabled: boolean; recipientName: string; contactNumber: string; amountSAR: number };
   }>();
 
@@ -129,6 +131,7 @@ export async function createVisaDistributionBatch(params: {
       totalVisas: 0,
       sellingTotalSAR: 0,
       buyingTotalSAR: 0,
+      exchangeRateSARPKR: data.exchangeRateSARPKR,
       commission: data.commission?.enabled ? data.commission : undefined,
     };
 
@@ -160,7 +163,8 @@ export async function createVisaDistributionBatch(params: {
   let totalSellingAll = 0;
 
   for (const [agentId, batch] of agentBatches.entries()) {
-    const exchangeRate = getCurrentRate('SAR-PKR'); // snapshotted active exchange rate
+    // Fix #29: each agent's invoice uses its own MANUALLY entered SAR->PKR rate.
+    const exchangeRate = batch.exchangeRateSARPKR > 0 ? batch.exchangeRateSARPKR : getCurrentRate('SAR-PKR');
 
     batch.groups.forEach((g) => {
       createdGroups.push({

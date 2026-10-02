@@ -27,6 +27,9 @@ import { fetchVisas, VisaDoc } from '../services/visaService';
 import { fetchVendors } from '../services/masterService';
 import { fetchLedgerAccounts } from '../services/accountingService';
 import { createVisaDistributionBatch } from '../services/visaDistributionService';
+import { fetchAgents } from '../services/agentService';
+import { getCurrentRate } from '../services/exchangeRateService';
+import { AgentDoc } from '../types/agent';
 import { VendorDoc } from '../types/master';
 import { LedgerAccountDoc } from '../types/accounting';
 import { useNavigate } from 'react-router-dom';
@@ -62,6 +65,9 @@ export const VisaDistributionPage: React.FC = () => {
   const [visas, setVisas] = useState<VisaDoc[]>([]);
   const [vendors, setVendors] = useState<VendorDoc[]>([]);
   const [agents, setAgents] = useState<LedgerAccountDoc[]>([]);
+  const [agentMasters, setAgentMasters] = useState<AgentDoc[]>([]);
+  // Fix #29: manually entered SAR->PKR rate per agent (keyed by agent ledger account id)
+  const [agentRates, setAgentRates] = useState<Map<string, number>>(new Map());
 
   // Batch header fields
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
@@ -77,15 +83,17 @@ export const VisaDistributionPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [vList, vndList, accList] = await Promise.all([
+      const [vList, vndList, accList, agList] = await Promise.all([
         fetchVisas(),
         fetchVendors(),
         fetchLedgerAccounts(),
+        fetchAgents(),
       ]);
 
       setVisas(vList);
       setVendors(vndList.filter(v => v.isActive));
       setAgents(accList.filter(a => a.accountType === 'agent' || a.accountCode.startsWith('AGT')));
+      setAgentMasters(agList);
     } catch {
       showError('Failed to load undistributed visas and master lists.');
     } finally {
@@ -152,15 +160,34 @@ export const VisaDistributionPage: React.FC = () => {
     setExpandedGroups(next);
   };
 
+  // Fix #29: effective SAR->PKR rate for an agent — manual entry wins, then the
+  // agent master's own rate, then the global Exchange Rate Master as last resort.
+  const rateForAgent = (agentLedgerAccountId: string): number => {
+    const manual = agentRates.get(agentLedgerAccountId);
+    if (manual && manual > 0) return manual;
+    const ledgerAcc = agents.find(a => a.id === agentLedgerAccountId) as any;
+    const master = agentMasters.find(m => m.id === ledgerAcc?.linkedId || m.id === ledgerAcc?.linkedAgentId);
+    if (master?.exchangeRatePKRRate && master.exchangeRatePKRRate > 0) return master.exchangeRatePKRRate;
+    return getCurrentRate('SAR-PKR');
+  };
+
+  const handleAgentRateChange = (agentLedgerAccountId: string, value: number) => {
+    const updated = new Map(agentRates);
+    if (value > 0) updated.set(agentLedgerAccountId, value);
+    else updated.delete(agentLedgerAccountId);
+    setAgentRates(updated);
+  };
+
   // Live Batch Summary Calculations
   const activeSelectedGroups = useMemo(() => {
-    const list: Array<{ 
-      groupCode: string; 
-      groupName: string; 
-      agentId: string; 
-      sellingPricePerVisa: number; 
-      visaIds: string[]; 
+    const list: Array<{
+      groupCode: string;
+      groupName: string;
+      agentId: string;
+      sellingPricePerVisa: number;
+      visaIds: string[];
       visaCount: number;
+      exchangeRateSARPKR: number;
       commission?: { enabled: boolean; recipientName: string; contactNumber: string; amountSAR: number };
     }> = [];
 
@@ -175,6 +202,7 @@ export const VisaDistributionPage: React.FC = () => {
             sellingPricePerVisa: sel.sellingPricePerVisa,
             visaIds: groupObj.visas.map(v => v.id),
             visaCount: groupObj.visaCount,
+            exchangeRateSARPKR: rateForAgent(sel.agentId),
             commission: sel.commissionEnabled ? {
               enabled: true,
               recipientName: sel.commissionRecipientName || '',
@@ -186,13 +214,13 @@ export const VisaDistributionPage: React.FC = () => {
       }
     });
     return list;
-  }, [groupSelections, groupedVisas]);
+  }, [groupSelections, groupedVisas, agentRates, agentMasters, agents]);
 
   const summary = useMemo(() => {
     let totalVisas = 0;
     let totalBuying = 0;
     let totalSelling = 0;
-    const agentTotals = new Map<string, { selling: number; buying: number; visas: number; name: string }>();
+    const agentTotals = new Map<string, { agentId: string; selling: number; buying: number; visas: number; name: string }>();
 
     activeSelectedGroups.forEach((g) => {
       const vCount = g.visaCount;
@@ -206,7 +234,7 @@ export const VisaDistributionPage: React.FC = () => {
       const agentObj = agents.find(a => a.id === g.agentId);
       const aName = agentObj?.title || 'Selected Agent';
 
-      const aTotal = agentTotals.get(g.agentId) || { selling: 0, buying: 0, visas: 0, name: aName };
+      const aTotal = agentTotals.get(g.agentId) || { agentId: g.agentId, selling: 0, buying: 0, visas: 0, name: aName };
       aTotal.selling += sRev;
       aTotal.buying += bCost;
       aTotal.visas += vCount;
@@ -238,12 +266,13 @@ export const VisaDistributionPage: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const agentGroupMap = new Map<string, { 
-        agentId: string; 
-        sellingPricePerVisa: number; 
-        groupCode: string; 
-        groupName: string; 
+      const agentGroupMap = new Map<string, {
+        agentId: string;
+        sellingPricePerVisa: number;
+        groupCode: string;
+        groupName: string;
         visaIds: string[];
+        exchangeRateSARPKR: number;
         commission?: { enabled: boolean; recipientName: string; contactNumber: string; amountSAR: number };
       }>();
 
@@ -254,6 +283,7 @@ export const VisaDistributionPage: React.FC = () => {
           groupCode: g.groupCode,
           groupName: g.groupName,
           visaIds: g.visaIds,
+          exchangeRateSARPKR: g.exchangeRateSARPKR,
           commission: g.commission,
         });
       });
@@ -571,6 +601,22 @@ export const VisaDistributionPage: React.FC = () => {
                   <div className="flex items-center justify-between font-mono text-slate-300 text-[11px]">
                     <span>Total Selling:</span>
                     <strong className="text-emerald-300">SAR {at.selling.toLocaleString()}</strong>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <label className="text-[10px] uppercase font-bold text-slate-400">Rate SAR→PKR *</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={rateForAgent(at.agentId) || ''}
+                      onChange={(e) => handleAgentRateChange(at.agentId, parseFloat(e.target.value) || 0)}
+                      title="Manually entered exchange rate for this agent's invoice"
+                      className="w-24 p-1.5 bg-white/10 border border-white/20 rounded-lg text-xs font-mono font-bold text-[#c9a227] text-right focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between font-mono text-slate-300 text-[11px]">
+                    <span>Total PKR:</span>
+                    <strong className="text-slate-100">{Math.round(at.selling * rateForAgent(at.agentId)).toLocaleString()}</strong>
                   </div>
                 </div>
               ))}
