@@ -10,8 +10,8 @@ import { LedgerEntryDoc, LedgerAccountDoc } from '../types/accounting';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { logAuditEvent } from './userService';
-import { UserProfile } from '../types/auth';
 import { getCurrentRate } from './exchangeRateService';
+import { UserProfile } from '../types/auth';
 
 const DISTRIB_COLLECTION = 'visa_distributions';
 const INVOICES_COLLECTION = 'visa_invoices';
@@ -373,7 +373,7 @@ export async function markCommissionPaid(
   }
 
   const now = new Date().toISOString();
-  const exchangeRate = inv.exchangeRate || 74.50;
+  const exchangeRate = inv.exchangeRate || getCurrentRate('SAR-PKR');
   const commSAR = inv.commission.amountSAR;
 
   // Post balanced transaction: Dr Commission Expense (acc-sys-003) / Cr Cash-or-Bank (paymentAccountId)

@@ -39,6 +39,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
+import { usePresetSearch } from '../hooks/useDeepOpen';
+import { useCurrentRate } from '../services/exchangeRateService';
 import { 
   PaymentDoc, 
   BankDoc, 
@@ -82,6 +84,9 @@ export const PaymentsPage: React.FC = () => {
 
   // Filter states
   const [search, setSearch] = useState<string>('');
+
+  // Deep link: ?q=<term> presets the search filter (from profile timelines)
+  usePresetSearch(setSearch);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [accountFilter, setAccountFilter] = useState<string>('all');
   const [reviewFilter, setReviewFilter] = useState<string>('all');
@@ -118,7 +123,12 @@ export const PaymentsPage: React.FC = () => {
   const [selectedCashTillId, setSelectedCashTillId] = useState<string>('');
   const [selectedBankId, setSelectedBankId] = useState<string>('');
   const [amountSAR, setAmountSAR] = useState<number>(0);
-  const [exchangeRate, setExchangeRate] = useState<number>(74.50);
+  const masterRate = useCurrentRate('SAR-PKR');
+  const [exchangeRate, setExchangeRate] = useState<number>(masterRate);
+
+  useEffect(() => {
+    setExchangeRate(masterRate);
+  }, [masterRate]);
   const [againstInvoiceNo, setAgainstInvoiceNo] = useState<string>('');
   const [particulars, setParticulars] = useState<string>('');
   
@@ -178,7 +188,7 @@ export const PaymentsPage: React.FC = () => {
       setSelectedCashTillId(cashAccounts[0]?.id || '');
       setSelectedBankId(banks[0]?.id || '');
       setAmountSAR(0);
-      setExchangeRate(74.50);
+      setExchangeRate(masterRate);
       setAgainstInvoiceNo('');
       setParticulars('');
       setReceiptDataUrl('');
@@ -193,14 +203,9 @@ export const PaymentsPage: React.FC = () => {
 
   const handlePayerPayeeChange = (accId: string) => {
     setSelectedPayerPayeeId(accId);
-    const acc = accounts.find((a) => a.id === accId);
-    if (acc?.accountCode === 'AGT-002') {
-      setExchangeRate(75.00);
-    } else if (acc?.accountCode === 'AGT-003') {
-      setExchangeRate(74.20);
-    } else {
-      setExchangeRate(74.50);
-    }
+    // Prefill from the Exchange Rate Master; the agent/staff can still type a
+    // manual per-agent rate (locked rule: each agent's rate is manual).
+    setExchangeRate(masterRate);
   };
 
   const handleInvoiceChange = (invNo: string) => {
@@ -1270,7 +1275,7 @@ export const PaymentsPage: React.FC = () => {
                 type="number"
                 step="0.01"
                 value={exchangeRate}
-                onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 74.50)}
+                onChange={(e) => setExchangeRate(parseFloat(e.target.value) || masterRate)}
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
               />
             </div>

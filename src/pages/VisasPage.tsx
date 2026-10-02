@@ -26,6 +26,7 @@ import { Modal } from '../components/ui/Modal';
 import { formatDate } from '../utils/formatters';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
+import { usePresetSearch } from '../hooks/useDeepOpen';
 import { fetchVisas, saveVisasBatch, saveVisaImportBatch, VisaDoc } from '../services/visaService';
 import { logAuditEvent } from '../services/userService';
 import { useAuth } from '../contexts/AuthContext';
@@ -38,6 +39,9 @@ export const VisasPage: React.FC = () => {
   const [visas, setVisas] = useState<VisaDoc[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState('');
+
+  // Deep link: ?q=<term> presets the search filter (from profile timelines)
+  usePresetSearch(setSearch);
   const [modalOpen, setModalOpen] = useState(false);
 
   // Manual Visa Form State

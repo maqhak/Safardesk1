@@ -7,7 +7,9 @@ export const AppShell: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans selection:bg-[#0e2c4c] selection:text-white">
       {/* Top Horizontal Navigation Bar */}
-      <TopNavbar />
+      <div className="print:hidden">
+        <TopNavbar />
+      </div>
 
       {/* Main Content Area */}
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -15,7 +17,7 @@ export const AppShell: React.FC = () => {
       </main>
 
       {/* Professional Footer */}
-      <footer className="w-full border-t border-slate-200/80 bg-white py-4 mt-auto">
+      <footer className="w-full border-t border-slate-200/80 bg-white py-4 mt-auto print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-slate-700">{TENANT.companyName}</span>

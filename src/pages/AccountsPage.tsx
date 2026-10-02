@@ -37,6 +37,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
+import { useCurrentRate } from '../services/exchangeRateService';
 import { 
   LedgerAccountDoc, 
   LedgerEntryDoc, 
@@ -126,7 +127,12 @@ export const AccountsPage: React.FC = () => {
   const [newParticulars, setNewParticulars] = useState<string>('');
   const [newInvRef, setNewInvRef] = useState<string>('');
   const [newVoucherNo, setNewVoucherNo] = useState<string>('');
-  const [newRate, setNewRate] = useState<number>(74.50);
+  const masterRate = useCurrentRate('SAR-PKR');
+  const [newRate, setNewRate] = useState<number>(masterRate);
+
+  useEffect(() => {
+    setNewRate(masterRate);
+  }, [masterRate]);
   const [newDebitAccountId, setNewDebitAccountId] = useState<string>('');
   const [newCreditAccountId, setNewCreditAccountId] = useState<string>('');
   const [newAmountSAR, setNewAmountSAR] = useState<number>(0);
@@ -1160,7 +1166,7 @@ export const AccountsPage: React.FC = () => {
                 type="number"
                 step="0.01"
                 value={newRate}
-                onChange={(e) => setNewRate(parseFloat(e.target.value) || 74.50)}
+                onChange={(e) => setNewRate(parseFloat(e.target.value) || masterRate)}
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
               />
               <div className="text-[10px] text-slate-500 mt-0.5">

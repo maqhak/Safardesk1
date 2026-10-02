@@ -35,6 +35,15 @@ import { CurrencyAmount } from '../components/ui/CurrencyAmount';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
+import { useNavigate } from 'react-router-dom';
+import ProfileTimeline from '../components/ProfileTimeline';
+import { useCurrentRate } from '../services/exchangeRateService';
+import { fetchLedgerEntries } from '../services/accountingService';
+import { fetchVouchers } from '../services/voucherService';
+import { fetchTickets } from '../services/ticketService';
+import { fetchJournalVouchers } from '../services/journalVoucherService';
+import { fetchVisaInvoices } from '../services/visaDistributionService';
+import { fetchPayments } from '../services/paymentService';
 import { 
   AgentDoc, 
   LedgerAccountDoc, 
@@ -58,6 +67,8 @@ export const AgentsPage: React.FC = () => {
   const { success, error: showError, info } = useToast();
   const canView = useCan('Masters', 'view');
   const isOwner = role === 'owner';
+  const masterRate = useCurrentRate('SAR-PKR');
+  const navigate = useNavigate();
 
   const [agents, setAgents] = useState<AgentDoc[]>([]);
   const [ledgers, setLedgers] = useState<LedgerAccountDoc[]>([]);
@@ -100,7 +111,7 @@ export const AgentsPage: React.FC = () => {
   const [editMobile, setEditMobile] = useState('');
   const [editCity, setEditCity] = useState('');
   const [editDueLimitSAR, setEditDueLimitSAR] = useState<number>(0);
-  const [editExchangeRate, setEditExchangeRate] = useState<number>(74.5);
+  const [editExchangeRate, setEditExchangeRate] = useState<number>(masterRate);
   const [editNotes, setEditNotes] = useState('');
   const [editing, setEditing] = useState<boolean>(false);
 
@@ -112,6 +123,18 @@ export const AgentsPage: React.FC = () => {
   // "View Ledger" Modal state
   const [ledgerModalOpen, setLedgerModalOpen] = useState<boolean>(false);
   const [selectedAgentBalance, setSelectedAgentBalance] = useState<AgentBalanceInfo | null>(null);
+
+  // Agent profile timeline (shared component with B2C customers)
+  const [profileTimeline, setProfileTimeline] = useState<{
+    accountId: string | null;
+    vouchers: any[];
+    tickets: any[];
+    jvs: any[];
+    invoices: any[];
+    payments: any[];
+    entries: any[];
+  } | null>(null);
+  const [loadingProfileTimeline, setLoadingProfileTimeline] = useState<boolean>(false);
 
   // Load all agents and ledgers
   const loadData = async () => {
@@ -249,7 +272,7 @@ Please keep these credentials safe and change password after first login.`;
         mobile: editMobile,
         city: editCity,
         dueLimitSAR: Number(editDueLimitSAR) || 0,
-        exchangeRatePKRRate: Number(editExchangeRate) || 74.5,
+        exchangeRatePKRRate: Number(editExchangeRate) || masterRate,
         notes: editNotes,
       });
 
@@ -296,6 +319,35 @@ Please keep these credentials safe and change password after first login.`;
     setSelectedAgentBalance(bal);
     setTargetAgent(agent);
     setLedgerModalOpen(true);
+    // Load the unified profile timeline (same component as B2C customers)
+    setLoadingProfileTimeline(true);
+    try {
+      const [accounts, entries, vouchers, tickets, jvs, invoices, payments] = await Promise.all([
+        fetchLedgerAccounts(),
+        fetchLedgerEntries(),
+        fetchVouchers(),
+        fetchTickets(),
+        fetchJournalVouchers(),
+        fetchVisaInvoices(),
+        fetchPayments(),
+      ]);
+      const acc = accounts.find((a) => a.linkedAgentId === agent.id);
+      const accId = acc?.id || null;
+      setProfileTimeline({
+        accountId: accId,
+        vouchers: vouchers.filter((v: any) => v.agentId === agent.id),
+        tickets: tickets.filter((t: any) => t.buyerId === agent.id),
+        jvs: accId ? jvs.filter((jv: any) => (jv.lines || []).some((l: any) => l.accountId === accId)) : [],
+        invoices: invoices.filter((inv: any) => inv.agentId === agent.id),
+        payments: accId ? payments.filter((p: any) => p.fromAccountId === accId || p.toAccountId === accId) : [],
+        entries: accId ? entries.filter((e: any) => e.accountId === accId) : [],
+      });
+    } catch (err) {
+      console.warn('Failed to load agent profile timeline:', err);
+      setProfileTimeline(null);
+    } finally {
+      setLoadingProfileTimeline(false);
+    }
   };
 
   // Filter agents list
@@ -932,7 +984,7 @@ Please keep these credentials safe and change password after first login.`;
       <Modal
         isOpen={ledgerModalOpen}
         onClose={() => setLedgerModalOpen(false)}
-        title={`Sub-Ledger — ${targetAgent?.companyName}`}
+        title={`Agent Profile — ${targetAgent?.companyName}`}
         subtitle={`Agent Code: ${targetAgent?.agentCode} • City: ${targetAgent?.city}`}
         size="lg"
         footer={
@@ -986,35 +1038,25 @@ Please keep these credentials safe and change password after first login.`;
               </div>
             )}
 
-            {/* Sample Recent Transactions in Sub-Ledger */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden bg-white text-xs">
-              <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 font-semibold text-slate-700 flex justify-between items-center">
-                <span>Recent Sub-Ledger Entries (Opening Balance: SAR 0.00)</span>
-                <span className="text-slate-400 text-[11px] font-mono">Currency: SAR</span>
-              </div>
-              <div className="divide-y divide-slate-100">
-                <div className="px-4 py-2.5 flex items-center justify-between">
-                  <div>
-                    <span className="font-semibold block text-slate-900">Inv #INV-2026-0891 • 12x Umrah Electronic Visas</span>
-                    <span className="text-slate-400 text-[11px] font-mono">01-Oct-2026 • Debit</span>
-                  </div>
-                  <span className="font-mono font-bold text-slate-900">+5,400.00 SAR</span>
-                </div>
-                <div className="px-4 py-2.5 flex items-center justify-between">
-                  <div>
-                    <span className="font-semibold block text-slate-900">Receipt #RCP-4412 via Al-Rajhi Bank Wire</span>
-                    <span className="text-slate-400 text-[11px] font-mono">01-Oct-2026 • Credit</span>
-                  </div>
-                  <span className="font-mono font-bold text-emerald-700">-10,000.00 SAR</span>
-                </div>
-                <div className="px-4 py-2.5 flex items-center justify-between">
-                  <div>
-                    <span className="font-semibold block text-slate-900">Hotel Voucher #VCH-MK-8821 (Fairmont Makkah)</span>
-                    <span className="text-slate-400 text-[11px] font-mono">29-Sep-2026 • Debit</span>
-                  </div>
-                  <span className="font-mono font-bold text-slate-900">+12,500.00 SAR</span>
-                </div>
-              </div>
+            {/* Agent Activity Timeline — shared component with B2C customer profiles */}
+            <div>
+              <h4 className="font-bold text-slate-900 text-sm mb-3">Agent Activity Timeline</h4>
+              {loadingProfileTimeline ? (
+                <div className="py-8 text-center text-xs text-slate-500">Loading live timeline records...</div>
+              ) : profileTimeline ? (
+                <ProfileTimeline
+                  accountId={profileTimeline.accountId}
+                  visas={[]}
+                  vouchers={profileTimeline.vouchers}
+                  tickets={profileTimeline.tickets}
+                  jvs={profileTimeline.jvs}
+                  invoices={profileTimeline.invoices}
+                  payments={profileTimeline.payments}
+                  entries={profileTimeline.entries}
+                  masterRate={masterRate}
+                  onNavigate={(path) => { setLedgerModalOpen(false); navigate(path); }}
+                />
+              ) : null}
             </div>
           </div>
         )}

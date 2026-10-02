@@ -12,6 +12,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { VisasPage } from './pages/VisasPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { VouchersPage } from './pages/VouchersPage';
+import { VoucherSharedView } from './pages/VoucherSharedView';
 import { TicketsPage } from './pages/TicketsPage';
 import { MovementReportsPage } from './pages/MovementReportsPage';
 import { AccountsPage } from './pages/AccountsPage';
@@ -75,6 +76,14 @@ export default function App() {
                   element={
                     <ProtectedRoute requiredModule="Vouchers">
                       <VouchersPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/vouchers/shared/:voucherId"
+                  element={
+                    <ProtectedRoute requiredModule="Vouchers">
+                      <VoucherSharedView />
                     </ProtectedRoute>
                   }
                 />

@@ -57,10 +57,10 @@ export const Modal: React.FC<ModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto print:static print:block print:p-0 print:overflow-visible">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity duration-200"
+        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity duration-200 print:hidden"
         onClick={() => closeOnBackdrop && onClose()}
         aria-hidden="true"
       />
@@ -72,11 +72,12 @@ export const Modal: React.FC<ModalProps> = ({
         className={cn(
           'relative w-full bg-white rounded-2xl shadow-2xl border border-slate-200/90 z-10 flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150',
           sizeClasses[size],
+          'print:max-w-none print:max-h-none print:rounded-none print:shadow-none print:border-0 print:overflow-visible print:block',
           className
         )}
       >
         {/* Header */}
-        <div className="flex items-start justify-between px-6 py-4.5 border-b border-slate-100 bg-slate-50/50">
+        <div className="flex items-start justify-between px-6 py-4.5 border-b border-slate-100 bg-slate-50/50 print:hidden">
           <div>
             <h3 className="text-lg font-bold text-slate-900 tracking-tight">
               {title}
@@ -95,13 +96,13 @@ export const Modal: React.FC<ModalProps> = ({
         </div>
 
         {/* Content Body */}
-        <div className="px-6 py-5 overflow-y-auto flex-1 text-sm text-slate-700 leading-relaxed">
+        <div className="px-6 py-5 overflow-y-auto flex-1 text-sm text-slate-700 leading-relaxed print:overflow-visible print:px-0 print:py-0">
           {children}
         </div>
 
         {/* Footer */}
         {footer && (
-          <div className="px-6 py-4 bg-slate-50/70 border-t border-slate-100 flex items-center justify-end gap-3">
+          <div className="px-6 py-4 bg-slate-50/70 border-t border-slate-100 flex items-center justify-end gap-3 print:hidden">
             {footer}
           </div>
         )}

@@ -274,7 +274,7 @@ export const VehiclesPage: React.FC = () => {
               <option value="Staria">Staria (VIP Van)</option>
               <option value="Hiace">Hiace (High Roof)</option>
               <option value="Coaster">Coaster (AC Bus)</option>
-              <option value="Bus">Bus (49-Seater Luxury Coach)</option>
+              <option value="Bus">Bus (49-Seater Luxury)</option>
             </select>
           </div>
 

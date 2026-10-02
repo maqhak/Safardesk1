@@ -25,6 +25,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
+import { useDeepOpen } from '../hooks/useDeepOpen';
 import { fetchVisaInvoices, markCommissionPaid } from '../services/visaDistributionService';
 import { fetchVendors } from '../services/masterService';
 import { fetchLedgerAccounts, fetchLedgerEntries } from '../services/accountingService';
@@ -59,6 +60,12 @@ export const VisaInvoicesPage: React.FC = () => {
   // Selected Invoice for Detail / Print Modal
   const [selectedInvoice, setSelectedInvoice] = useState<VisaInvoiceDoc | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState<boolean>(false);
+
+  // Deep link: ?open=<invoiceNo> opens the exact invoice record
+  useDeepOpen(invoices, (inv, ref) => inv.invoiceNo === ref, (inv) => {
+    setSelectedInvoice(inv);
+    setDetailModalOpen(true);
+  });
 
   // Commission mark-paid modal state
   const [commissionModalOpen, setCommissionModalOpen] = useState<boolean>(false);

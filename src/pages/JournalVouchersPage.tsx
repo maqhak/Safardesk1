@@ -37,6 +37,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
+import { useDeepOpen } from '../hooks/useDeepOpen';
+import { useCurrentRate } from '../services/exchangeRateService';
 import { 
   JournalVoucherDoc, 
   JournalVoucherLine, 
@@ -79,6 +81,12 @@ export const JournalVouchersPage: React.FC = () => {
   const [auditModalOpen, setAuditModalOpen] = useState<boolean>(false);
   const [selectedJvForAudit, setSelectedJvForAudit] = useState<JournalVoucherDoc | null>(null);
 
+  // Deep link: ?open=<jvNo> opens the exact journal voucher record
+  useDeepOpen(journalVouchers, (j, ref) => j.jvNo === ref, (j) => {
+    setSelectedJvForAudit(j);
+    setAuditModalOpen(true);
+  });
+
   // Void modal
   const [voidModalOpen, setVoidModalOpen] = useState<boolean>(false);
   const [jvToVoid, setJvToVoid] = useState<JournalVoucherDoc | null>(null);
@@ -94,7 +102,12 @@ export const JournalVouchersPage: React.FC = () => {
   const [jvNo, setJvNo] = useState<string>('');
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [tag, setTag] = useState<JournalVoucherTag>('Adjustment');
-  const [exchangeRate, setExchangeRate] = useState<number>(74.50);
+  const masterRate = useCurrentRate('SAR-PKR');
+  const [exchangeRate, setExchangeRate] = useState<number>(masterRate);
+
+  useEffect(() => {
+    setExchangeRate(masterRate);
+  }, [masterRate]);
   const [detailsBox, setDetailsBox] = useState<string>('');
   const [lines, setLines] = useState<JournalVoucherLine[]>([
     { id: '1', accountId: '', accountTitle: '', accountCode: '', debitSAR: 0, creditSAR: 0 },
@@ -141,7 +154,7 @@ export const JournalVouchersPage: React.FC = () => {
       setJvNo(nextNo);
       setDate(new Date().toISOString().split('T')[0]);
       setTag('Adjustment');
-      setExchangeRate(74.50);
+      setExchangeRate(masterRate);
       setDetailsBox('');
       setLines([
         { id: '1', accountId: accounts[0]?.id || '', accountTitle: accounts[0]?.title || '', accountCode: accounts[0]?.accountCode || '', debitSAR: 0, creditSAR: 0 },
@@ -945,7 +958,7 @@ export const JournalVouchersPage: React.FC = () => {
                 type="number"
                 step="0.01"
                 value={exchangeRate}
-                onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 74.50)}
+                onChange={(e) => setExchangeRate(parseFloat(e.target.value) || masterRate)}
                 required
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[#0e2c4c]"
               />

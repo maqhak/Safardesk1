@@ -295,7 +295,7 @@ export async function createJournalVoucher(params: {
   date: string;
   tag: JournalVoucherTag;
   lines: JournalVoucherLine[];
-  exchangeRate: number;
+  exchangeRate?: number; // optional — falls back to the Exchange Rate Master when missing
   detailsBox: string;
   attachment?: {
     fileDataUrl: string;
@@ -330,6 +330,9 @@ export async function createJournalVoucher(params: {
   if (totalDebitSAR <= 0) {
     throw new Error('Journal Voucher total must be greater than zero.');
   }
+
+  // Resolve the exchange rate: explicit param wins, otherwise the Exchange Rate Master
+  const exchangeRate = params.exchangeRate || getCurrentRate('SAR-PKR');
 
   // Requirement 4: Netting Guard Check
   if (params.tag === 'Netting') {
@@ -412,8 +415,8 @@ export async function createJournalVoucher(params: {
 
   params.lines.forEach((line, index) => {
     const entrySeq = currentEntries.length + index + 10001;
-    const debitPKR = Math.round((line.debitSAR || 0) * params.exchangeRate * 100) / 100;
-    const creditPKR = Math.round((line.creditSAR || 0) * params.exchangeRate * 100) / 100;
+    const debitPKR = Math.round((line.debitSAR || 0) * exchangeRate * 100) / 100;
+    const creditPKR = Math.round((line.creditSAR || 0) * exchangeRate * 100) / 100;
 
     const entry: LedgerEntryDoc = {
       id: `le-${entrySeq}`,
@@ -425,7 +428,7 @@ export async function createJournalVoucher(params: {
       particulars: params.detailsBox, // VERBATIM in Particulars column
       invoiceRef: null,
       voucherNo: null,
-      rate: params.exchangeRate,
+      rate: exchangeRate,
       debitSAR: line.debitSAR || 0,
       creditSAR: line.creditSAR || 0,
       debitPKR,
@@ -461,7 +464,7 @@ export async function createJournalVoucher(params: {
     date: params.date,
     tag: params.tag,
     lines: params.lines,
-    exchangeRate: params.exchangeRate,
+    exchangeRate,
     detailsBox: params.detailsBox,
     totalDebitSAR,
     totalCreditSAR,
@@ -479,7 +482,7 @@ export async function createJournalVoucher(params: {
         action: 'create',
         by: params.createdBy,
         at: now,
-        notes: `Created ${params.tag} Journal Voucher for SAR ${totalDebitSAR.toFixed(2)} @ ${params.exchangeRate}.`,
+        notes: `Created ${params.tag} Journal Voucher for SAR ${totalDebitSAR.toFixed(2)} @ ${exchangeRate}.`,
       },
     ],
   };

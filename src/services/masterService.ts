@@ -159,7 +159,7 @@ const INITIAL_VEHICLES: VehicleDoc[] = [
     vehicleType: 'Bus',
     seatCount: 49,
     referenceRateSAR: 1500,
-    description: 'Luxury 49-Seater Coach for full bus Umrah groups (Makkah-Madinah-Jeddah)',
+    description: 'Luxury 49-Seater Bus for full Umrah groups (Makkah-Madinah-Jeddah)',
     isActive: true,
   },
 ];

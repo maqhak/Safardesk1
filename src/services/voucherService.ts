@@ -12,6 +12,9 @@ import { UserProfile } from '../types/auth';
 import { LedgerAccountDoc, LedgerEntryDoc } from '../types/agent';
 import { logAuditEvent } from './userService';
 import { getCurrentRate } from './exchangeRateService';
+import { fetchCompanyProfile } from './companyService';
+import { postBalancedTransaction, fetchLedgerAccounts } from './accountingService';
+import { fetchHotels } from './masterService';
 
 const VOUCHERS_COLLECTION = 'vouchers';
 const LEDGER_ACCOUNTS_COLLECTION = 'ledgerAccounts';
@@ -87,12 +90,27 @@ export async function createVoucher(
   actor: UserProfile,
   data: Omit<VoucherDoc, 'id' | 'voucherNo' | 'createdAt' | 'createdBy' | 'createdByName'>
 ): Promise<VoucherDoc> {
-  // Anti-fraud backdate check for agents
+  // Anti-fraud backdate check for agents (settings agentBackdateHours, default 12)
   if (actor.role === 'agent') {
-    const backdateLimitHours = 12; // default
-    // Check travel dates or creation date against now
-    const now = new Date();
-    // if travel date is too old or creation is backdated
+    let backdateLimitHours = 12;
+    try {
+      const profile = await fetchCompanyProfile();
+      if (profile.agentBackdateHours && profile.agentBackdateHours > 0) {
+        backdateLimitHours = profile.agentBackdateHours;
+      }
+    } catch {
+      // keep default when settings are unreachable
+    }
+    const sectorDates = (data.sectors || []).map((s) => s.date).filter(Boolean);
+    if (sectorDates.length > 0) {
+      const earliestTravel = Math.min(...sectorDates.map((d) => new Date(d).getTime()));
+      const cutoff = Date.now() - backdateLimitHours * 3600 * 1000;
+      if (earliestTravel < cutoff) {
+        throw new Error(
+          `Anti-fraud rule: agents cannot create vouchers with a travel date older than ${backdateLimitHours} hours.`
+        );
+      }
+    }
   }
 
   const voucherNo = await nextVoucherNumber();
@@ -144,29 +162,86 @@ export async function createVoucher(
 }
 
 async function postVoucherToLedger(actor: UserProfile, voucher: VoucherDoc): Promise<void> {
-  const entryId = `entry-${voucher.id}-${Date.now()}`;
-  const ledgerEntry: LedgerEntryDoc = {
-    id: entryId,
-    ledgerAccountId: voucher.agentId || voucher.customerId || 'general-ledger',
-    voucherNo: voucher.voucherNo,
-    entryDate: new Date().toISOString().split('T')[0],
-    description: `Voucher ${voucher.voucherNo} Charges (${voucher.passengers.length} Pax)`,
-    debitSAR: voucher.totals.totalSAR,
-    creditSAR: 0,
-    balanceSAR: voucher.totals.totalSAR,
-    currency: 'SAR',
-    createdAt: new Date().toISOString(),
-    createdBy: actor.uid,
+  // Fix #18: post SEPARATE balanced charge lines, each tagged with the Voucher No.
+  // Fix #15b: empty/zero charge rows never post — skip ledger posting for zero-total vouchers.
+  if ((voucher.totals.totalSAR || 0) <= 0) return;
+
+  const [accounts, hotels] = await Promise.all([fetchLedgerAccounts(), fetchHotels()]);
+  const findAccount = (linkId?: string | null) =>
+    accounts.find((a: any) => a.linkedId === linkId || (a as any).linkedAgentId === linkId);
+
+  // Dr leg: the agent (B2B) or customer (B2C) receivable ledger
+  const linked = voucher.agentId || voucher.customerId;
+  const receivable = findAccount(linked);
+  if (!receivable) {
+    throw new Error(
+      'Voucher ledger posting failed: no ledger account found for the linked agent/customer. Create it in Masters first.'
+    );
+  }
+  const receivableId = (receivable as any).id;
+  const rate = voucher.totals.exchangeRate || getCurrentRate('SAR-PKR');
+  const date = new Date().toISOString().split('T')[0];
+
+  // Per hotel charge: Dr Agent/Customer ledger, Cr the hotel's vendor ledger
+  for (const stay of voucher.hotelStays || []) {
+    const amt = stay.totalSAR || 0;
+    if (amt <= 0) continue;
+    const hotel = hotels.find((h: any) => h.name === stay.hotelName);
+    const vendorAcc = hotel ? findAccount(hotel.vendorId) : undefined;
+    if (!vendorAcc) {
+      throw new Error(
+        `Voucher ledger posting failed: no vendor ledger account found for hotel "${stay.hotelName}".`
+      );
+    }
+    await postBalancedTransaction({
+      date,
+      entryType: 'Voucher Charge',
+      transNo: voucher.voucherNo,
+      particulars: `Hotel: ${stay.city} - ${stay.hotelName} (${stay.nights}n, ${stay.bedType} bed)`,
+      voucherNo: voucher.voucherNo,
+      rate,
+      debitAccountId: receivableId,
+      creditAccountId: (vendorAcc as any).id,
+      amountSAR: amt,
+      hotelPax: voucher.passengers.length,
+      createdBy: actor.uid,
+    });
+  }
+
+  // Transport + other charges: Dr Agent/Customer ledger, Cr Transport Income
+  const transportIncome = accounts.find((a: any) => a.id === 'acc-sys-004');
+  const postIncomeCredit = async (particulars: string, amt: number) => {
+    if (amt <= 0) return;
+    if (!transportIncome) {
+      throw new Error('Voucher ledger posting failed: Transport Income account (acc-sys-004) not found.');
+    }
+    await postBalancedTransaction({
+      date,
+      entryType: 'Voucher Charge',
+      transNo: voucher.voucherNo,
+      particulars,
+      voucherNo: voucher.voucherNo,
+      rate,
+      debitAccountId: receivableId,
+      creditAccountId: (transportIncome as any).id,
+      amountSAR: amt,
+      createdBy: actor.uid,
+    });
   };
 
-  try {
-    if (!isConfigPlaceholder) {
-      await setDoc(doc(db, LEDGER_ENTRIES_COLLECTION, entryId), ledgerEntry);
-    }
-  } catch (err) {
-    console.warn('Ledger posting failed for voucher:', err);
+  for (const s of voucher.sectors || []) {
+    await postIncomeCredit(
+      `Transport: ${s.type} sector (${s.vehicleType || 'Transport'})`,
+      s.transportRateSAR || 0
+    );
+  }
+
+  const otherSAR = voucher.totals.otherSAR || 0;
+  if (otherSAR > 0) {
+    await postIncomeCredit('Other voucher charges', otherSAR);
   }
 }
+
 
 export async function cancelVoucher(actor: UserProfile, voucherId: string): Promise<void> {
   if (actor.role !== 'owner' && actor.role !== 'staff') {
@@ -178,6 +253,62 @@ export async function cancelVoucher(actor: UserProfile, voucherId: string): Prom
   if (index === -1) throw new Error('Voucher not found.');
 
   const voucher = vouchers[index];
+  if (voucher.status === 'Cancelled') throw new Error('Voucher is already cancelled.');
+
+  // Fix #18: post REVERSING ledger entries (mirror of the original charge lines).
+  // History is kept — originals are never edited or deleted.
+  const [accounts, hotels] = await Promise.all([fetchLedgerAccounts(), fetchHotels()]);
+  const findAccount = (linkId?: string | null) =>
+    accounts.find((a: any) => a.linkedId === linkId || (a as any).linkedAgentId === linkId);
+  const linked = voucher.agentId || voucher.customerId;
+  const receivable = findAccount(linked);
+  const rate = voucher.totals.exchangeRate || getCurrentRate('SAR-PKR');
+  const date = new Date().toISOString().split('T')[0];
+  const transportIncome = accounts.find((a: any) => a.id === 'acc-sys-004');
+
+  const postReversal = async (particulars: string, amt: number, creditAccountId: string) => {
+    if (amt <= 0 || !receivable) return;
+    await postBalancedTransaction({
+      date,
+      entryType: 'Voucher Charge',
+      transNo: voucher.voucherNo,
+      particulars: `REVERSAL (cancel ${voucher.voucherNo}): ${particulars}`,
+      voucherNo: voucher.voucherNo,
+      rate,
+      debitAccountId: creditAccountId, // swapped legs
+      creditAccountId: (receivable as any).id, // swapped legs
+      amountSAR: amt,
+      createdBy: actor.uid,
+    });
+  };
+
+  for (const stay of voucher.hotelStays || []) {
+    const amt = stay.totalSAR || 0;
+    if (amt <= 0) continue;
+    const hotel = hotels.find((h: any) => h.name === stay.hotelName);
+    const vendorAcc = hotel ? findAccount(hotel.vendorId) : undefined;
+    if (vendorAcc) {
+      await postReversal(
+        `Hotel: ${stay.city} - ${stay.hotelName} (${stay.nights}n, ${stay.bedType} bed)`,
+        amt,
+        (vendorAcc as any).id
+      );
+    }
+  }
+  for (const s of voucher.sectors || []) {
+    if (transportIncome) {
+      await postReversal(
+        `Transport: ${s.type} sector (${s.vehicleType || 'Transport'})`,
+        s.transportRateSAR || 0,
+        (transportIncome as any).id
+      );
+    }
+  }
+  const otherSAR = voucher.totals.otherSAR || 0;
+  if (otherSAR > 0 && transportIncome) {
+    await postReversal('Other voucher charges', otherSAR, (transportIncome as any).id);
+  }
+
   const updated: VoucherDoc = {
     ...voucher,
     status: 'Cancelled',

@@ -28,6 +28,7 @@ import { AirportSelect, AirlineSelect } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
+import { useDeepOpen } from '../hooks/useDeepOpen';
 import { TicketDoc, TicketPassenger } from '../types/ticket';
 import { AirlineDoc, AirportRef } from '../types/master';
 import { fetchTickets, createTicket, refundTicket } from '../services/ticketService';
@@ -78,6 +79,12 @@ export const TicketsPage: React.FC = () => {
 
   // Ticket Detail E-Ticket View Modal
   const [detailModalOpen, setDetailModalOpen] = useState<boolean>(false);
+
+  // Deep link: ?open=<pnr> opens the exact ticket record
+  useDeepOpen(tickets, (t, ref) => t.pnr === ref, (t) => {
+    setSelectedTicket(t);
+    setDetailModalOpen(true);
+  });
   const [selectedTicket, setSelectedTicket] = useState<TicketDoc | null>(null);
 
   // Manifest Tab Date picker

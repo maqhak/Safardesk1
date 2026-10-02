@@ -26,6 +26,7 @@ export const AirlineSelect: React.FC<AirlineSelectProps> = ({
   const [airlines, setAirlines] = useState<AirlineDoc[]>([]);
   const [recent, setRecent] = useState<AirlineDoc[]>([]);
   const [loading, setLoading] = useState(true);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -66,6 +67,7 @@ export const AirlineSelect: React.FC<AirlineSelectProps> = ({
     onChange(airline);
     setIsOpen(false);
     setSearch('');
+    setHighlightedIndex(0);
 
     const updated = [airline, ...recent.filter((a) => a.id !== airline.id)].slice(0, 5);
     setRecent(updated);
@@ -83,8 +85,35 @@ export const AirlineSelect: React.FC<AirlineSelectProps> = ({
 
   const displayed = filtered.slice(0, 50);
 
+  // Keyboard navigation (mirrors AirportSelect)
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!isOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') {
+        setIsOpen(true);
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => Math.min(prev + 1, displayed.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (displayed[highlightedIndex]) {
+        handleSelect(displayed[highlightedIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsOpen(false);
+    }
+  };
+
   return (
-    <div className="relative w-full" ref={dropdownRef}>
+    <div className="relative w-full" ref={dropdownRef} onKeyDown={handleKeyDown}>
       {label && (
         <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
           {label} {required && <span className="text-red-500">*</span>}
@@ -136,8 +165,11 @@ export const AirlineSelect: React.FC<AirlineSelectProps> = ({
               type="text"
               autoFocus
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Type to refine (e.g. SV, Emirates, PIA)..."
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setHighlightedIndex(0);
+              }}
+              placeholder="Type to refine (e.g. SV, Emirates, PIA)... [Use \u2191\u2193 & Enter]"
               className="w-full bg-transparent border-none text-sm text-slate-800 focus:outline-none placeholder:text-slate-400"
             />
             {search && (
@@ -175,15 +207,18 @@ export const AirlineSelect: React.FC<AirlineSelectProps> = ({
             ) : displayed.length === 0 ? (
               <div className="p-6 text-center text-sm text-slate-500">No airlines found matching "{search}".</div>
             ) : (
-              displayed.map((airline) => {
+              displayed.map((airline, index) => {
                 const isSelected = value?.id === airline.id;
+                const isHighlighted = index === highlightedIndex;
                 return (
                   <div
                     key={airline.id}
                     onClick={() => handleSelect(airline)}
+                    onMouseEnter={() => setHighlightedIndex(index)}
                     className={cn(
                       'px-3.5 py-2.5 cursor-pointer flex items-center justify-between text-sm transition-colors',
-                      isSelected ? 'bg-[#0e2c4c]/5 text-[#0e2c4c]' : 'hover:bg-slate-50 text-slate-700'
+                      isHighlighted ? 'bg-navy-50 text-[#0e2c4c]' : 'hover:bg-slate-50 text-slate-700',
+                      isSelected && 'font-semibold'
                     )}
                   >
                     <div>

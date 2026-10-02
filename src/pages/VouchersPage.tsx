@@ -16,6 +16,7 @@ import {
   UserCheck,
   ChevronRight,
   Printer,
+  Link2,
   X,
   AlertTriangle,
   Check
@@ -29,8 +30,10 @@ import { DataTable, Column } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 import { AirportSelect, AirlineSelect } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
+import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
+import { useDeepOpen } from '../hooks/useDeepOpen';
 import { VoucherDoc, SectorItem, HotelStayItem, VoucherChargeItem } from '../types/voucher';
 import { fetchVouchers, createVoucher, cancelVoucher, markCommissionPaid } from '../services/voucherService';
 import { fetchVisas } from '../services/visaService';
@@ -53,6 +56,7 @@ function addDays(dateStr: string, days: number): string {
 export const VouchersPage: React.FC = () => {
   const { userProfile, role } = useAuth();
   const { success, error: showError, info } = useToast();
+  const { profile: company } = useCompany();
   const canCreate = useCan('Vouchers', 'create');
   const isOwner = role === 'owner';
   const isAgent = role === 'agent';
@@ -86,7 +90,7 @@ export const VouchersPage: React.FC = () => {
 
   // Sectors state with AirportSelect & AirlineSelect (transport rate starts blank / 0)
   const [sectors, setSectors] = useState<SectorItem[]>([
-    { type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', vehicleType: 'Staria', transportRateSAR: 0 }
+    { type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', vehicleType: undefined, transportRateSAR: 0 }
   ]);
 
   // Hotel Stays state with smart date chaining (rate starts blank / 0)
@@ -122,6 +126,12 @@ export const VouchersPage: React.FC = () => {
   // Voucher Detail Review Modal
   const [detailModalOpen, setDetailModalOpen] = useState<boolean>(false);
   const [selectedVoucher, setSelectedVoucher] = useState<VoucherDoc | null>(null);
+
+  // Deep link: ?open=<voucherNo> opens the exact voucher record
+  useDeepOpen(vouchers, (v, ref) => v.voucherNo === ref, (v) => {
+    setSelectedVoucher(v);
+    setDetailModalOpen(true);
+  });
 
   // Verification Lists Modal
   const [verificationModalOpen, setVerificationModalOpen] = useState<boolean>(false);
@@ -176,7 +186,7 @@ export const VouchersPage: React.FC = () => {
     setSelectedCustomerId('');
     setSelectedAgentId('');
     setArrivalDate(new Date().toISOString().split('T')[0]);
-    setSectors([{ type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', vehicleType: 'Staria', transportRateSAR: 0 }]);
+    setSectors([{ type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', vehicleType: undefined, transportRateSAR: 0 }]);
     setHotelStays([{ city: 'Makkah', hotelName: '', checkInDate: new Date().toISOString().split('T')[0], checkOutDate: addDays(new Date().toISOString().split('T')[0], 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 0, totalSAR: 0 }]);
     setAllowFlightInfo(false);
     setDepAirline(null);
@@ -203,6 +213,15 @@ export const VouchersPage: React.FC = () => {
     return sectors.filter(s => (s.transportRateSAR || 0) > 0);
   }, [sectors]);
 
+  // Rows saved on the voucher document (even with zero charge); only amount > 0 rows post charge lines.
+  const namedHotelStays = useMemo(() => {
+    return hotelStays.filter(h => h.hotelName && h.hotelName.trim() !== '');
+  }, [hotelStays]);
+
+  const sectorsWithTransport = useMemo(() => {
+    return sectors.filter(s => s.vehicleType || s.isSelfGari);
+  }, [sectors]);
+
   const hotelsSAR = useMemo(() => validHotelStays.reduce((sum, h) => sum + (h.totalSAR || 0), 0), [validHotelStays]);
   const transportSAR = useMemo(() => validSectors.reduce((sum, s) => sum + (s.transportRateSAR || 0), 0), [validSectors]);
   const lateIntimation = parseFloat(lateIntimationSAR) || 0;
@@ -225,8 +244,14 @@ export const VouchersPage: React.FC = () => {
       return;
     }
 
-    if (validHotelStays.length === 0 && validSectors.length === 0) {
-      showError('Please add at least one valid hotel stay (with name and rate > 0) or transport sector.');
+    const missingVehicle = sectors.filter(s => !s.vehicleType && !s.isSelfGari);
+    if (missingVehicle.length > 0) {
+      showError('Transport rule: every sector needs a vehicle selected, or mark Self Gari.');
+      return;
+    }
+
+    if (namedHotelStays.length === 0 && sectorsWithTransport.length === 0) {
+      showError('Please add at least one hotel stay (with a name) or transport sector.');
       return;
     }
 
@@ -265,8 +290,8 @@ export const VouchersPage: React.FC = () => {
         agentId: linkType === 'agent' ? selectedAgentId : undefined,
         status: 'Confirmed',
         passengers,
-        sectors: validSectors,
-        hotelStays: validHotelStays,
+        sectors: sectorsWithTransport,
+        hotelStays: namedHotelStays,
         flightDetails: {
           allowFlightInfo,
           departureFlight: {
@@ -414,7 +439,8 @@ export const VouchersPage: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6 print:hidden">
       <PageHeader
         title="Umrah Trip & Hotel Vouchers"
         subtitle="Manage unified Umrah vouchers with remaining visa filtering, multi-link options, flight details section, and manual rate entry."
@@ -833,16 +859,16 @@ export const VouchersPage: React.FC = () => {
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <h4 className="font-bold text-slate-900 text-sm">Ground Transport Sectors</h4>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Arrival', date: arrivalDate, vehicleType: 'Staria', transportRateSAR: 0 }])}>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Arrival', date: sectors.length > 0 ? sectors[sectors.length - 1].date : arrivalDate, vehicleType: undefined, transportRateSAR: 0 }])}>
                       + Arrival
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Departure', date: arrivalDate, vehicleType: 'Staria', transportRateSAR: 0 }])}>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Departure', date: sectors.length > 0 ? sectors[sectors.length - 1].date : arrivalDate, vehicleType: undefined, transportRateSAR: 0 }])}>
                       + Departure
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Makkah to Madina', date: arrivalDate, vehicleType: 'Hiace', transportRateSAR: 0 }])}>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Makkah to Madina', date: sectors.length > 0 ? sectors[sectors.length - 1].date : arrivalDate, vehicleType: undefined, transportRateSAR: 0 }])}>
                       + Makkah ↔ Madina
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Madina to Makkah', date: arrivalDate, vehicleType: 'Hiace', transportRateSAR: 0 }])}>
+                    <Button variant="outline" size="sm" onClick={() => setSectors([...sectors, { type: 'Madina to Makkah', date: sectors.length > 0 ? sectors[sectors.length - 1].date : arrivalDate, vehicleType: undefined, transportRateSAR: 0 }])}>
                       + Madina ↔ Makkah
                     </Button>
                   </div>
@@ -873,21 +899,42 @@ export const VouchersPage: React.FC = () => {
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Mandatory Vehicle Selection *</label>
                         <select
-                          value={sec.vehicleType || 'Staria'}
+                          value={sec.vehicleType || ''}
+                          disabled={!!sec.isSelfGari}
                           onChange={(e) => {
                             const updated = [...sectors];
-                            updated[idx].vehicleType = e.target.value as any;
+                            updated[idx].vehicleType = (e.target.value || undefined) as any;
                             setSectors(updated);
                           }}
                           required
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-400"
                         >
+                          <option value="">-- Select Vehicle (Mandatory) --</option>
                           <option value="Car">Car (4 Seater Sedan)</option>
                           <option value="Staria">Staria VIP Van</option>
                           <option value="Hiace">Hiace (12 Seater High Roof)</option>
                           <option value="Coaster">Toyota Coaster Bus</option>
-                          <option value="Bus">49-Seater Luxury Coach</option>
+                          <option value="Bus">49-Seater Luxury Bus</option>
                         </select>
+                        {isAgent && (
+                          <label className="flex items-center gap-2 mt-2 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={!!sec.isSelfGari}
+                              onChange={(e) => {
+                                const updated = [...sectors];
+                                updated[idx].isSelfGari = e.target.checked;
+                                if (e.target.checked) {
+                                  updated[idx].vehicleType = undefined;
+                                  updated[idx].transportRateSAR = 0;
+                                }
+                                setSectors(updated);
+                              }}
+                              className="w-4 h-4 accent-[#0e2c4c]"
+                            />
+                            Self Gari (I will use my own vehicle — no company transport charge)
+                          </label>
+                        )}
                       </div>
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Transport Charge (SAR) [Manual blank input]</label>
@@ -901,8 +948,9 @@ export const VouchersPage: React.FC = () => {
                             updated[idx].transportRateSAR = parseFloat(e.target.value) || 0;
                             setSectors(updated);
                           }}
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[#0e2c4c]"
-                          placeholder="Type rate (SAR)..."
+                          placeholder={isAgent ? "Staff will add the charge" : "Type rate (SAR)..."}
+                          disabled={isAgent || !!sec.isSelfGari}
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[#0e2c4c] disabled:bg-slate-100 disabled:text-slate-400"
                         />
                       </div>
                     </div>
@@ -940,7 +988,7 @@ export const VouchersPage: React.FC = () => {
                         setHotelStays(updated);
                       }} className="text-red-500 hover:text-red-700 font-semibold">Remove Stay</button>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">City</label>
                         <select
@@ -960,17 +1008,32 @@ export const VouchersPage: React.FC = () => {
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Hotel Name</label>
                         {isAgent ? (
-                          <input
-                            type="text"
-                            value={stay.hotelName}
-                            onChange={(e) => {
-                              const updated = [...hotelStays];
-                              updated[idx].hotelName = e.target.value;
-                              setHotelStays(updated);
-                            }}
-                            placeholder="Enter hotel name..."
-                            className="w-full p-2 bg-white border border-slate-300 rounded text-xs"
-                          />
+                          <div>
+                            <label className="flex items-center gap-2 mb-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={!!stay.isSelfHotel}
+                                onChange={(e) => {
+                                  const updated = [...hotelStays];
+                                  updated[idx].isSelfHotel = e.target.checked;
+                                  setHotelStays(updated);
+                                }}
+                                className="w-4 h-4 accent-[#0e2c4c]"
+                              />
+                              Self Hotel (I arranged it myself)
+                            </label>
+                            <input
+                              type="text"
+                              value={stay.hotelName}
+                              onChange={(e) => {
+                                const updated = [...hotelStays];
+                                updated[idx].hotelName = e.target.value;
+                                setHotelStays(updated);
+                              }}
+                              placeholder={stay.isSelfHotel ? "Enter your hotel name..." : "Enter hotel name..."}
+                              className="w-full p-2 bg-white border border-slate-300 rounded text-xs"
+                            />
+                          </div>
                         ) : (
                           <select
                             value={stay.hotelName}
@@ -992,6 +1055,24 @@ export const VouchersPage: React.FC = () => {
                         )}
                       </div>
                       <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Bed Type</label>
+                        <select
+                          value={stay.bedType || 'Double'}
+                          onChange={(e) => {
+                            const updated = [...hotelStays];
+                            updated[idx].bedType = e.target.value as any;
+                            setHotelStays(updated);
+                          }}
+                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-semibold"
+                        >
+                          <option value="Double">Double Bed</option>
+                          <option value="Triple">Triple Bed</option>
+                          <option value="Sharing">Sharing Bed</option>
+                          <option value="Room">Room</option>
+                          <option value="Quad">Quad Bed</option>
+                        </select>
+                      </div>
+                      <div>
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Rate per Night (SAR)</label>
                         <input
                           type="number"
@@ -1005,8 +1086,9 @@ export const VouchersPage: React.FC = () => {
                             updated[idx].totalSAR = r * updated[idx].nights * updated[idx].roomCount;
                             setHotelStays(updated);
                           }}
-                          placeholder="Type rate manually..."
-                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-[#0e2c4c]"
+                          placeholder={isAgent ? "Staff will add the charge" : "Type rate manually..."}
+                          disabled={isAgent}
+                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-[#0e2c4c] disabled:bg-slate-100 disabled:text-slate-400"
                         />
                       </div>
                       <div>
@@ -1177,7 +1259,9 @@ export const VouchersPage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Voucher Itinerary Detail Modal */}
+      </div>
+
+      {/* Voucher Itinerary Detail Modal — the print document (stays visible in print) */}
       {selectedVoucher && (
         <Modal
           isOpen={detailModalOpen}
@@ -1186,15 +1270,45 @@ export const VouchersPage: React.FC = () => {
           subtitle={`Link Type: ${selectedVoucher.linkType.toUpperCase()} • Status: ${selectedVoucher.status}`}
           size="lg"
           footer={
-            <div className="flex items-center justify-between w-full">
-              <Button variant="primary" onClick={() => window.print()} rightIcon={<Printer className="w-3.5 h-3.5" />}>
-                Print Voucher
-              </Button>
+            <div className="flex items-center justify-between w-full print:hidden">
+              <div className="flex items-center gap-2">
+                <Button variant="primary" onClick={() => window.print()} rightIcon={<Printer className="w-3.5 h-3.5" />}>
+                  Print Voucher
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const link = `${window.location.origin}/vouchers/shared/${selectedVoucher.id}`;
+                    navigator.clipboard.writeText(link).then(
+                      () => success('Read-only share link copied.'),
+                      () => showError('Could not copy the link.')
+                    );
+                  }}
+                  rightIcon={<Link2 className="w-3.5 h-3.5" />}
+                >
+                  Copy Share Link
+                </Button>
+              </div>
               <Button variant="outline" onClick={() => setDetailModalOpen(false)}>Close</Button>
             </div>
           }
         >
           <div className="space-y-4 py-2 text-xs">
+            {/* Branded Print Header (print only) */}
+            <div className="hidden print:block border-b-2 border-slate-900 pb-3 mb-1">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h1 className="text-2xl font-black text-[#0e2c4c] tracking-tight">{company.companyName}</h1>
+                  <p className="text-xs text-slate-700 font-semibold">{company.legalName || 'Hajj & Umrah Tour Operations'}</p>
+                  <p className="text-[11px] text-slate-500">{company.address}, {company.city} • Tel: {company.phone} • Email: {company.email}</p>
+                </div>
+                <div className="text-right">
+                  <span className="inline-block bg-[#0e2c4c] text-white px-3 py-1 rounded text-xs font-bold uppercase tracking-wider">
+                    Umrah Trip Voucher
+                  </span>
+                </div>
+              </div>
+            </div>
             <div className="bg-[#0e2c4c] text-white rounded-xl p-4 flex items-center justify-between">
               <div>
                 <div className="text-slate-300 uppercase text-[10px]">Official Voucher Reference</div>
@@ -1267,6 +1381,6 @@ export const VouchersPage: React.FC = () => {
           </div>
         </Modal>
       )}
-    </div>
+    </>
   );
 };

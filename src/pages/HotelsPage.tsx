@@ -68,11 +68,8 @@ export const HotelsPage: React.FC = () => {
     { bedType: 'Sharing', nightlyRateSAR: 350 },
   ]);
 
-  // Excel Bulk Import Modal
-  const [importModalOpen, setImportModalOpen] = useState<boolean>(false);
-  const [importFileText, setImportFileText] = useState<string>('');
-  const [previewHotels, setPreviewHotels] = useState<any[]>([]);
-  const [importing, setImporting] = useState<boolean>(false);
+  // Seed inventory loading state
+  const [seeding, setSeeding] = useState<boolean>(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -224,7 +221,7 @@ export const HotelsPage: React.FC = () => {
 
   const handleSeedFullInventory = async () => {
     if (!userProfile) return;
-    setImporting(true);
+    setSeeding(true);
     try {
       for (const item of INITIAL_HOTELS_SEED) {
         await createHotel(userProfile, item as any);
@@ -234,7 +231,7 @@ export const HotelsPage: React.FC = () => {
     } catch (err: any) {
       showError('Failed to seed inventory.');
     } finally {
-      setImporting(false);
+      setSeeding(false);
     }
   };
 
@@ -255,7 +252,7 @@ export const HotelsPage: React.FC = () => {
               size="sm"
               leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
               onClick={handleSeedFullInventory}
-              loading={importing}
+              loading={seeding}
             >
               Seed Makkah & Madinah Inventory
             </Button>

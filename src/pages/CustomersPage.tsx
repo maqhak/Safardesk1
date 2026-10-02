@@ -33,6 +33,11 @@ import { fetchVisas } from '../services/visaService';
 import { fetchVouchers } from '../services/voucherService';
 import { fetchLedgerAccounts, fetchLedgerEntries } from '../services/accountingService';
 import { fetchPayments } from '../services/paymentService';
+import { fetchTickets } from '../services/ticketService';
+import { fetchJournalVouchers } from '../services/journalVoucherService';
+import { fetchVisaInvoices } from '../services/visaDistributionService';
+import { useCurrentRate } from '../services/exchangeRateService';
+import ProfileTimeline from '../components/ProfileTimeline';
 
 export const CustomersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -68,7 +73,11 @@ export const CustomersPage: React.FC = () => {
   const [customerLedgerAccount, setCustomerLedgerAccount] = useState<any>(null);
   const [customerLedgerEntries, setCustomerLedgerEntries] = useState<any[]>([]);
   const [customerPayments, setCustomerPayments] = useState<any[]>([]);
+  const [customerTickets, setCustomerTickets] = useState<any[]>([]);
+  const [customerJVs, setCustomerJVs] = useState<any[]>([]);
+  const [customerInvoices, setCustomerInvoices] = useState<any[]>([]);
   const [loadingTimeline, setLoadingTimeline] = useState<boolean>(false);
+  const masterRate = useCurrentRate('SAR-PKR');
 
   // Merge Duplicate Modal (Owner only)
   const [mergeModalOpen, setMergeModalOpen] = useState<boolean>(false);
@@ -98,12 +107,15 @@ export const CustomersPage: React.FC = () => {
     const loadCustomerDetails = async () => {
       setLoadingTimeline(true);
       try {
-        const [visas, vouchers, accounts, entries, payments] = await Promise.all([
+        const [visas, vouchers, accounts, entries, payments, tickets, jvs, invoices] = await Promise.all([
           fetchVisas(),
           fetchVouchers(),
           fetchLedgerAccounts(),
           fetchLedgerEntries(),
           fetchPayments(),
+          fetchTickets(),
+          fetchJournalVouchers(),
+          fetchVisaInvoices(),
         ]);
 
         const matchedVisas = visas.filter(
@@ -127,9 +139,23 @@ export const CustomersPage: React.FC = () => {
         if (acc) {
           setCustomerLedgerEntries(entries.filter((e: any) => e.accountId === acc.id));
           setCustomerPayments(payments.filter((p: any) => p.fromAccountId === acc.id || p.toAccountId === acc.id));
+          // Tickets bought for this customer (direct B2C)
+          setCustomerTickets(tickets.filter((t: any) =>
+            t.buyerId === selectedCustomer.id ||
+            (t.passportNumber && t.passportNumber.toUpperCase() === selectedCustomer.passportNumber.toUpperCase())
+          ));
+          // Journal vouchers touching this customer's ledger account
+          setCustomerJVs(jvs.filter((jv: any) =>
+            (jv.lines || []).some((l: any) => l.accountId === acc.id)
+          ));
+          // Visa distribution invoices are B2B (agent-level); B2C customers have none
+          setCustomerInvoices([]);
         } else {
           setCustomerLedgerEntries([]);
           setCustomerPayments([]);
+          setCustomerTickets([]);
+          setCustomerJVs([]);
+          setCustomerInvoices([]);
         }
       } catch (err) {
         console.warn('Failed to load customer timeline details:', err);
@@ -482,112 +508,25 @@ export const CustomersPage: React.FC = () => {
                   <span>Client Activity & Booking Live Timeline</span>
                 </span>
                 <span className="text-[11px] font-mono text-slate-500">
-                  Balance: SAR {(customerLedgerAccount?.currentBalanceSAR || 0).toLocaleString()} (PKR {Math.round((customerLedgerAccount?.currentBalanceSAR || 0) * 74.50).toLocaleString()})
+                  Balance: SAR {(customerLedgerAccount?.currentBalanceSAR || 0).toLocaleString()} (PKR {Math.round((customerLedgerAccount?.currentBalanceSAR || 0) * masterRate).toLocaleString()})
                 </span>
               </h4>
 
               {loadingTimeline ? (
                 <div className="py-8 text-center text-xs text-slate-500">Loading live timeline records...</div>
               ) : (
-                <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
-                  {/* 1. Customer Record Created */}
-                  <div 
-                    onClick={() => setProfileModalOpen(false)}
-                    className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs hover:bg-slate-50 transition cursor-pointer shadow-xs"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600 font-bold shrink-0">1</div>
-                      <div>
-                        <div className="font-bold text-slate-800">Customer Record Created ({selectedCustomer.createdFrom})</div>
-                        <div className="text-slate-500 text-[11px]">{new Date(selectedCustomer.createdAt).toLocaleString()}</div>
-                      </div>
-                    </div>
-                    <Badge variant="success">Active</Badge>
-                  </div>
-
-                  {/* 2. Sub-Ledger Account Active & Balance */}
-                  <div 
-                    onClick={() => { setProfileModalOpen(false); navigate('/accounting'); }}
-                    className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs hover:bg-slate-50 transition cursor-pointer shadow-xs"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-[#0e2c4c]/10 flex items-center justify-center text-[#0e2c4c] font-bold shrink-0">2</div>
-                      <div>
-                        <div className="font-bold text-slate-800">B2C Sub-Ledger Account & Current Balance</div>
-                        <div className="text-slate-600 font-mono text-[11px]">
-                          SAR {(customerLedgerAccount?.currentBalanceSAR || 0).toLocaleString()} (PKR {Math.round((customerLedgerAccount?.currentBalanceSAR || 0) * 74.50).toLocaleString()})
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 text-[#0e2c4c] font-bold">
-                      <span>View Ledger</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </div>
-                  </div>
-
-                  {/* 3. Visas from imports */}
-                  {customerVisas.map((v: any, idx: number) => (
-                    <div 
-                      key={v.id || idx}
-                      onClick={() => { setProfileModalOpen(false); navigate('/visas'); }}
-                      className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs hover:bg-slate-50 transition cursor-pointer shadow-xs"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-600 font-bold shrink-0">V</div>
-                        <div>
-                          <div className="font-bold text-slate-800">Visa Record: {v.visaNo || v.pilgrimName}</div>
-                          <div className="text-slate-500 text-[11px]">Type: {v.visaType} • Status: {v.status} • Batch: {v.batchNo}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 text-blue-600 font-bold">
-                        <span>Open Visa</span>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* 4. Vouchers */}
-                  {customerVouchers.map((vo: any, idx: number) => (
-                    <div 
-                      key={vo.id || idx}
-                      onClick={() => { setProfileModalOpen(false); navigate('/vouchers'); }}
-                      className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs hover:bg-slate-50 transition cursor-pointer shadow-xs"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600 font-bold shrink-0">U</div>
-                        <div>
-                          <div className="font-bold text-slate-800">Umrah Voucher #{vo.voucherNo || vo.id}</div>
-                          <div className="text-slate-500 text-[11px]">Total: SAR {(vo.totalSAR || 0).toLocaleString()} • Status: {vo.status}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 text-amber-600 font-bold">
-                        <span>Open Voucher</span>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* 5. Payments */}
-                  {customerPayments.map((p: any, idx: number) => (
-                    <div 
-                      key={p.id || idx}
-                      onClick={() => { setProfileModalOpen(false); navigate('/payments'); }}
-                      className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs hover:bg-slate-50 transition cursor-pointer shadow-xs"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-600 font-bold shrink-0">$</div>
-                        <div>
-                          <div className="font-bold text-slate-800">Payment {p.paymentNo} ({p.entryType})</div>
-                          <div className="text-slate-500 text-[11px]">SAR {(p.amountSAR || 0).toLocaleString()} (PKR {(p.amountPKR || 0).toLocaleString()}) • {p.date}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 text-purple-600 font-bold">
-                        <span>Open Payment</span>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <ProfileTimeline
+                  accountId={customerLedgerAccount?.id || null}
+                  visas={customerVisas}
+                  vouchers={customerVouchers}
+                  tickets={customerTickets}
+                  jvs={customerJVs}
+                  invoices={customerInvoices}
+                  payments={customerPayments}
+                  entries={customerLedgerEntries}
+                  masterRate={masterRate}
+                  onNavigate={(path) => { setProfileModalOpen(false); navigate(path); }}
+                />
               )}
             </div>
           </div>
