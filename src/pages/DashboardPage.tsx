@@ -112,7 +112,7 @@ export const DashboardPage: React.FC = () => {
     let onlyTransportAmtSAR = 0;
     let onlyTransportTransfers = 0;
 
-    let totalOpenings = 45200; // base opening balance
+    const totalOpenings = accounts.reduce((s, a) => s + (a.openingBalanceSAR || 0), 0);
     let totalInvoices = 0;
     let totalPayments = 0;
     let totalAdjustments = 0;
@@ -150,28 +150,28 @@ export const DashboardPage: React.FC = () => {
     const balanceDue = totalOpenings + totalInvoices - totalPayments + totalAdjustments;
 
     return {
-      bookingsPax: bookingsPax || 348,
-      bookingsAmtSAR: bookingsAmtSAR || 542800,
-      ticketsCount: ticketsCount || 182,
-      ticketsAmtSAR: ticketsAmtSAR || 312400,
-      refundsCount: refundsCount || 6,
-      refundsAmtSAR: refundsAmtSAR || 8900,
-      servicesCount: servicesCount || 54,
-      servicesAmtSAR: servicesAmtSAR || 64500,
-      reservationsCount: reservationsCount || 22,
-      reservationsAmtSAR: reservationsAmtSAR || 42000,
-      overseasAmtSAR: overseasAmtSAR || 128000,
-      onlyHotelStays: onlyHotelStays || 96,
-      onlyHotelAmtSAR: onlyHotelAmtSAR || 245000,
-      onlyTransportTransfers: onlyTransportTransfers || 48,
-      onlyTransportAmtSAR: onlyTransportAmtSAR || 38400,
+      bookingsPax,
+      bookingsAmtSAR,
+      ticketsCount,
+      ticketsAmtSAR,
+      refundsCount,
+      refundsAmtSAR,
+      servicesCount,
+      servicesAmtSAR,
+      reservationsCount,
+      reservationsAmtSAR,
+      overseasAmtSAR,
+      onlyHotelStays,
+      onlyHotelAmtSAR,
+      onlyTransportTransfers,
+      onlyTransportAmtSAR,
       totalOpenings,
-      totalInvoices: totalInvoices || 894200,
-      totalPayments: totalPayments || 782100,
-      totalAdjustments: totalAdjustments || 3400,
-      balanceDue: balanceDue || 153900,
+      totalInvoices,
+      totalPayments,
+      totalAdjustments,
+      balanceDue,
     };
-  }, [filteredEntries]);
+  }, [filteredEntries, accounts]);
 
   // 3. KSA Status computed from vouchers for selected date
   const ksaStatusCounts = useMemo(() => {
@@ -215,10 +215,6 @@ export const DashboardPage: React.FC = () => {
       });
     });
 
-    if (arrival === 0 && departure === 0 && insideKsa === 0) {
-      return { arrival: 24, departure: 18, makkahIn: 42, makkahOut: 30, madinaIn: 35, madinaOut: 22, insideKsa: 184, inMakkah: 110, inMadinah: 74 };
-    }
-
     return { arrival, departure, makkahIn, makkahOut, madinaIn, madinaOut, insideKsa, inMakkah, inMadinah };
   }, [vouchers, ksaDate]);
 
@@ -236,9 +232,6 @@ export const DashboardPage: React.FC = () => {
       });
     });
 
-    if (adults === 0 && children === 0 && infants === 0) {
-      return { total: 348, adults: 260, children: 64, infants: 24 };
-    }
     const total = adults + children + infants;
     return { total, adults, children, infants };
   }, [vouchers]);
@@ -256,11 +249,8 @@ export const DashboardPage: React.FC = () => {
       });
     });
 
-    if (adults === 0 && children === 0 && infants === 0) {
-      return { total: vouchers.length || 54, adults: 142, children: 32, infants: 14 };
-    }
     const total = adults + children + infants;
-    return { total: vouchers.length || total, adults, children, infants };
+    return { total, adults, children, infants };
   }, [vouchers]);
 
   // 5. Latest Umrah Group Packages from real visa import data
@@ -277,19 +267,12 @@ export const DashboardPage: React.FC = () => {
           groupName: v.groupName || 'Umrah Group Package',
           paxCount: 1,
           date: v.visaIssueDate || v.createdAt?.split('T')[0] || '2026-10-01',
-          agent: v.agentId || 'Al-Barakah Karachi',
+          agent: v.agentId || '—',
         });
       }
     });
 
     const list = Array.from(groupMap.values());
-    if (list.length === 0) {
-      return [
-        { groupCode: 'GRP-2026-01', groupName: 'Al-Haramain Economy 14 Days', paxCount: 42, date: '2026-10-01', agent: 'Al-Barakah Karachi' },
-        { groupCode: 'GRP-2026-02', groupName: 'Bab Al-Umrah VIP Deluxe', paxCount: 28, date: '2026-10-02', agent: 'Falcon Lahore' },
-        { groupCode: 'GRP-2026-03', groupName: 'Ramadan First Half Special', paxCount: 60, date: '2026-10-03', agent: 'Makkah Direct Rawalpindi' },
-      ];
-    }
     return list.slice(0, 3);
   }, [visas]);
 
@@ -319,7 +302,7 @@ export const DashboardPage: React.FC = () => {
 
   const agentLedgerAccount = useMemo(() => {
     if (userProfile?.role !== 'agent') return null;
-    return accounts.find(a => a.linkedId === userProfile?.agentId || a.accountCode === 'AGT-001') || accounts[0];
+    return accounts.find(a => a.linkedId === userProfile?.agentId) || null;
   }, [accounts, userProfile]);
 
   const agentFlightSummary = useMemo(() => {
@@ -369,7 +352,7 @@ export const DashboardPage: React.FC = () => {
           />
           <StatCard
             label="Ledger Balance"
-            value={formatConvertedMoney(agentLedgerAccount?.currentBalanceSAR || 14250, exchangeRate)}
+            value={formatConvertedMoney(agentLedgerAccount?.currentBalanceSAR || 0, exchangeRate)}
             icon={<CreditCard className="w-5 h-5" />}
             variant="navy"
           />
@@ -784,6 +767,9 @@ export const DashboardPage: React.FC = () => {
           </div>
           <Button variant="outline" size="sm" onClick={() => navigate('/visas')}>View All Groups →</Button>
         </div>
+        {latestGroups.length === 0 ? (
+          <p className="text-xs text-slate-500 py-4 text-center">No visa groups imported yet — upload a Nusuk export in the Visa module to see live groups here.</p>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {latestGroups.map((g, i) => (
             <div key={i} onClick={() => navigate('/visas')} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 cursor-pointer hover:bg-slate-100 transition">
@@ -796,6 +782,7 @@ export const DashboardPage: React.FC = () => {
             </div>
           ))}
         </div>
+        )}
       </div>
 
       {/* 7. Smart Alerts Section */}
