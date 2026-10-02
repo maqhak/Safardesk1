@@ -85,10 +85,10 @@ export const firebaseConfig: FirebaseConfig = {
 export const TENANT_KEY = import.meta.env.VITE_TENANT_KEY || 'safardesk-default-tenant';
 
 export const LICENSE_FIREBASE_CONFIG: FirebaseConfig = {
-  apiKey: import.meta.env.VITE_LICENSE_API_KEY || firebaseConfig.apiKey,
-  authDomain: import.meta.env.VITE_LICENSE_AUTH_DOMAIN || 'safardesk-license-server.firebaseapp.com',
-  projectId: import.meta.env.VITE_LICENSE_PROJECT_ID || 'safardesk-license-server',
-  appId: import.meta.env.VITE_LICENSE_APP_ID || '1:license:web:app',
+  apiKey: import.meta.env.VITE_LICENSE_API_KEY || 'AIzaSyBbHqTXQOmGtE1T4WQVhXtymGJIVhxhWm8',
+  authDomain: import.meta.env.VITE_LICENSE_AUTH_DOMAIN || 'safardesk-fa3f0.firebaseapp.com',
+  projectId: import.meta.env.VITE_LICENSE_PROJECT_ID || 'safardesk-fa3f0',
+  appId: import.meta.env.VITE_LICENSE_APP_ID || '1:733109169645:web:e85a964a6453d6f57bcbe4',
 };
 
 export default {
