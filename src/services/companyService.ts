@@ -23,6 +23,7 @@ export const DEFAULT_COMPANY_PROFILE: CompanyProfile = {
   companyName: TENANT.companyName,
   legalName: 'SafarDesk Tourism & Travel Management Pvt. Ltd.',
   logoUrl: '',
+  stampUrl: '',
   address: 'Suite 402, Al-Mansoor Executive Towers, Ibrahim Al-Khalil Road',
   city: 'Makkah Mukarramah',
   country: 'Kingdom of Saudi Arabia',

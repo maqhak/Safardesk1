@@ -2,6 +2,7 @@ export interface CompanyProfile {
   companyName: string;
   legalName: string;
   logoUrl: string;
+  stampUrl: string; // company rubber stamp/seal image for vouchers
   address: string;
   city: string;
   country: string;

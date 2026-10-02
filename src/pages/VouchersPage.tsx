@@ -31,7 +31,7 @@ import { Modal } from '../components/ui/Modal';
 import { AirportSelect, AirlineSelect } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
-import { VoucherPrintDocument } from '../components/voucher/VoucherPrintDocument';
+import { VoucherPrintDocument, VoucherPrintTheme } from '../components/voucher/VoucherPrintDocument';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { useDeepOpen } from '../hooks/useDeepOpen';
@@ -134,6 +134,7 @@ export const VouchersPage: React.FC = () => {
 
   // Voucher Detail Review Modal
   const [detailModalOpen, setDetailModalOpen] = useState<boolean>(false);
+  const [voucherPrintTheme, setVoucherPrintTheme] = useState<VoucherPrintTheme>('bw');
   const [selectedVoucher, setSelectedVoucher] = useState<VoucherDoc | null>(null);
 
   // Deep link: ?open=<voucherNo> opens the exact voucher record
@@ -1505,8 +1506,24 @@ export const VouchersPage: React.FC = () => {
           }
         >
           {/* F&S approved A4 voucher print document (print only) */}
-          <VoucherPrintDocument voucher={selectedVoucher} company={company} groupCode={voucherGroupCode(selectedVoucher)} />
+          <VoucherPrintDocument voucher={selectedVoucher} company={company} groupCode={voucherGroupCode(selectedVoucher)} theme={voucherPrintTheme} />
           <div className="space-y-4 py-2 text-xs print:hidden">
+            {/* Voucher print theme + A4 preview (screen only) */}
+            <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-3">
+              <span className="font-bold text-slate-700 text-xs">Voucher Print Theme</span>
+              <div className="flex gap-2">
+                <Button variant={voucherPrintTheme === 'bw' ? 'primary' : 'outline'} size="sm" onClick={() => setVoucherPrintTheme('bw')}>🖨️ B&amp;W Print</Button>
+                <Button variant={voucherPrintTheme === 'color' ? 'primary' : 'outline'} size="sm" onClick={() => setVoucherPrintTheme('color')}>🎨 Digital Color</Button>
+              </div>
+            </div>
+            <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-100">
+              <div className="text-center text-[11px] font-bold text-slate-500 uppercase tracking-wider py-2 bg-white border-b border-slate-200">A4 Voucher Preview — {voucherPrintTheme === 'bw' ? 'B&W Print' : 'Digital Color'}</div>
+              <div className="flex justify-center overflow-auto max-h-[560px] p-3">
+                <div style={{ zoom: 0.55 }}>
+                  <VoucherPrintDocument voucher={selectedVoucher} company={company} groupCode={voucherGroupCode(selectedVoucher)} theme={voucherPrintTheme} preview />
+                </div>
+              </div>
+            </div>
             <div className="bg-[#0e2c4c] text-white rounded-xl p-4 flex items-center justify-between">
               <div>
                 <div className="text-slate-300 uppercase text-[10px]">Official Voucher Reference</div>

@@ -47,6 +47,7 @@ export const CompanyProfilePage: React.FC = () => {
     companyName: TENANT.companyName,
     legalName: '',
     logoUrl: '',
+    stampUrl: '',
     address: '',
     city: '',
     country: '',
@@ -110,6 +111,29 @@ export const CompanyProfilePage: React.FC = () => {
       ...prev,
       [field]: value,
     }));
+  };
+
+  const handleStampUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showError('Please upload a valid image file (PNG, JPG).');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      showError('Stamp image size must be less than 2MB.');
+      return;
+    }
+    setUploadingLogo(true);
+    try {
+      const downloadUrl = await uploadCompanyLogo(file);
+      setFormData((prev) => ({ ...prev, stampUrl: downloadUrl }));
+      success('Company stamp uploaded successfully.');
+    } catch (err: any) {
+      showError(err?.message || 'Failed to upload stamp.');
+    } finally {
+      setUploadingLogo(false);
+    }
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -326,6 +350,59 @@ export const CompanyProfilePage: React.FC = () => {
                       </div>
                       <p className="text-[11px] text-slate-500">
                         Supported formats: PNG, JPG, WebP, SVG. Recommended height: 80px transparent background.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Company Stamp Upload Box */}
+                <div className="mt-4">
+                  <label className="text-xs font-semibold text-slate-700 tracking-wide block mb-1.5">
+                    Company Stamp / Seal (Printed on Vouchers)
+                  </label>
+                  <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/50">
+                    {formData.stampUrl ? (
+                      <div className="relative w-24 h-24 rounded-full border border-slate-200 bg-white p-2 flex items-center justify-center shrink-0 shadow-xs overflow-hidden">
+                        <img
+                          src={formData.stampUrl}
+                          alt="Company Stamp Preview"
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-24 h-24 rounded-full border border-slate-200 bg-slate-100 flex flex-col items-center justify-center text-slate-400 shrink-0">
+                        <ImageIcon className="w-8 h-8 opacity-40 mb-1" />
+                        <span className="text-[10px]">No Stamp</span>
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5 flex-1 text-center sm:text-left">
+                      <div className="flex items-center gap-2 justify-center sm:justify-start">
+                        <label className="cursor-pointer">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleStampUpload}
+                            className="hidden"
+                          />
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0e2c4c] text-white text-xs font-semibold hover:bg-[#163b63] transition shadow-xs">
+                            <UploadCloud className="w-3.5 h-3.5" />
+                            <span>{uploadingLogo ? 'Uploading...' : 'Upload Stamp'}</span>
+                          </span>
+                        </label>
+                        {formData.stampUrl && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleInputChange('stampUrl', '')}
+                            className="text-xs text-rose-600 hover:text-rose-700"
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        Aap ki office ki gol muhar — voucher par signature wali jagah lagegi. PNG/JPG, 2MB tak.
                       </p>
                     </div>
                   </div>
