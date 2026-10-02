@@ -34,6 +34,8 @@ import { AirlineDoc, AirportRef } from '../types/master';
 import { fetchTickets, createTicket, refundTicket } from '../services/ticketService';
 import { getCurrentRate, useCurrentRate } from '../services/exchangeRateService';
 import { fetchCustomers } from '../services/customerService';
+import { fetchLedgerEntries } from '../services/accountingService';
+import * as XLSX from 'xlsx';
 import { fetchAgents } from '../services/agentService';
 
 export const TicketsPage: React.FC = () => {
@@ -45,6 +47,7 @@ export const TicketsPage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'tickets' | 'manifest'>('tickets');
   const [tickets, setTickets] = useState<TicketDoc[]>([]);
+  const [ledgerEntries, setLedgerEntries] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -93,14 +96,16 @@ export const TicketsPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [tList, cList, aList] = await Promise.all([
+      const [tList, cList, aList, ledgerList] = await Promise.all([
         fetchTickets(),
         fetchCustomers(),
         fetchAgents(),
+        fetchLedgerEntries(),
       ]);
       setTickets(tList);
       setCustomers(cList);
       setAgents(aList);
+      setLedgerEntries(ledgerList);
       if (cList.length > 0 && !buyerId) {
         setBuyerId(cList[0].id);
       }
@@ -182,6 +187,25 @@ export const TicketsPage: React.FC = () => {
     t.flightNo.toLowerCase().includes(search.toLowerCase()) ||
     t.passengers.some((p) => p.name.toLowerCase().includes(search.toLowerCase()) || p.passportNumber.toLowerCase().includes(search.toLowerCase()))
   );
+
+  const exportTicketsExcel = () => {
+    const rows = filteredTickets.map(tk => ({
+      'PNR': tk.pnr,
+      'Airline': tk.airline?.name || '',
+      'Flight No': tk.flightNo,
+      'Sector': `${tk.sectorFrom?.iata || ''} → ${tk.sectorTo?.iata || ''}`,
+      'Flight Date': tk.flightDate,
+      'Buyer': tk.buyerName,
+      'Passengers': tk.passengers.length,
+      'Cost SAR': tk.purchaseCostSAR,
+      'Sale SAR': tk.salePriceSAR,
+      'Margin SAR': tk.marginSAR,
+      'Status': tk.status,
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Tickets');
+    XLSX.writeFile(wb, `tickets-${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
 
   const columns: Column<TicketDoc>[] = [
     {
@@ -304,6 +328,11 @@ export const TicketsPage: React.FC = () => {
       {activeTab === 'tickets' ? (
         <Card padding="none">
           <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" leftIcon={<Download className="w-3.5 h-3.5" />} onClick={exportTicketsExcel}>
+                Export Excel
+              </Button>
+            </div>
             <div className="relative w-full sm:w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
@@ -653,6 +682,36 @@ export const TicketsPage: React.FC = () => {
                     <span className="font-mono font-bold text-[#0e2c4c]">Ticket: {p.ticketNo || 'TBD'}</span>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Ticket Ledger Entries */}
+            <div>
+              <h5 className="font-bold text-slate-900 mb-2">Ticket Ledger Entries</h5>
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-600 uppercase">
+                      <th className="text-left p-2">Date</th>
+                      <th className="text-left p-2">Particulars</th>
+                      <th className="text-right p-2">Debit</th>
+                      <th className="text-right p-2">Credit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ledgerEntries.filter(e => e.transNo === selectedTicket.pnr).map(e => (
+                      <tr key={e.id} className="border-t border-slate-100">
+                        <td className="p-2 font-mono">{e.date}</td>
+                        <td className="p-2">{e.particulars}</td>
+                        <td className="p-2 text-right font-mono">{e.debitSAR ? e.debitSAR.toLocaleString() : '—'}</td>
+                        <td className="p-2 text-right font-mono">{e.creditSAR ? e.creditSAR.toLocaleString() : '—'}</td>
+                      </tr>
+                    ))}
+                    {ledgerEntries.filter(e => e.transNo === selectedTicket.pnr).length === 0 && (
+                      <tr><td colSpan={4} className="p-3 text-center text-slate-400">No ledger entries posted for this ticket.</td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

@@ -11,6 +11,7 @@ import { UserProfile } from '../types/auth';
 import { LedgerEntryDoc } from '../types/agent';
 import { logAuditEvent } from './userService';
 import { getCurrentRate } from './exchangeRateService';
+import { fetchLedgerAccounts, postBalancedTransaction } from './accountingService';
 
 const TICKETS_COLLECTION = 'tickets';
 const LEDGER_ENTRIES_COLLECTION = 'ledgerEntries';
@@ -73,6 +74,56 @@ export async function fetchTickets(): Promise<TicketDoc[]> {
   return INITIAL_TICKETS;
 }
 
+function findBuyerAccount(accounts: any[], buyerId: string): any | undefined {
+  return accounts.find((a: any) => a.linkedId === buyerId || (a as any).linkedAgentId === buyerId);
+}
+
+/** Fix #20: post the ticket sale to the ledger — Dr buyer receivable / Cr Ticket Income. */
+async function postTicketSaleToLedger(actor: UserProfile, ticket: TicketDoc): Promise<void> {
+  const accounts = await fetchLedgerAccounts();
+  const receivable = findBuyerAccount(accounts, ticket.buyerId);
+  if (!receivable) {
+    throw new Error(
+      'Ticket ledger posting failed: no ledger account found for the buyer. Create it in Masters first.'
+    );
+  }
+  const ticketIncome = accounts.find((a: any) => a.id === 'acc-sys-002');
+  if (!ticketIncome) {
+    throw new Error('Ticket ledger posting failed: Ticket Income account (acc-sys-002) not found.');
+  }
+  await postBalancedTransaction({
+    date: new Date().toISOString().split('T')[0],
+    entryType: 'Invoice',
+    transNo: ticket.pnr,
+    particulars: `Ticket sale — PNR ${ticket.pnr} (${ticket.sectorFrom?.iata || ''}→${ticket.sectorTo?.iata || ''}, ${ticket.flightDate})`,
+    invoiceRef: ticket.pnr,
+    rate: ticket.exchangeRateSARPKR || getCurrentRate('SAR-PKR'),
+    debitAccountId: (receivable as any).id,
+    creditAccountId: 'acc-sys-002',
+    amountSAR: ticket.salePriceSAR,
+    createdBy: actor.uid,
+  });
+}
+
+/** Fix #20: post a REFUND reversal for the ticket sale — Dr Ticket Income / Cr buyer receivable. */
+async function postTicketRefundReversal(actor: UserProfile, ticket: TicketDoc, refundReason: string): Promise<void> {
+  const accounts = await fetchLedgerAccounts();
+  const receivable = findBuyerAccount(accounts, ticket.buyerId);
+  if (!receivable) return; // sale was never posted; nothing to reverse
+  await postBalancedTransaction({
+    date: new Date().toISOString().split('T')[0],
+    entryType: 'Refund',
+    transNo: ticket.pnr,
+    particulars: `REFUND (ticket ${ticket.pnr}): ${refundReason}`,
+    invoiceRef: ticket.pnr,
+    rate: ticket.exchangeRateSARPKR || getCurrentRate('SAR-PKR'),
+    debitAccountId: 'acc-sys-002',
+    creditAccountId: (receivable as any).id,
+    amountSAR: ticket.salePriceSAR,
+    createdBy: actor.uid,
+  });
+}
+
 export async function createTicket(
   actor: UserProfile,
   data: Omit<TicketDoc, 'id' | 'marginSAR' | 'purchaseCostPKR' | 'salePricePKR' | 'createdAt' | 'createdBy' | 'createdByName'>
@@ -105,6 +156,8 @@ export async function createTicket(
 
   const existing = await fetchTickets();
   localStorage.setItem(LOCAL_STORAGE_TICKETS_KEY, JSON.stringify([newTicket, ...existing]));
+
+  await postTicketSaleToLedger(actor, newTicket);
 
   await logAuditEvent({
     action: 'CREATE_TICKET',
@@ -139,6 +192,8 @@ export async function refundTicket(
 
   tickets[index] = updated;
   localStorage.setItem(LOCAL_STORAGE_TICKETS_KEY, JSON.stringify(tickets));
+
+  await postTicketRefundReversal(actor, updated, refundReason);
 
   try {
     if (!isConfigPlaceholder) {
