@@ -7,7 +7,7 @@ import {
 } from '../types/payment';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
-import { postBalancedTransaction, voidLedgerEntry, fetchLedgerEntries } from './accountingService';
+import { postBalancedTransaction, voidLedgerEntry, fetchLedgerEntries, fetchLedgerAccounts } from './accountingService';
 import { uploadReceipt, verifyReceiptWithAI } from './driveService';
 import { getCurrentRate } from './exchangeRateService';
 
@@ -450,6 +450,17 @@ export async function createPayment(params: {
   });
 
   const ext = params.receiptFileType === 'pdf' ? '.pdf' : '.jpg';
+  // Fix #30: stamp the linked agent id so Firestore rules can isolate agent reads
+  let paymentAgentId: string | null = null;
+  try {
+    const accs = await fetchLedgerAccounts();
+    const fromAcc = accs.find((a: any) => a.id === params.fromAccountId) as any;
+    const toAcc = accs.find((a: any) => a.id === params.toAccountId) as any;
+    paymentAgentId = fromAcc?.linkedId || fromAcc?.linkedAgentId || toAcc?.linkedId || toAcc?.linkedAgentId || null;
+  } catch {
+    // non-fatal: agent isolation stamp skipped
+  }
+
   const newPayment: PaymentDoc = {
     id: `pmt-${Date.now()}`,
     paymentNo,
@@ -471,6 +482,7 @@ export async function createPayment(params: {
     isVoid: false,
     debitEntryId: debitEntry.id,
     creditEntryId: creditEntry.id,
+    agentId: paymentAgentId,
 
     driveSyncStatus,
     driveFileId,

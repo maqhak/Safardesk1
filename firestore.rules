@@ -31,6 +31,15 @@ service cloud.firestore {
       return isOwner() || (isStaff() && userDoc().permissions[module][action] == true);
     }
 
+    // Fix #27: resolve whether a ledger account belongs to the calling agent.
+    // Accounts live in two legacy collections; check both safely.
+    function accountBelongsToAgent(accId) {
+      let p1 = /databases/$(database)/documents/ledger_accounts/$(accId);
+      let p2 = /databases/$(database)/documents/ledgerAccounts/$(accId);
+      return (exists(p1) && (get(p1).data.linkedId == myAgentId() || get(p1).data.linkedAgentId == myAgentId()))
+          || (exists(p2) && (get(p2).data.linkedId == myAgentId() || get(p2).data.linkedAgentId == myAgentId()));
+    }
+
     // --- Default Deny ---
     match /{document=**} {
       allow read, write: if false;
@@ -44,7 +53,7 @@ service cloud.firestore {
       allow delete: if isOwner();
     }
 
-    // --- Masters (Agents, Vendors, Hotels, Airlines, Banks, Customers) ---
+    // --- Masters (Agents, Vendors, Hotels, Airlines, Banks, Vehicles, Customers) ---
     match /agents/{id} {
       allow read: if isSignedIn();
       allow write: if isOwner() || hasPerm('Masters', 'edit');
@@ -70,12 +79,17 @@ service cloud.firestore {
       allow write: if isOwner() || hasPerm('Masters', 'edit');
     }
 
+    match /vehicles/{id} {
+      allow read: if isSignedIn();
+      allow write: if isOwner() || hasPerm('Masters', 'edit');
+    }
+
     match /customers/{id} {
       allow read: if isSignedIn();
       allow write: if isOwner() || hasPerm('Visas', 'create');
     }
 
-    // --- Visas, Visa Imports, Distributions, Invoices ---
+    // --- Visas, Visa Imports, Distributions, Invoices, Requests ---
     match /visas/{id} {
       allow read: if isOwner() || hasPerm('Visas', 'view') || (isAgent() && resource.data.agentId == myAgentId());
       allow write: if isOwner() || hasPerm('Visas', 'create');
@@ -94,29 +108,60 @@ service cloud.firestore {
       allow write: if isOwner() || hasPerm('Visas', 'create');
     }
 
+    // Fix #24/#27: agent-submitted visa applications
+    match /visaRequests/{id} {
+      allow read: if isOwner() || hasPerm('Visas', 'view') || (isAgent() && resource.data.agentId == myAgentId());
+      allow create: if isOwner() || hasPerm('Visas', 'create') || (isAgent() && request.resource.data.agentId == myAgentId());
+      allow update, delete: if isOwner() || hasPerm('Visas', 'create');
+    }
+
     // --- Vouchers ---
+    // Agents may create vouchers for themselves only, and never with charges
+    // (hotel/transport charges are entered by Owner/Staff).
     match /vouchers/{id} {
       allow read: if isOwner() || hasPerm('Vouchers', 'view') || (isAgent() && resource.data.agentId == myAgentId());
-      allow create: if isOwner() || hasPerm('Vouchers', 'create') || (isAgent() && request.resource.data.agentId == myAgentId() && (!request.resource.data.keys().hasAny(['charges']) || request.resource.data.charges.size() == 0));
+      allow create: if isOwner() || hasPerm('Vouchers', 'create')
+        || (isAgent() && request.resource.data.agentId == myAgentId()
+            && (!request.resource.data.keys().hasAny(['charges']) || request.resource.data.charges.size() == 0));
       allow update: if isOwner() || hasPerm('Vouchers', 'edit');
       allow delete: if isOwner();
     }
 
     // --- Tickets ---
+    // Fix #27: TicketDoc carries buyerType/buyerId (not agentId) — isolate on those.
     match /tickets/{id} {
-      allow read: if isOwner() || hasPerm('Tickets', 'view') || (isAgent() && resource.data.agentId == myAgentId());
-      allow create: if isOwner() || hasPerm('Tickets', 'create') || (isAgent() && request.resource.data.agentId == myAgentId());
+      allow read: if isOwner() || hasPerm('Tickets', 'view')
+        || (isAgent() && resource.data.buyerType == 'agent' && resource.data.buyerId == myAgentId());
+      allow create: if isOwner() || hasPerm('Tickets', 'create')
+        || (isAgent() && request.resource.data.buyerType == 'agent' && request.resource.data.buyerId == myAgentId());
       allow update, delete: if isOwner() || hasPerm('Tickets', 'edit');
     }
 
-    // --- Ledger Entries, Payments, Journal Vouchers ---
-    match /ledger_entries/{id} {
-      allow read: if isOwner() || hasPerm('Accounts', 'view') || (isAgent() && resource.data.accountId == myAgentId());
+    // --- Ledger Accounts (two legacy collections, same rules) ---
+    match /ledger_accounts/{id} {
+      allow read: if isOwner() || hasPerm('Accounts', 'view')
+        || (isAgent() && (resource.data.linkedId == myAgentId() || resource.data.linkedAgentId == myAgentId()));
       allow write: if isOwner() || hasPerm('Accounts', 'create');
     }
 
+    match /ledgerAccounts/{id} {
+      allow read: if isOwner() || hasPerm('Accounts', 'view')
+        || (isAgent() && (resource.data.linkedId == myAgentId() || resource.data.linkedAgentId == myAgentId()));
+      allow write: if isOwner() || hasPerm('Accounts', 'create');
+    }
+
+    // --- Ledger Entries, Payments, Journal Vouchers ---
+    // Fix #27: agent reads only entries posted to their own ledger account.
+    match /ledger_entries/{id} {
+      allow read: if isOwner() || hasPerm('Accounts', 'view')
+        || (isAgent() && accountBelongsToAgent(resource.data.accountId));
+      allow write: if isOwner() || hasPerm('Accounts', 'create');
+    }
+
+    // Fix #30: PaymentDoc carries agentId (stamped at creation) — authorize only matching agents.
     match /payments/{id} {
-      allow read: if isOwner() || hasPerm('Accounts', 'view') || (isAgent() && resource.data.accountId == myAgentId());
+      allow read: if isOwner() || hasPerm('Accounts', 'view')
+        || (isAgent() && resource.data.agentId == myAgentId());
       allow write: if isOwner() || hasPerm('Accounts', 'create');
     }
 
@@ -125,8 +170,14 @@ service cloud.firestore {
       allow write: if isOwner() || hasPerm('Accounts', 'create');
     }
 
+    match /accounts_invoices/{id} {
+      allow read: if isOwner() || hasPerm('Accounts', 'view');
+      allow write: if isOwner() || hasPerm('Accounts', 'create');
+    }
+
     // --- Exchange Rates & Settings ---
-    match /exchange_rates/{id} {
+    // Fix #27: the real collection is `exchangeRates` (was mismatched).
+    match /exchangeRates/{id} {
       allow read: if isSignedIn();
       allow write: if isOwner() || hasPerm('Masters', 'edit');
     }
@@ -140,8 +191,8 @@ service cloud.firestore {
       allow read, write: if isOwner();
     }
 
-    // --- Audit Log (Append-only) ---
-    match /audit_log/{id} {
+    // --- Audit Log (Append-only; real collection is `auditLog`) ---
+    match /auditLog/{id} {
       allow create: if isSignedIn();
       allow read: if isOwner();
       allow update, delete: if false;

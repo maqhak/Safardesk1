@@ -1,0 +1,42 @@
+rules_version = '2';
+
+// Fix #27 — Firebase Storage security rules for SafarDesk.
+// Receipts uploaded by the Firebase Storage fallback land in `receipts/`.
+// Deploy: firebase deploy --only storage (from the project root).
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return isSignedIn()
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'owner';
+    }
+
+    function isReceiptFile() {
+      return request.resource.contentType.matches('image/.*')
+          || request.resource.contentType == 'application/pdf'
+          || request.resource.contentType.matches('audio/.*');
+    }
+
+    // Payment / JV receipt attachments: receipts/<ManualNo>.<ext>
+    match /receipts/{fileName} {
+      // Any signed-in user (owner, staff, agent) can view receipts.
+      allow read: if isSignedIn();
+      // Uploads: signed-in users only, receipts only, max 10 MB.
+      allow write: if isSignedIn()
+        && isReceiptFile()
+        && request.resource.size < 10 * 1024 * 1024;
+      // Deletes: owner only — receipt history is never silently removed.
+      allow delete: if isOwner();
+    }
+
+    // Default deny for everything else.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

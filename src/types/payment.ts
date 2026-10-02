@@ -43,6 +43,7 @@ export interface PaymentDoc {
   voidedBy?: string | null;
   debitEntryId?: string;
   creditEntryId?: string;
+  agentId?: string | null; // Fix #30: stamped at creation from the linked agent account — drives Firestore agent isolation
 
   // Google Drive Integration fields
   driveSyncStatus: DriveSyncStatus;
