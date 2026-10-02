@@ -34,6 +34,8 @@ import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { useDeepOpen } from '../hooks/useDeepOpen';
+import * as XLSX from 'xlsx';
+import { fetchLedgerEntries } from '../services/accountingService';
 import { VoucherDoc, SectorItem, HotelStayItem, VoucherChargeItem } from '../types/voucher';
 import { fetchVouchers, createVoucher, cancelVoucher, markCommissionPaid } from '../services/voucherService';
 import { fetchVisas } from '../services/visaService';
@@ -65,6 +67,11 @@ export const VouchersPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [agentFilter, setAgentFilter] = useState<string>('all');
+  const [groupFilter, setGroupFilter] = useState<string>('');
+  const [ledgerEntries, setLedgerEntries] = useState<any[]>([]);
 
   // New Voucher Builder Modal / Wizard (4 Steps)
   const [builderOpen, setBuilderOpen] = useState<boolean>(false);
@@ -139,13 +146,14 @@ export const VouchersPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [vList, visaList, hList, vList2, cList, aList] = await Promise.all([
+      const [vList, visaList, hList, vList2, cList, aList, ledgerList] = await Promise.all([
         fetchVouchers(),
         fetchVisas(),
         fetchHotels(),
         fetchVehicles(),
         fetchCustomers(),
         fetchAgents(),
+        fetchLedgerEntries(),
       ]);
       setVouchers(vList);
       setAvailableVisas(visaList);
@@ -153,6 +161,7 @@ export const VouchersPage: React.FC = () => {
       setVehiclesMaster(vList2);
       setCustomersList(cList);
       setAgentsList(aList);
+      setLedgerEntries(ledgerList);
     } catch {
       showError('Failed to load vouchers directory.');
     } finally {
@@ -345,8 +354,33 @@ export const VouchersPage: React.FC = () => {
     }
   };
 
+  const visaGroupMap = useMemo(() => {
+    const m = new Map<string, string>();
+    availableVisas.forEach(v => m.set(v.id, v.groupCode || ''));
+    return m;
+  }, [availableVisas]);
+
+  const voucherGroupCode = (v: VoucherDoc): string => {
+    for (const id of v.visaIds || []) {
+      const g = visaGroupMap.get(id);
+      if (g) return g;
+    }
+    return '';
+  };
+
+  const agentNameFor = (v: VoucherDoc): string => {
+    if (v.linkType === 'agent') return agentsList.find(a => a.id === v.agentId)?.companyName || '';
+    if (v.linkType === 'customer') return 'Direct';
+    return '';
+  };
+
   const filteredVouchers = vouchers.filter((v) => {
     if (statusFilter !== 'all' && v.status.toLowerCase() !== statusFilter.toLowerCase()) return false;
+    if (agentFilter !== 'all' && v.agentId !== agentFilter) return false;
+    if (groupFilter.trim() && !voucherGroupCode(v).toLowerCase().includes(groupFilter.trim().toLowerCase())) return false;
+    const d = (v.createdAt || '').split('T')[0];
+    if (dateFrom && d < dateFrom) return false;
+    if (dateTo && d > dateTo) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
       const paxMatch = v.passengers.some(p => p.name.toLowerCase().includes(q) || p.passportNumber.toLowerCase().includes(q));
@@ -354,6 +388,67 @@ export const VouchersPage: React.FC = () => {
     }
     return true;
   });
+
+  const handleMarkCommissionPaid = async () => {
+    if (!selectedVoucher || !confirm(`Mark commission of SAR ${selectedVoucher.commission.amountSAR} as paid?`)) return;
+    try {
+      await markCommissionPaid(userProfile!, selectedVoucher.id);
+      await loadData();
+      const updated = (await fetchVouchers()).find(v => v.id === selectedVoucher.id);
+      if (updated) setSelectedVoucher(updated);
+      success('Commission marked as paid.');
+    } catch {
+      showError('Failed to mark commission paid.');
+    }
+  };
+
+  const paxCounts = (v: VoucherDoc) => ({
+    adults: v.passengers.filter(p => p.ageType === 'Adult').length,
+    children: v.passengers.filter(p => p.ageType === 'Child').length,
+    infants: v.passengers.filter(p => p.ageType === 'Infant').length,
+  });
+
+  const exportFilteredExcel = () => {
+    const rows = filteredVouchers.map(v => {
+      const pc = paxCounts(v);
+      return {
+        'Voucher No': v.voucherNo,
+        'Link Type': v.linkType.toUpperCase(),
+        'Agent / Customer': v.linkType === 'agent' ? agentNameFor(v) : (customersList.find(c => c.id === v.customerId)?.fullName || ''),
+        'Group Code': voucherGroupCode(v),
+        'Adults': pc.adults,
+        'Children': pc.children,
+        'Infants': pc.infants,
+        'Total SAR': v.totals.totalSAR,
+        'Total PKR': Math.round(v.totals.totalPKR),
+        'Status': v.status,
+        'Created': (v.createdAt || '').split('T')[0],
+      };
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Vouchers');
+    XLSX.writeFile(wb, `vouchers-list-${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const downloadVerificationList = (kind: 'created' | 'pending') => {
+    let list = vouchers.filter(v => kind === 'created' ? v.status === 'Confirmed' : v.status === 'Draft');
+    if (isAgent && userProfile?.agentId) list = list.filter(v => v.agentId === userProfile.agentId);
+    const rows: Record<string, string>[] = [];
+    list.forEach(v => {
+      v.passengers.forEach(px => {
+        rows.push({
+          'Passenger Name': px.name,
+          'Passport Number': px.passportNumber,
+          'Group Code': voucherGroupCode(v),
+          'Agent': agentNameFor(v),
+          'Voucher No': v.voucherNo,
+        });
+      });
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), kind === 'created' ? 'Vouchers Created' : 'Vouchers Pending');
+    XLSX.writeFile(wb, `vouchers-${kind}-${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
 
   const columns: Column<VoucherDoc>[] = [
     {
@@ -377,6 +472,42 @@ export const VouchersPage: React.FC = () => {
           <div className="text-[11px] font-mono text-slate-500">{row.passengers[0]?.passportNumber}</div>
         </div>
       ),
+    },
+    {
+      key: 'link',
+      header: 'Agent / Customer',
+      render: (row) => {
+        if (row.linkType === 'agent') {
+          return (
+            <div className="text-xs">
+              <div className="font-bold text-slate-900">{agentNameFor(row) || row.agentId}</div>
+              <div className="text-[10px] text-sky-700 uppercase font-semibold">B2B Agent</div>
+            </div>
+          );
+        }
+        if (row.linkType === 'customer') {
+          return (
+            <div className="text-xs">
+              <div className="font-bold text-slate-900">{customersList.find(c => c.id === row.customerId)?.fullName || '—'}</div>
+              <div className="text-[10px] text-emerald-700 uppercase font-semibold">B2C Customer</div>
+            </div>
+          );
+        }
+        return <div className="text-[10px] text-slate-500 uppercase font-semibold">Visa-linked</div>;
+      },
+    },
+    {
+      key: 'pax',
+      header: 'Pax Breakup',
+      render: (row) => {
+        const pc = paxCounts(row);
+        return (
+          <div className="text-xs font-mono text-slate-800">
+            <span className="text-slate-900 font-bold">A:{pc.adults}</span>
+            {' '}C:{pc.children} I:{pc.infants}
+          </div>
+        );
+      },
     },
     {
       key: 'hotels',
@@ -471,7 +602,7 @@ export const VouchersPage: React.FC = () => {
 
       {/* Filter Bar */}
       <Card padding="md" className="border-slate-200 shadow-xs">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
           <div className="relative sm:col-span-2">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -480,6 +611,43 @@ export const VouchersPage: React.FC = () => {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search voucher number, passenger name, or passport..."
               className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:outline-none"
+            />
+          </div>
+          <div>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              title="From date"
+              className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700"
+            />
+          </div>
+          <div>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              title="To date"
+              className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700"
+            />
+          </div>
+          <div>
+            <select
+              value={agentFilter}
+              onChange={(e) => setAgentFilter(e.target.value)}
+              className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700"
+            >
+              <option value="all">All Agents</option>
+              {agentsList.map(a => <option key={a.id} value={a.id}>{a.companyName}</option>)}
+            </select>
+          </div>
+          <div>
+            <input
+              type="text"
+              value={groupFilter}
+              onChange={(e) => setGroupFilter(e.target.value)}
+              placeholder="Group code..."
+              className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:outline-none"
             />
           </div>
           <div>
@@ -494,6 +662,14 @@ export const VouchersPage: React.FC = () => {
               <option value="Cancelled">Cancelled</option>
             </select>
           </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+          <div className="text-[11px] text-slate-500 font-semibold">
+            {filteredVouchers.length} of {vouchers.length} vouchers • SAR {filteredVouchers.reduce((s, v) => s + v.totals.totalSAR, 0).toLocaleString()}
+          </div>
+          <Button variant="outline" onClick={exportFilteredExcel} disabled={filteredVouchers.length === 0}>
+            Export Excel (.xlsx)
+          </Button>
         </div>
       </Card>
 
@@ -1320,6 +1496,25 @@ export const VouchersPage: React.FC = () => {
               </div>
             </div>
 
+            <div className="flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-sky-100 text-sky-800 text-[11px] font-bold">
+                Visa-linked: {(selectedVoucher.visaIds || []).length} visas
+              </span>
+              {selectedVoucher.linkType === 'agent' && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 text-[11px] font-bold">
+                  Agent: {agentsList.find(a => a.id === selectedVoucher.agentId)?.companyName || selectedVoucher.agentId}
+                </span>
+              )}
+              {selectedVoucher.linkType === 'customer' && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                  Customer: {customersList.find(c => c.id === selectedVoucher.customerId)?.fullName || '—'}
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">
+                Group: {voucherGroupCode(selectedVoucher) || '—'}
+              </span>
+            </div>
+
             {selectedVoucher.flightDetails?.allowFlightInfo && (
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                 <span className="font-bold text-[#0e2c4c] uppercase text-[11px]">Flight Details</span>
@@ -1356,6 +1551,69 @@ export const VouchersPage: React.FC = () => {
                 ))}
               </div>
             </div>
+
+            <div>
+              <h5 className="font-bold text-slate-800 mb-2">Sectors & Transport</h5>
+              <div className="space-y-1">
+                {selectedVoucher.sectors.map((s, i) => (
+                  <div key={i} className="p-2 bg-slate-50 border border-slate-200 rounded flex justify-between">
+                    <span>{s.type}{s.isSelfGari ? ' — Self Gari' : ''}{s.vehicleType ? ` — ${s.vehicleType}` : ''}</span>
+                    <span className="font-mono">{s.isSelfGari ? 'No charge' : `SAR ${(s.transportRateSAR || 0).toLocaleString()}`}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {selectedVoucher.commission.enabled && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-amber-900 text-xs">Commission: {selectedVoucher.commission.recipientName || '—'}</div>
+                  <div className="text-amber-800 text-[11px]">SAR {selectedVoucher.commission.amountSAR.toLocaleString()} • {selectedVoucher.commission.isPaid ? 'Paid' : 'Unpaid'}</div>
+                </div>
+                {isOwner && !selectedVoucher.commission.isPaid && selectedVoucher.status !== 'Cancelled' && (
+                  <Button variant="primary" onClick={handleMarkCommissionPaid}>Mark Paid</Button>
+                )}
+              </div>
+            )}
+
+            <div>
+              <h5 className="font-bold text-slate-800 mb-2">Voucher Ledger Entries</h5>
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-600 uppercase">
+                      <th className="text-left p-2">Date</th>
+                      <th className="text-left p-2">Particulars</th>
+                      <th className="text-right p-2">Debit</th>
+                      <th className="text-right p-2">Credit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ledgerEntries.filter(e => e.voucherNo === selectedVoucher.voucherNo).map(e => (
+                      <tr key={e.id} className="border-t border-slate-100">
+                        <td className="p-2 font-mono">{e.date}</td>
+                        <td className="p-2">{e.particulars}</td>
+                        <td className="p-2 text-right font-mono">{e.debitSAR ? e.debitSAR.toLocaleString() : '—'}</td>
+                        <td className="p-2 text-right font-mono">{e.creditSAR ? e.creditSAR.toLocaleString() : '—'}</td>
+                      </tr>
+                    ))}
+                    {ledgerEntries.filter(e => e.voucherNo === selectedVoucher.voucherNo).length === 0 && (
+                      <tr><td colSpan={4} className="p-3 text-center text-slate-400">No ledger entries posted for this voucher.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <h5 className="font-bold text-slate-800 mb-2">Audit Timeline</h5>
+              <div className="space-y-1 text-[11px] text-slate-600">
+                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />Created by {selectedVoucher.createdByName || '—'} • {new Date(selectedVoucher.createdAt).toLocaleString()}</div>
+                {selectedVoucher.status === 'Cancelled' && (
+                  <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500" />Cancelled by {selectedVoucher.cancelledBy || '—'} • {selectedVoucher.cancelledAt ? new Date(selectedVoucher.cancelledAt).toLocaleString() : '—'}</div>
+                )}
+              </div>
+            </div>
           </div>
         </Modal>
       )}
@@ -1378,6 +1636,21 @@ export const VouchersPage: React.FC = () => {
               </div>
               <CheckCircle2 className="w-8 h-8 text-emerald-600" />
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="font-bold text-slate-900 text-sm">Vouchers Created</div>
+                <div className="text-slate-500">Confirmed vouchers, passenger-wise rows (Name, Passport, Group Code, Agent, Voucher No).</div>
+                <Button variant="primary" className="w-full" onClick={() => downloadVerificationList('created')}>Download Excel</Button>
+              </div>
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="font-bold text-slate-900 text-sm">Vouchers Pending</div>
+                <div className="text-slate-500">Draft vouchers awaiting confirmation, same columns for office verification.</div>
+                <Button variant="outline" className="w-full" onClick={() => downloadVerificationList('pending')}>Download Excel</Button>
+              </div>
+            </div>
+            {isAgent && (
+              <div className="text-[11px] text-slate-500 font-semibold">Agents only receive their own records in these exports.</div>
+            )}
           </div>
         </Modal>
       )}
