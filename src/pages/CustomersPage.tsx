@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Users, 
   Plus, 
@@ -28,8 +29,13 @@ import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { CustomerDoc } from '../types/customer';
 import { fetchCustomers, createCustomer, mergeCustomers } from '../services/customerService';
+import { fetchVisas } from '../services/visaService';
+import { fetchVouchers } from '../services/voucherService';
+import { fetchLedgerAccounts, fetchLedgerEntries } from '../services/accountingService';
+import { fetchPayments } from '../services/paymentService';
 
 export const CustomersPage: React.FC = () => {
+  const navigate = useNavigate();
   const { userProfile, role } = useAuth();
   const { success, error: showError } = useToast();
   const canView = useCan('Visas', 'view');
@@ -54,9 +60,15 @@ export const CustomersPage: React.FC = () => {
   const [cnic, setCnic] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
-  // Customer Profile Detail Modal / Drawer
+  // Customer Profile Detail Modal / Drawer & Live Timeline States
   const [profileModalOpen, setProfileModalOpen] = useState<boolean>(false);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerDoc | null>(null);
+  const [customerVisas, setCustomerVisas] = useState<any[]>([]);
+  const [customerVouchers, setCustomerVouchers] = useState<any[]>([]);
+  const [customerLedgerAccount, setCustomerLedgerAccount] = useState<any>(null);
+  const [customerLedgerEntries, setCustomerLedgerEntries] = useState<any[]>([]);
+  const [customerPayments, setCustomerPayments] = useState<any[]>([]);
+  const [loadingTimeline, setLoadingTimeline] = useState<boolean>(false);
 
   // Merge Duplicate Modal (Owner only)
   const [mergeModalOpen, setMergeModalOpen] = useState<boolean>(false);
@@ -79,6 +91,54 @@ export const CustomersPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Fetch live timeline data when a customer is selected
+  useEffect(() => {
+    if (!selectedCustomer) return;
+    const loadCustomerDetails = async () => {
+      setLoadingTimeline(true);
+      try {
+        const [visas, vouchers, accounts, entries, payments] = await Promise.all([
+          fetchVisas(),
+          fetchVouchers(),
+          fetchLedgerAccounts(),
+          fetchLedgerEntries(),
+          fetchPayments(),
+        ]);
+
+        const matchedVisas = visas.filter(
+          (v: any) => 
+            (v.passportNumber && v.passportNumber.toUpperCase() === selectedCustomer.passportNumber.toUpperCase()) ||
+            (v.pilgrimName && v.pilgrimName.toLowerCase() === selectedCustomer.fullName.toLowerCase())
+        );
+        setCustomerVisas(matchedVisas);
+
+        const visaIds = new Set(matchedVisas.map((v: any) => v.id));
+        const matchedVouchers = vouchers.filter((vo: any) => {
+          const hasVisa = vo.visaIds?.some((id: string) => visaIds.has(id));
+          const hasPassport = vo.passengers?.some((p: any) => p.passportNumber?.toUpperCase() === selectedCustomer.passportNumber.toUpperCase());
+          return hasVisa || hasPassport;
+        });
+        setCustomerVouchers(matchedVouchers);
+
+        const acc = accounts.find((a: any) => a.linkedAgentId === selectedCustomer.id || a.accountName.toLowerCase() === selectedCustomer.fullName.toLowerCase());
+        setCustomerLedgerAccount(acc || null);
+
+        if (acc) {
+          setCustomerLedgerEntries(entries.filter((e: any) => e.accountId === acc.id));
+          setCustomerPayments(payments.filter((p: any) => p.fromAccountId === acc.id || p.toAccountId === acc.id));
+        } else {
+          setCustomerLedgerEntries([]);
+          setCustomerPayments([]);
+        }
+      } catch (err) {
+        console.warn('Failed to load customer timeline details:', err);
+      } finally {
+        setLoadingTimeline(false);
+      }
+    };
+    loadCustomerDetails();
+  }, [selectedCustomer]);
 
   const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,62 +209,59 @@ export const CustomersPage: React.FC = () => {
   const filteredCustomers = customers.filter((c) =>
     c.fullName.toLowerCase().includes(search.toLowerCase()) ||
     c.passportNumber.toLowerCase().includes(search.toLowerCase()) ||
-    c.mobile.toLowerCase().includes(search.toLowerCase()) ||
+    c.mobile.includes(search) ||
     c.city.toLowerCase().includes(search.toLowerCase())
   );
 
-  const openProfile = (c: CustomerDoc) => {
-    setSelectedCustomer(c);
-    setProfileModalOpen(true);
-  };
-
   const columns: Column<CustomerDoc>[] = [
     {
-      key: 'fullName',
-      header: 'Customer Name',
-      sortable: true,
+      key: 'name',
+      header: 'Full Name & Passport',
       render: (row) => (
         <div>
-          <div className="font-bold text-[#0e2c4c]">{row.fullName}</div>
-          <div className="text-[11px] text-slate-500">{row.nationality} • {row.gender}</div>
+          <div className="font-bold text-slate-900 text-xs">{row.fullName}</div>
+          <div className="text-[11px] font-mono text-[#0e2c4c] font-semibold">{row.passportNumber}</div>
         </div>
       ),
     },
     {
-      key: 'passportNumber',
-      header: 'Passport No.',
-      sortable: true,
-      render: (row) => <span className="font-mono font-bold text-slate-800">{row.passportNumber}</span>,
-    },
-    {
-      key: 'mobile',
-      header: 'Mobile / City',
-      sortable: true,
+      key: 'contact',
+      header: 'Contact & City',
       render: (row) => (
         <div>
-          <div className="text-slate-800 font-medium">{row.mobile}</div>
-          <div className="text-[11px] text-slate-500">{row.city}</div>
+          <div className="text-xs text-slate-800">{row.mobile}</div>
+          <div className="text-[11px] text-slate-500">{row.city} {row.nationality ? `(${row.nationality})` : ''}</div>
         </div>
       ),
     },
     {
       key: 'channel',
-      header: 'Channel',
-      sortable: true,
+      header: 'Channel & Source',
       render: (row) => (
-        <Badge variant={row.channel === 'direct' ? 'navy' : 'gold'}>
-          {row.channel === 'direct' ? 'Direct B2C' : `Agent (${row.agentId || 'Linked'})`}
-        </Badge>
+        <div>
+          <Badge variant={row.channel === 'direct' ? 'navy' : 'gold'} size="sm">
+            {row.channel === 'direct' ? 'Direct B2C' : `Agent (${row.agentId || 'B2B'})`}
+          </Badge>
+          <span className="text-[10px] text-slate-400 block mt-0.5">Source: {row.createdFrom}</span>
+        </div>
       ),
     },
     {
       key: 'actions',
       header: 'Actions',
-      align: 'right',
       render: (row) => (
-        <Button variant="outline" size="sm" onClick={() => openProfile(row)} rightIcon={<ChevronRight className="w-3.5 h-3.5" />}>
-          View Profile
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSelectedCustomer(row);
+              setProfileModalOpen(true);
+            }}
+          >
+            View Profile & Timeline
+          </Button>
+        </div>
       ),
     },
   ];
@@ -212,8 +269,8 @@ export const CustomersPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Clients & Customer Database"
-        subtitle="Unified client records feeding B2C direct bookings and agent-driven Umrah/Hajj operations."
+        title="Direct B2C Customers & Pilgrims"
+        subtitle="Manage B2C direct customer profiles, passports, direct ledgers, and view unified booking activity timelines."
         breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Customers' }]}
         actions={
           <div className="flex items-center gap-2">
@@ -221,127 +278,93 @@ export const CustomersPage: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                leftIcon={<Merge className="w-4 h-4 text-amber-600" />}
+                leftIcon={<Merge className="w-3.5 h-3.5" />}
                 onClick={() => setMergeModalOpen(true)}
               >
                 Merge Duplicates
               </Button>
             )}
-            {canCreate && (
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={<Plus className="w-4 h-4" />}
-                onClick={() => setAddModalOpen(true)}
-              >
-                Add Customer (B2C)
-              </Button>
-            )}
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<Plus className="w-3.5 h-3.5" />}
+              onClick={() => setAddModalOpen(true)}
+              className="bg-[#0e2c4c] hover:bg-[#1a4473]"
+            >
+              + Add Customer
+            </Button>
           </div>
         }
       />
 
-      {/* Stats Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="p-4 border-slate-200 flex items-center justify-between">
-          <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Clients Directory</div>
-            <div className="text-2xl font-bold text-[#0e2c4c] mt-1">{customers.length}</div>
-            <div className="text-[11px] text-emerald-600 font-medium mt-0.5">Unique passport enforcement active</div>
-          </div>
-          <div className="w-12 h-12 rounded-xl bg-[#0e2c4c]/10 flex items-center justify-center text-[#0e2c4c]">
-            <Users className="w-6 h-6" />
-          </div>
-        </Card>
-
-        <Card className="p-4 border-slate-200 flex items-center justify-between">
-          <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Direct B2C Walk-ins</div>
-            <div className="text-2xl font-bold text-[#0e2c4c] mt-1">
-              {customers.filter((c) => c.channel === 'direct').length}
-            </div>
-            <div className="text-[11px] text-emerald-600 font-medium mt-0.5">Auto ledger accounts created</div>
-          </div>
-          <div className="w-12 h-12 rounded-xl bg-[#c9a227]/10 flex items-center justify-center text-[#c9a227]">
-            <UserCheck className="w-6 h-6" />
-          </div>
-        </Card>
-
-        <Card className="p-4 border-slate-200 flex items-center justify-between">
-          <div>
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Agent-Linked Clients</div>
-            <div className="text-2xl font-bold text-[#0e2c4c] mt-1">
-              {customers.filter((c) => c.channel === 'agent').length}
-            </div>
-            <div className="text-[11px] text-slate-500 font-medium mt-0.5">Imported via B2B Sub-Agents</div>
-          </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
-            <Building className="w-6 h-6" />
-          </div>
-        </Card>
-      </div>
+      {/* Search Bar */}
+      <Card padding="md" className="border-slate-200 shadow-xs">
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by customer name, passport number, mobile, or city..."
+            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20"
+          />
+        </div>
+      </Card>
 
       {/* Customers Table */}
-      <Card padding="none">
-        <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, passport, mobile, city..."
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20 focus:border-[#0e2c4c]"
-            />
-          </div>
-          <div className="text-xs text-slate-500 font-medium">
-            Showing {filteredCustomers.length} of {customers.length} clients
-          </div>
-        </div>
-
+      <Card padding="none" className="border-slate-200 shadow-xs overflow-hidden">
         <DataTable
-          data={filteredCustomers}
           columns={columns}
-          keyExtractor={(row) => row.id}
+          data={filteredCustomers}
+          keyExtractor={(c) => c.id}
           loading={loading}
           emptyTitle="No customers found"
-          emptyDescription="No client records match your search."
+          emptyDescription="There are no customer profiles available in the directory."
         />
       </Card>
 
-      {/* Add Direct B2C Customer Modal */}
+      {/* Add Customer Modal */}
       <Modal
         isOpen={addModalOpen}
         onClose={() => setAddModalOpen(false)}
         title="Add Direct B2C Customer"
-        subtitle="Create a walk-in client profile. Automatically provisions a customer sub-ledger."
+        subtitle="Register a direct traveler profile. Automatically provisions a dedicated B2C financial sub-ledger account."
+        size="lg"
         footer={
-          <div className="flex items-center justify-end gap-3">
-            <Button variant="ghost" onClick={() => setAddModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={handleAddCustomer} loading={creating}>Save Customer</Button>
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setAddModalOpen(false)}>Cancel</Button>
+            <Button variant="primary" size="sm" onClick={handleAddCustomer} loading={creating} className="bg-[#0e2c4c]">
+              Create Customer
+            </Button>
           </div>
         }
       >
-        <form onSubmit={handleAddCustomer} className="space-y-4">
-          <div>
+        <form onSubmit={handleAddCustomer} className="space-y-4 py-2 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Full Legal Name"
+              label="Full Name (As in Passport) *"
               placeholder="e.g. Muhammad Ahmed Khan"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               required
             />
+            <Input
+              label="Passport Number *"
+              placeholder="e.g. AB1234567"
+              value={passportNumber}
+              onChange={(e) => setPassportNumber(e.target.value.toUpperCase())}
+              required
+            />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <Input
-                label="Passport Number"
-                placeholder="e.g. AB1234567"
-                value={passportNumber}
-                onChange={(e) => setPassportNumber(e.target.value.toUpperCase())}
-                required
-                helperText="Must be unique. Duplicates are blocked."
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Nationality</label>
+              <input
+                type="text"
+                value={nationality}
+                onChange={(e) => setNationality(e.target.value)}
+                className="w-full p-2.5 text-xs bg-white border border-slate-300 rounded-lg"
               />
             </div>
             <div>
@@ -349,73 +372,52 @@ export const CustomersPage: React.FC = () => {
               <select
                 value={gender}
                 onChange={(e) => setGender(e.target.value as any)}
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20"
+                className="w-full p-2.5 text-xs bg-white border border-slate-300 rounded-lg"
               >
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
                 <option value="Other">Other</option>
               </select>
             </div>
+            <Input
+              label="Mobile Number *"
+              placeholder="e.g. +92 300 1234567"
+              value={mobile}
+              onChange={(e) => setMobile(e.target.value)}
+              required
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Input
-                label="Nationality"
-                value={nationality}
-                onChange={(e) => setNationality(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <Input
-                label="CNIC (Optional)"
-                placeholder="e.g. 42101-9876543-1"
-                value={cnic}
-                onChange={(e) => setCnic(e.target.value)}
-              />
-            </div>
+            <Input
+              label="Email Address"
+              type="email"
+              placeholder="e.g. ahmed@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <Input
+              label="CNIC / National ID"
+              placeholder="e.g. 42101-9988776-1"
+              value={cnic}
+              onChange={(e) => setCnic(e.target.value)}
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Input
-                label="Mobile Number"
-                placeholder="e.g. +92 300 1234567"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <Input
-                label="Email Address"
-                type="email"
-                placeholder="e.g. client@gmail.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Input
-                label="City"
-                placeholder="e.g. Karachi"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <Input
-                label="Street Address"
-                placeholder="e.g. DHA Phase 6"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-              />
-            </div>
+            <Input
+              label="City *"
+              placeholder="e.g. Karachi"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              required
+            />
+            <Input
+              label="Street Address"
+              placeholder="e.g. DHA Phase 6"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+            />
           </div>
 
           <div>
@@ -431,13 +433,14 @@ export const CustomersPage: React.FC = () => {
         </form>
       </Modal>
 
-      {/* Customer Profile & Timeline Modal */}
+      {/* Customer Profile & Live Timeline Modal */}
       {selectedCustomer && (
         <Modal
           isOpen={profileModalOpen}
           onClose={() => setProfileModalOpen(false)}
           title={`Customer Profile: ${selectedCustomer.fullName}`}
           subtitle={`Passport: ${selectedCustomer.passportNumber} • Channel: ${selectedCustomer.channel.toUpperCase()}`}
+          size="lg"
           footer={<Button variant="primary" onClick={() => setProfileModalOpen(false)}>Close Profile</Button>}
         >
           <div className="space-y-6 py-2">
@@ -471,35 +474,121 @@ export const CustomersPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Timeline Section */}
+            {/* Live Timeline Section */}
             <div>
-              <h4 className="font-bold text-slate-900 text-sm mb-3 flex items-center gap-2">
-                <FileCheck className="w-4 h-4 text-[#0e2c4c]" />
-                <span>Client Activity & Booking Timeline</span>
+              <h4 className="font-bold text-slate-900 text-sm mb-3 flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <FileCheck className="w-4 h-4 text-[#0e2c4c]" />
+                  <span>Client Activity & Booking Live Timeline</span>
+                </span>
+                <span className="text-[11px] font-mono text-slate-500">
+                  Balance: SAR {(customerLedgerAccount?.currentBalanceSAR || 0).toLocaleString()} (PKR {Math.round((customerLedgerAccount?.currentBalanceSAR || 0) * 74.50).toLocaleString()})
+                </span>
               </h4>
-              <div className="space-y-3">
-                <div className="p-3 bg-white border border-slate-200 rounded-lg flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600 font-bold">1</div>
-                    <div>
-                      <div className="font-bold text-slate-800">Customer Record Created</div>
-                      <div className="text-slate-500">Source: {selectedCustomer.createdFrom} • {new Date(selectedCustomer.createdAt).toLocaleDateString()}</div>
-                    </div>
-                  </div>
-                  <Badge variant="success">Completed</Badge>
-                </div>
 
-                <div className="p-3 bg-white border border-slate-200 rounded-lg flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#0e2c4c]/10 flex items-center justify-center text-[#0e2c4c] font-bold">2</div>
-                    <div>
-                      <div className="font-bold text-slate-800">Sub-Ledger Account Active</div>
-                      <div className="text-slate-500">Balance: SAR 0.00 (PKR 0.00)</div>
+              {loadingTimeline ? (
+                <div className="py-8 text-center text-xs text-slate-500">Loading live timeline records...</div>
+              ) : (
+                <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                  {/* 1. Customer Record Created */}
+                  <div 
+                    onClick={() => setProfileModalOpen(false)}
+                    className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs hover:bg-slate-50 transition cursor-pointer shadow-xs"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600 font-bold shrink-0">1</div>
+                      <div>
+                        <div className="font-bold text-slate-800">Customer Record Created ({selectedCustomer.createdFrom})</div>
+                        <div className="text-slate-500 text-[11px]">{new Date(selectedCustomer.createdAt).toLocaleString()}</div>
+                      </div>
+                    </div>
+                    <Badge variant="success">Active</Badge>
+                  </div>
+
+                  {/* 2. Sub-Ledger Account Active & Balance */}
+                  <div 
+                    onClick={() => { setProfileModalOpen(false); navigate('/accounting'); }}
+                    className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs hover:bg-slate-50 transition cursor-pointer shadow-xs"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-[#0e2c4c]/10 flex items-center justify-center text-[#0e2c4c] font-bold shrink-0">2</div>
+                      <div>
+                        <div className="font-bold text-slate-800">B2C Sub-Ledger Account & Current Balance</div>
+                        <div className="text-slate-600 font-mono text-[11px]">
+                          SAR {(customerLedgerAccount?.currentBalanceSAR || 0).toLocaleString()} (PKR {Math.round((customerLedgerAccount?.currentBalanceSAR || 0) * 74.50).toLocaleString()})
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 text-[#0e2c4c] font-bold">
+                      <span>View Ledger</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
                     </div>
                   </div>
-                  <Badge variant="navy">Linked</Badge>
+
+                  {/* 3. Visas from imports */}
+                  {customerVisas.map((v: any, idx: number) => (
+                    <div 
+                      key={v.id || idx}
+                      onClick={() => { setProfileModalOpen(false); navigate('/visas'); }}
+                      className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs hover:bg-slate-50 transition cursor-pointer shadow-xs"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-600 font-bold shrink-0">V</div>
+                        <div>
+                          <div className="font-bold text-slate-800">Visa Record: {v.visaNo || v.pilgrimName}</div>
+                          <div className="text-slate-500 text-[11px]">Type: {v.visaType} • Status: {v.status} • Batch: {v.batchNo}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 text-blue-600 font-bold">
+                        <span>Open Visa</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* 4. Vouchers */}
+                  {customerVouchers.map((vo: any, idx: number) => (
+                    <div 
+                      key={vo.id || idx}
+                      onClick={() => { setProfileModalOpen(false); navigate('/vouchers'); }}
+                      className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs hover:bg-slate-50 transition cursor-pointer shadow-xs"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600 font-bold shrink-0">U</div>
+                        <div>
+                          <div className="font-bold text-slate-800">Umrah Voucher #{vo.voucherNo || vo.id}</div>
+                          <div className="text-slate-500 text-[11px]">Total: SAR {(vo.totalSAR || 0).toLocaleString()} • Status: {vo.status}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 text-amber-600 font-bold">
+                        <span>Open Voucher</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* 5. Payments */}
+                  {customerPayments.map((p: any, idx: number) => (
+                    <div 
+                      key={p.id || idx}
+                      onClick={() => { setProfileModalOpen(false); navigate('/payments'); }}
+                      className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between text-xs hover:bg-slate-50 transition cursor-pointer shadow-xs"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-600 font-bold shrink-0">$</div>
+                        <div>
+                          <div className="font-bold text-slate-800">Payment {p.paymentNo} ({p.entryType})</div>
+                          <div className="text-slate-500 text-[11px]">SAR {(p.amountSAR || 0).toLocaleString()} (PKR {(p.amountPKR || 0).toLocaleString()}) • {p.date}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 text-purple-600 font-bold">
+                        <span>Open Payment</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </Modal>
