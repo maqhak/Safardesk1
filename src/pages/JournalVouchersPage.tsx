@@ -29,6 +29,7 @@ import {
   CreditCard
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
+import AccountsSubNav from '../components/navigation/AccountsSubNav';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -465,6 +466,9 @@ export const JournalVouchersPage: React.FC = () => {
           </div>
         }
       />
+
+      {/* Accounts section navigation — separate pages, not tabs */}
+      <AccountsSubNav />
 
       {/* Filters Bar */}
       <Card padding="md" className="border-slate-200 shadow-xs space-y-3">

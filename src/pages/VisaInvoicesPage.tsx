@@ -483,31 +483,52 @@ export const VisaInvoicesPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Group-wise Lines Table */}
+            {/* PAX-wise Lines Table — one row per pilgrim on the single invoice */}
             <div className="border border-slate-200 rounded-xl overflow-hidden">
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="bg-slate-100 text-slate-700 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200">
                   <tr>
-                    <th className="py-2.5 px-3">Group Code & Description</th>
-                    <th className="py-2.5 px-3 text-center">Visa Count</th>
-                    <th className="py-2.5 px-3 text-right">Selling Price (SAR)</th>
-                    <th className="py-2.5 px-3 text-right">Line Total (SAR)</th>
+                    <th className="py-2.5 px-3 text-center w-10">#</th>
+                    <th className="py-2.5 px-3">Pilgrim Name</th>
+                    <th className="py-2.5 px-3">Passport No</th>
+                    <th className="py-2.5 px-3">Group</th>
+                    <th className="py-2.5 px-3 text-right">Rate (SAR)</th>
+                    <th className="py-2.5 px-3 text-right">Total (SAR)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
-                  {selectedInvoice.lines.map((l, i) => (
-                    <tr key={i}>
-                      <td className="py-2.5 px-3">
-                        <span className="font-mono font-bold text-[#0e2c4c] mr-2">[{l.groupCode}]</span>
-                        <span className="font-medium text-slate-900">{l.groupName}</span>
-                      </td>
-                      <td className="py-2.5 px-3 text-center font-mono font-bold">{l.visaCount}</td>
-                      <td className="py-2.5 px-3 text-right font-mono">SAR {l.sellingPricePerVisa.toLocaleString()}</td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
-                        SAR {l.lineTotalSAR.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  ))}
+                  {selectedInvoice.lines.map((l, i) => {
+                    // Legacy fallback: old group-shaped lines (no pilgrimName)
+                    const isLegacy = !(l as any).pilgrimName;
+                    return (
+                      <tr key={i}>
+                        <td className="py-2.5 px-3 text-center font-mono text-slate-500">{i + 1}</td>
+                        {isLegacy ? (
+                          <>
+                            <td className="py-2.5 px-3" colSpan={2}>
+                              <span className="font-mono font-bold text-[#0e2c4c] mr-2">[{(l as any).groupCode}]</span>
+                              <span className="font-medium text-slate-900">{(l as any).groupName} — {(l as any).visaCount} visas</span>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="py-2.5 px-3 font-semibold text-slate-900">{(l as any).pilgrimName}</td>
+                            <td className="py-2.5 px-3 font-mono text-slate-600">{(l as any).passportNumber}</td>
+                          </>
+                        )}
+                        <td className="py-2.5 px-3">
+                          <span className="font-mono font-bold text-[#0e2c4c]">{l.groupCode}</span>
+                          {l.groupName && l.groupName !== l.groupCode && (
+                            <span className="block text-[10px] text-slate-500">{l.groupName}</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono">SAR {l.sellingPricePerVisa.toLocaleString()}</td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                          SAR {l.lineTotalSAR.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

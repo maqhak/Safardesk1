@@ -31,6 +31,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
+import AccountsSubNav from '../components/navigation/AccountsSubNav';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -602,6 +603,9 @@ export const PaymentsPage: React.FC = () => {
           </div>
         }
       />
+
+      {/* Accounts section navigation — separate pages, not tabs */}
+      <AccountsSubNav />
 
       {/* Requirement 4: Owner Review Queue Banner (No dummy receipts) */}
       {isOwner && ownerReviewQueue.length > 0 && (

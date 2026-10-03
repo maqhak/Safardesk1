@@ -33,6 +33,16 @@ export interface InvoiceGroupLine {
   lineTotalSAR: number;
 }
 
+/** Per-PAX invoice line — one row per pilgrim on the single invoice. */
+export interface InvoicePaxLine {
+  pilgrimName: string;
+  passportNumber: string;
+  groupCode: string;
+  groupName: string;
+  sellingPricePerVisa: number;
+  lineTotalSAR: number;
+}
+
 export interface CommissionDetails {
   enabled: boolean;
   recipientName: string;
@@ -50,7 +60,7 @@ export interface VisaInvoiceDoc {
   agentId: string;
   vendorId: string;
   date: string;
-  lines: InvoiceGroupLine[];
+  lines: InvoicePaxLine[];
   sellingTotalSAR: number;
   buyingTotalSAR: number;
   marginSAR: number;

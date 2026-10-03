@@ -21,6 +21,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
+import AccountsSubNav from '../components/navigation/AccountsSubNav';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -219,7 +220,12 @@ export const BalancesSummaryPage: React.FC = () => {
             </Button>
           </div>
         }
+ 
+
       />
+
+      {/* Accounts section navigation — separate pages, not tabs */}
+      <AccountsSubNav />
 
       {/* Over-limit Agent Alert Banner (feeds Smart Alerts) */}
       {overLimitAgents.length > 0 && (

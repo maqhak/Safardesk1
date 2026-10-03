@@ -1,6 +1,7 @@
 import { 
   VisaDistributionDoc, 
   VisaInvoiceDoc, 
+  InvoicePaxLine,
   DistributionGroupLine,
   CommissionDetails
 } from '../types/visaDistribution';
@@ -210,14 +211,22 @@ export async function createVisaDistributionBatch(params: {
     const invoiceNo = await getNextInvoiceNumber();
     const totalsPKR = Math.round(batch.sellingTotalSAR * exchangeRate * 100) / 100;
 
-    const invoiceLines = batch.groups.map((g) => ({
-      groupCode: g.groupCode,
-      groupName: g.groupName,
-      visaCount: g.visaCount,
-      sellingPricePerVisa: g.sellingPricePerVisa,
-      buyingPricePerVisa: g.buyingPricePerVisa,
-      lineTotalSAR: g.visaCount * g.sellingPricePerVisa,
-    }));
+    // One invoice, but lines split per PAX (one by one) — each pilgrim's
+    // name + passport + individual rate on its own row, never lumped.
+    const invoiceLines: InvoicePaxLine[] = [];
+    batch.groups.forEach((g) => {
+      g.visaIds.forEach((vId) => {
+        const v = visaById.get(vId);
+        invoiceLines.push({
+          pilgrimName: v?.pilgrimName || 'Pilgrim',
+          passportNumber: v?.passportNumber || '—',
+          groupCode: g.groupCode,
+          groupName: g.groupName,
+          sellingPricePerVisa: g.sellingPricePerVisa,
+          lineTotalSAR: g.sellingPricePerVisa,
+        });
+      });
+    });
 
     const commissionDetails: CommissionDetails | null = batch.commission?.enabled ? {
       enabled: true,

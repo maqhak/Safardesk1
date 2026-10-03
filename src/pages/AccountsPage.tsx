@@ -28,6 +28,7 @@ import {
   Mic
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
+import AccountsSubNav from '../components/navigation/AccountsSubNav';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -399,38 +400,6 @@ export const AccountsPage: React.FC = () => {
           breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Accounts' }]}
           actions={
             <div className="flex items-center gap-2">
-              <Link
-                to="/accounts/balances"
-                className="px-3 py-1.5 bg-[#0e2c4c] hover:bg-[#0e2c4c]/90 text-white font-semibold rounded-lg text-xs transition flex items-center gap-1.5 shadow-xs"
-              >
-                <Scale className="w-3.5 h-3.5 text-[#c9a227]" />
-                <span>Balances Summary</span>
-              </Link>
-
-              <Link
-                to="/accounts/day-book"
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-lg text-xs transition flex items-center gap-1.5 border border-slate-200"
-              >
-                <BookOpen className="w-3.5 h-3.5 text-[#0e2c4c]" />
-                <span>Day Book</span>
-              </Link>
-
-              <Link
-                to="/accounts/payments"
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-lg text-xs transition flex items-center gap-1.5 border border-slate-200"
-              >
-                <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Payments</span>
-              </Link>
-
-              <Link
-                to="/accounts/journal-vouchers"
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-lg text-xs transition flex items-center gap-1.5 border border-slate-200"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-[#c9a227]" />
-                <span>Journal Voucher</span>
-              </Link>
-
               {/* Requirement 4: SAR ⇄ PKR toggle button */}
               <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
                 <button
@@ -504,6 +473,9 @@ export const AccountsPage: React.FC = () => {
             </div>
           }
         />
+
+        {/* Accounts section navigation — separate pages, not tabs */}
+        <AccountsSubNav />
       </div>
 
       {/* Account Picker & Statement Controls Bar */}
