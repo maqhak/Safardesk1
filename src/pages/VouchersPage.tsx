@@ -1493,25 +1493,37 @@ export const VouchersPage: React.FC = () => {
                           <option value="Bus">49-Seater Luxury Bus</option>
                           <option value="GMC">GMC (VIP SUV)</option>
                         </select>
-                        {isAgent && (
-                          <label className="flex items-center gap-2 mt-2 text-[11px] font-semibold text-slate-700 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={!!sec.isSelfGari}
-                              onChange={(e) => {
-                                const updated = [...sectors];
-                                updated[idx].isSelfGari = e.target.checked;
-                                if (e.target.checked) {
-                                  updated[idx].vehicleType = undefined;
-                                  updated[idx].transportRateSAR = 0;
-                                }
-                                setSectors(updated);
-                              }}
-                              className="w-4 h-4 accent-[#0e2c4c]"
-                            />
-                            Self Gari (I will use my own vehicle — no company transport charge)
-                          </label>
-                        )}
+                        <label className="flex items-center gap-2 mt-2 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!sec.isSelfGari}
+                            onChange={(e) => {
+                              const updated = [...sectors];
+                              updated[idx].isSelfGari = e.target.checked;
+                              if (e.target.checked) {
+                                updated[idx].vehicleType = undefined;
+                                updated[idx].transportRateSAR = 0;
+                              }
+                              setSectors(updated);
+                            }}
+                            className="w-4 h-4 accent-[#0e2c4c]"
+                          />
+                          Self Gari (own vehicle — no company transport charge)
+                        </label>
+                        <div className="mt-2">
+                          <input
+                            type="text"
+                            value={sec.vehicleNote || ''}
+                            onChange={(e) => {
+                              const updated = [...sectors];
+                              updated[idx].vehicleNote = e.target.value;
+                              setSectors(updated);
+                            }}
+                            placeholder="Manual vehicle detail — e.g. GMC Yukon white, driver Ahmed..."
+                            disabled={!!sec.isSelfGari}
+                            className="w-full p-2 bg-white border border-slate-300 rounded text-xs disabled:bg-slate-100 disabled:text-slate-400"
+                          />
+                        </div>
                       </div>
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Transport Charge (SAR) [Manual blank input]</label>
@@ -1622,20 +1634,26 @@ export const VouchersPage: React.FC = () => {
                   </div>
                   <div className="col-span-2">
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">Hotel</label>
-                    {isAgent ? (
-                      <div className="space-y-1.5">
-                        <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-700 cursor-pointer">
-                          <input type="checkbox" checked={dIsSelfHotel} onChange={(e) => setDIsSelfHotel(e.target.checked)} className="w-4 h-4 accent-[#0e2c4c]" />
-                          Self Hotel (I arranged it myself)
-                        </label>
-                        <input
-                          type="text"
-                          value={dHotelName}
-                          onChange={(e) => setDHotelName(e.target.value)}
-                          placeholder={dIsSelfHotel ? 'Enter your hotel name...' : 'Enter hotel name...'}
-                          className="w-full p-2 bg-white border border-slate-300 rounded-lg"
-                        />
-                      </div>
+                    <label className="flex items-center gap-2 mb-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={dIsSelfHotel}
+                        onChange={(e) => {
+                          setDIsSelfHotel(e.target.checked);
+                          if (!e.target.checked) setDHotelName('');
+                        }}
+                        className="w-4 h-4 accent-[#0e2c4c]"
+                      />
+                      Manual / Self Hotel — type hotel name manually
+                    </label>
+                    {dIsSelfHotel ? (
+                      <input
+                        type="text"
+                        value={dHotelName}
+                        onChange={(e) => setDHotelName(e.target.value)}
+                        placeholder="Type hotel name manually..."
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg"
+                      />
                     ) : (
                       <select value={dHotelName} onChange={(e) => setDHotelName(e.target.value)} className="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold">
                         <option value="">-- Choose Hotel from Master --</option>

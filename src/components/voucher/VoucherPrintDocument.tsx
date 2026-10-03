@@ -74,7 +74,8 @@ export const VoucherPrintDocument: React.FC<{
       curTrips = [];
     };
     sectors.forEach((s) => {
-      const by = s.isSelfGari ? 'SELF GARI' : (s.vehicleType || '—').toUpperCase();
+      const note = (s as any).vehicleNote ? ` — ${(s as any).vehicleNote}` : '';
+      const by = (s.isSelfGari ? 'SELF GARI' : (s.vehicleType || '—').toUpperCase()) + note;
       const provider = s.isSelfGari ? 'Agent Self Gari' : 'Company';
       const key = `${by}|${provider}`;
       let trip = s.type;

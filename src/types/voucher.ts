@@ -16,7 +16,8 @@ export interface SectorItem {
   flightNo?: string;
   time?: string;
   vehicleType?: 'Car' | 'Staria' | 'Hiace' | 'Coaster' | 'Bus' | 'GMC';
-  isSelfGari?: boolean; // For agents
+  isSelfGari?: boolean; // Self vehicle — no company transport charge
+  vehicleNote?: string; // Manual vehicle detail (e.g. "GMC Yukon white — driver Ahmed")
   transportRateSAR?: number;
 }
 

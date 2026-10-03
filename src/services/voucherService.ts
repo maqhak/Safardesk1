@@ -233,7 +233,7 @@ export async function postVoucherToLedger(actor: UserProfile, voucher: VoucherDo
 
   for (const s of voucher.sectors || []) {
     await postIncomeCredit(
-      `Transport: ${s.type} sector (${s.vehicleType || 'Transport'})`,
+      `Transport: ${s.type} sector (${s.isSelfGari ? 'Self Gari' : (s.vehicleType || 'Transport')})${(s as any).vehicleNote ? ` — ${(s as any).vehicleNote}` : ''}`,
       s.transportRateSAR || 0
     );
   }
@@ -300,7 +300,7 @@ export async function cancelVoucher(actor: UserProfile, voucherId: string): Prom
   for (const s of voucher.sectors || []) {
     if (transportIncome) {
       await postReversal(
-        `Transport: ${s.type} sector (${s.vehicleType || 'Transport'})`,
+        `Transport: ${s.type} sector (${s.isSelfGari ? 'Self Gari' : (s.vehicleType || 'Transport')})${(s as any).vehicleNote ? ` — ${(s as any).vehicleNote}` : ''}`,
         s.transportRateSAR || 0,
         (transportIncome as any).id
       );
@@ -492,7 +492,7 @@ async function reverseVoucherCharges(actor: UserProfile, voucher: VoucherDoc): P
   for (const s of voucher.sectors || []) {
     if (transportIncome) {
       await postReversal(
-        `Transport: ${s.type} sector (${s.vehicleType || 'Transport'})`,
+        `Transport: ${s.type} sector (${s.isSelfGari ? 'Self Gari' : (s.vehicleType || 'Transport')})${(s as any).vehicleNote ? ` — ${(s as any).vehicleNote}` : ''}`,
         s.transportRateSAR || 0,
         (transportIncome as any).id
       );
