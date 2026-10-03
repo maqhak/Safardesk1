@@ -138,7 +138,7 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleClearFirebaseConfig = () => {
-    if (!confirm('Custom Firebase config hata dun? App wapas build-time (.env) config par chali jayegi.')) return;
+    if (!confirm('Remove the custom Firebase config? The app will switch back to the build-time (.env) configuration.')) return;
     clearCustomFirebaseConfig();
     info('Custom config cleared. Reloading…');
     setTimeout(() => window.location.reload(), 800);
@@ -337,7 +337,7 @@ export const SettingsPage: React.FC = () => {
                       spellCheck={false}
                     />
                     <p className="text-[11px] text-slate-400 mt-1">
-                      Firebase Console → Project Settings → "Your apps" → web app → config copy karein. Save karte hi app reconnect ho jayegi.
+                      Firebase Console → Project Settings → "Your apps" → web app → copy the config. The app will reconnect as soon as you save.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">

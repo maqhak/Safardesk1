@@ -654,7 +654,7 @@ export const VisasPage: React.FC = () => {
                 />
               </label>
               {!importVendorId && (
-                <p className="text-[11px] text-amber-700 font-semibold mt-2">Pehle upar Shirka select karein, phir file browse hogi.</p>
+                <p className="text-[11px] text-amber-700 font-semibold mt-2">Select a Shirka above first, then browse for the file.</p>
               )}
             </div>
           </div>

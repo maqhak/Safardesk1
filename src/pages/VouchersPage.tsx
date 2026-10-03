@@ -1136,7 +1136,7 @@ export const VouchersPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setBuilderOpen(false)}>Cancel</Button>
               {builderStep < 4 ? (
-                <Button variant="primary" size="sm" onClick={() => setBuilderStep((builderStep + 1) as any)} disabled={builderStep === 1 && !voucherVendorId} className="bg-[#0e2c4c] disabled:opacity-40" title={builderStep === 1 && !voucherVendorId ? 'Pehle Shirka select karein' : ''}>
+                <Button variant="primary" size="sm" onClick={() => setBuilderStep((builderStep + 1) as any)} disabled={builderStep === 1 && !voucherVendorId} className="bg-[#0e2c4c] disabled:opacity-40" title={builderStep === 1 && !voucherVendorId ? 'Select a Shirka first' : ''}>
                   Next Step
                 </Button>
               ) : editingVoucherId ? (
@@ -1212,7 +1212,7 @@ export const VouchersPage: React.FC = () => {
               )}
               {(!editingVoucherId && !voucherVendorId) ? (
                 <div className="p-8 text-center bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl">
-                  <div className="text-sm font-bold text-slate-700">↑ Pehle upar se Shirka select karein</div>
+                  <div className="text-sm font-bold text-slate-700">↑ Select a Shirka above first</div>
                   <div className="text-[11px] text-slate-500 mt-1">Uske baad sirf usi Shirka ke pilgrims ki list yahan ayegi.</div>
                 </div>
               ) : (

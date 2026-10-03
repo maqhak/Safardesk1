@@ -119,11 +119,11 @@ export function saveCustomFirebaseConfig(jsonText: string): FirebaseConfig {
   try {
     parsed = JSON.parse(jsonText);
   } catch {
-    throw new Error('Ye valid JSON nahi hai. Firebase Console > Project Settings > "Your apps" se web config copy kar ke paste karein.');
+    throw new Error('This is not valid JSON. Copy the web config from Firebase Console > Project Settings > "Your apps" and paste it here.');
   }
   const cfg = parsed?.firebaseConfig || parsed;
   if (!cfg?.apiKey || !cfg?.authDomain || !cfg?.projectId) {
-    throw new Error('Config mein apiKey, authDomain aur projectId hona zaroori hai.');
+    throw new Error('The config must include apiKey, authDomain and projectId.');
   }
   localStorage.setItem(CUSTOM_FIREBASE_CONFIG_KEY, JSON.stringify(cfg));
   return cfg;

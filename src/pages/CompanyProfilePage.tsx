@@ -406,7 +406,7 @@ export const CompanyProfilePage: React.FC = () => {
                         )}
                       </div>
                       <p className="text-[11px] text-slate-500">
-                        Aap ki office ki gol muhar — voucher par signature wali jagah lagegi. PNG/JPG, 2MB tak.
+                        Your office rubber stamp — it will appear in the signature area on vouchers. PNG/JPG, up to 2MB.
                       </p>
                     </div>
                   </div>
