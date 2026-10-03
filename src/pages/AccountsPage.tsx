@@ -753,7 +753,7 @@ export const AccountsPage: React.FC = () => {
         </div>
 
         {/* Detailed Statement Table with EXACT columns */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto ledger-print-compact">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-100 text-slate-700 uppercase font-bold text-[10px] tracking-wider border-b border-slate-300 shadow-xs">
               <tr>

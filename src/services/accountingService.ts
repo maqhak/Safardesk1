@@ -1007,7 +1007,7 @@ export function exportLedgerToExcel(statement: LedgerStatementSummary, companyNa
   XLSX.writeFile(wb, ledgerDownloadName(statement, 'xlsx'));
 }
 
-/** Branded PDF download of the ledger statement. */
+/** Branded PDF download of the ledger statement — COMPACT layout (more rows per page). */
 export function exportLedgerToPDF(statement: LedgerStatementSummary, companyName: string): void {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { jsPDF } = require('jspdf');
@@ -1015,26 +1015,24 @@ export function exportLedgerToPDF(statement: LedgerStatementSummary, companyName
   require('jspdf-autotable');
   const c = statement.currency;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const pageW = 297;
 
-  // Header band
+  // Slim header band
   doc.setFillColor(14, 44, 76);
-  doc.rect(0, 0, 297, 26, 'F');
+  doc.rect(0, 0, pageW, 15, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text(companyName, 14, 11);
-  doc.setFontSize(10);
+  doc.setFontSize(12);
+  doc.text(companyName, 10, 7);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Statement of Account — ${statement.account.title} (${statement.account.accountCode})`, 14, 18);
+  doc.text(`Statement of Account — ${statement.account.title} (${statement.account.accountCode})`, 10, 12);
 
-  doc.setTextColor(40, 40, 40);
-  doc.setFontSize(9);
-  const metaY = 32;
-  doc.text(`Account Type: ${statement.account.accountType.toUpperCase()}`, 14, metaY);
-  doc.text(`Period: ${statement.periodLabel}`, 110, metaY);
-  doc.text(`Currency: ${c}`, 200, metaY);
-  doc.text(`Generated: ${new Date().toLocaleString()}`, 14, metaY + 6);
-  doc.text(`Previous Balance (B/F): ${c} ${statement.previousBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 110, metaY + 6);
+  // One-line meta
+  doc.setTextColor(60, 60, 60);
+  doc.setFontSize(7.5);
+  const meta = `Type: ${statement.account.accountType.toUpperCase()}   |   Period: ${statement.periodLabel}   |   Currency: ${c}   |   Generated: ${new Date().toLocaleString()}   |   Prev. Balance: ${c} ${statement.previousBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  doc.text(meta, 10, 20);
 
   const body = statement.rows.map((r) => {
     const e = r.entry;
@@ -1051,21 +1049,31 @@ export function exportLedgerToPDF(statement: LedgerStatementSummary, companyName
   });
 
   (doc as any).autoTable({
-    startY: metaY + 12,
-    head: [['Date', 'Type', 'Trans.#', 'Particulars', 'Inv-Ref', 'Rate', `Debit (${c})`, `Credit (${c})`, `Balance (${c})`]],
+    startY: 23,
+    head: [['Date', 'Type', 'Trans.#', 'Particulars', 'Inv-Ref', 'Rate', `Dr (${c})`, `Cr (${c})`, `Bal (${c})`]],
     body,
     theme: 'grid',
-    styles: { fontSize: 7.5, cellPadding: 2 },
-    headStyles: { fillColor: [14, 44, 76], textColor: 255, fontStyle: 'bold' },
-    columnStyles: { 3: { cellWidth: 95 } },
+    styles: { fontSize: 7, cellPadding: 1.4, lineWidth: 0.1 },
+    headStyles: { fillColor: [14, 44, 76], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+    columnStyles: {
+      0: { cellWidth: 17 },
+      1: { cellWidth: 17 },
+      2: { cellWidth: 20 },
+      3: { cellWidth: 'auto' },
+      4: { cellWidth: 18 },
+      5: { cellWidth: 12 },
+      6: { cellWidth: 20, halign: 'right' },
+      7: { cellWidth: 20, halign: 'right' },
+      8: { cellWidth: 22, halign: 'right' },
+    },
   });
 
-  const fy = (doc as any).lastAutoTable.finalY + 8;
-  doc.setFontSize(10);
+  const fy = (doc as any).lastAutoTable.finalY + 6;
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Total Debit: ${c} ${statement.totalDebit.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 14, fy);
-  doc.text(`Total Credit: ${c} ${statement.totalCredit.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 110, fy);
-  doc.text(`Closing Balance: ${c} ${statement.closingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 200, fy);
+  doc.setTextColor(14, 44, 76);
+  const fmt = (n: number) => `${c} ${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  doc.text(`Total Dr: ${fmt(statement.totalDebit)}      Total Cr: ${fmt(statement.totalCredit)}      Closing: ${fmt(statement.closingBalance)}`, 10, fy);
 
   doc.save(ledgerDownloadName(statement, 'pdf'));
 }

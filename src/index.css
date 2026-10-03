@@ -46,3 +46,15 @@
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* Compact ledger statement for print/PDF — fits many more rows per page */
+@media print {
+  @page { margin: 10mm 8mm; }
+  .ledger-print-compact table { font-size: 9.5px !important; }
+  .ledger-print-compact thead th {
+    padding: 5px 6px !important;
+    font-size: 8.5px !important;
+  }
+  .ledger-print-compact tbody td { padding: 3px 6px !important; }
+  .ledger-print-compact .badge, .ledger-print-compact [class*="Badge"] { font-size: 8px !important; }
+}
