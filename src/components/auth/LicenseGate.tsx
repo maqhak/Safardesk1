@@ -23,24 +23,15 @@ const LicenseGateInner: React.FC<LicenseGateProps> = ({ children }) => {
   const { license, loading, isReadOnly, enterReadOnly, isExpiredOrBlocked, daysRemaining } = useLicense();
   const { role } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
-        <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-4 border-[#c9a227] border-t-transparent rounded-full animate-spin mx-auto" />
-          <div className="text-xs font-mono text-slate-400">Verifying secure tenant subscription...</div>
-        </div>
-      </div>
-    );
-  }
-
+  // License verification runs in the background — the app opens instantly.
+  // Only interrupt when the check has COMPLETED and found an expired/blocked license.
   if (!license) {
     return <>{children}</>;
   }
 
   // Fix #28: expired/blocked licenses switch the app to READ-ONLY mode instead of
   // a dead end — data stays visible and untouched, but nothing can be changed.
-  if (isExpiredOrBlocked && !isReadOnly) {
+  if (!loading && isExpiredOrBlocked && !isReadOnly) {
     const isOwner = role === 'owner';
 
     return (

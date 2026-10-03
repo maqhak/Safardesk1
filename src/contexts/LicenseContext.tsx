@@ -34,7 +34,11 @@ export const LicenseProvider: React.FC<{ children: React.ReactNode }> = ({ child
   });
 
   useEffect(() => {
-    fetchTenantLicense()
+    // Fail open fast: if the license server hangs, don't wait more than 5s.
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('license-timeout')), 5000)
+    );
+    Promise.race([fetchTenantLicense(), timeout])
       .then((lic) => setLicense(lic))
       .catch(() => setLicense(null))
       .finally(() => setLoading(false));
