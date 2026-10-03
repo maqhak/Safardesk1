@@ -21,7 +21,6 @@ import {
   Users
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
-import AccountsSubNav from '../components/navigation/AccountsSubNav';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -269,8 +268,6 @@ export const DayBookPage: React.FC = () => {
 
       />
 
-      {/* Accounts section navigation — separate pages, not tabs */}
-      <AccountsSubNav />
 
       {/* KPI Stats Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
