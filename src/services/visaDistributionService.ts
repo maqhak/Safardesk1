@@ -70,12 +70,12 @@ export async function getNextInvoiceNumber(): Promise<string> {
 
 export async function createVisaDistributionBatch(params: {
   vendorId: string;
-  buyingPricePerVisa: number;
-  agentGroupMap: Map<string, { 
-    agentId: string; 
-    sellingPricePerVisa: number; 
-    groupCode: string; 
-    groupName: string; 
+  agentGroupMap: Map<string, {
+    agentId: string;
+    sellingPricePerVisa: number;
+    buyingPricePerVisa: number; // per-group buying rate (purchase rates differ per group)
+    groupCode: string;
+    groupName: string;
     visaIds: string[];
     exchangeRateSARPKR: number; // Fix #29: manually entered per-agent SAR->PKR rate
     commission?: {
@@ -116,7 +116,7 @@ export async function createVisaDistributionBatch(params: {
   // Group distributions by agentId
   const agentBatches = new Map<string, {
     agentId: string;
-    groups: Array<{ groupCode: string; groupName: string; visaIds: string[]; visaCount: number; sellingPricePerVisa: number }>;
+    groups: Array<{ groupCode: string; groupName: string; visaIds: string[]; visaCount: number; sellingPricePerVisa: number; buyingPricePerVisa: number }>;
     totalVisas: number;
     sellingTotalSAR: number;
     buyingTotalSAR: number;
@@ -137,7 +137,7 @@ export async function createVisaDistributionBatch(params: {
 
     const visaCount = data.visaIds.length;
     const lineSelling = visaCount * data.sellingPricePerVisa;
-    const lineBuying = visaCount * params.buyingPricePerVisa;
+    const lineBuying = visaCount * data.buyingPricePerVisa;
 
     existing.groups.push({
       groupCode: data.groupCode,
@@ -145,6 +145,7 @@ export async function createVisaDistributionBatch(params: {
       visaIds: data.visaIds,
       visaCount,
       sellingPricePerVisa: data.sellingPricePerVisa,
+      buyingPricePerVisa: data.buyingPricePerVisa,
     });
     existing.totalVisas += visaCount;
     existing.sellingTotalSAR += lineSelling;
@@ -173,6 +174,7 @@ export async function createVisaDistributionBatch(params: {
         groupName: g.groupName,
         agentId: batch.agentId,
         sellingPricePerVisa: g.sellingPricePerVisa,
+        buyingPricePerVisa: g.buyingPricePerVisa,
         visaIds: g.visaIds,
         visaCount: g.visaCount,
       });
@@ -200,6 +202,7 @@ export async function createVisaDistributionBatch(params: {
       groupName: g.groupName,
       visaCount: g.visaCount,
       sellingPricePerVisa: g.sellingPricePerVisa,
+      buyingPricePerVisa: g.buyingPricePerVisa,
       lineTotalSAR: g.visaCount * g.sellingPricePerVisa,
     }));
 
@@ -319,7 +322,7 @@ export async function createVisaDistributionBatch(params: {
     id: distribId,
     distributionNo: distribNo,
     vendorId: params.vendorId,
-    buyingPricePerVisa: params.buyingPricePerVisa,
+    buyingPricePerVisa: totalVisasAll > 0 ? Math.round((totalBuyingAll / totalVisasAll) * 100) / 100 : 0,
     groups: createdGroups,
     totalVisas: totalVisasAll,
     totalBuyingSAR: totalBuyingAll,

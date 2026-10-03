@@ -3,6 +3,7 @@ export interface DistributionGroupLine {
   groupName: string;
   agentId: string;
   sellingPricePerVisa: number;
+  buyingPricePerVisa: number;
   visaIds: string[];
   visaCount: number;
 }
@@ -27,6 +28,7 @@ export interface InvoiceGroupLine {
   groupName: string;
   visaCount: number;
   sellingPricePerVisa: number;
+  buyingPricePerVisa: number;
   lineTotalSAR: number;
 }
 

@@ -46,6 +46,7 @@ interface GroupedVisaBatch {
 interface GroupSelectionData {
   agentId: string;
   sellingPricePerVisa: number;
+  buyingPricePerVisa: number;
   commissionEnabled?: boolean;
   commissionRecipientName?: string;
   commissionContactNumber?: string;
@@ -71,7 +72,6 @@ export const VisaDistributionPage: React.FC = () => {
 
   // Batch header fields
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
-  const [buyingPrice, setBuyingPrice] = useState<number>(0);
   const [distributionDate, setDistributionDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   // Per group distribution mapping
@@ -154,7 +154,7 @@ export const VisaDistributionPage: React.FC = () => {
 
   // Update selection for a group
   const handleGroupSelectionChange = (groupCode: string, field: keyof GroupSelectionData, value: any) => {
-    const current = groupSelections.get(groupCode) || { agentId: '', sellingPricePerVisa: 0, commissionEnabled: false };
+    const current = groupSelections.get(groupCode) || { agentId: '', sellingPricePerVisa: 0, buyingPricePerVisa: 0, commissionEnabled: false };
     const updated = new Map(groupSelections);
     updated.set(groupCode, {
       ...current,
@@ -198,6 +198,7 @@ export const VisaDistributionPage: React.FC = () => {
       groupName: string;
       agentId: string;
       sellingPricePerVisa: number;
+      buyingPricePerVisa: number;
       visaIds: string[];
       visaCount: number;
       exchangeRateSARPKR: number;
@@ -205,7 +206,7 @@ export const VisaDistributionPage: React.FC = () => {
     }> = [];
 
     groupSelections.forEach((sel, groupCode) => {
-      if (sel.agentId && sel.sellingPricePerVisa > 0) {
+      if (sel.agentId && sel.sellingPricePerVisa > 0 && (sel.buyingPricePerVisa || 0) > 0) {
         const groupObj = groupedVisas.find((g) => g.groupCode === groupCode);
         if (groupObj) {
           list.push({
@@ -213,6 +214,7 @@ export const VisaDistributionPage: React.FC = () => {
             groupName: groupObj.groupName,
             agentId: sel.agentId,
             sellingPricePerVisa: sel.sellingPricePerVisa,
+            buyingPricePerVisa: sel.buyingPricePerVisa || 0,
             visaIds: groupObj.visas.map(v => v.id),
             visaCount: groupObj.visaCount,
             exchangeRateSARPKR: rateForAgent(sel.agentId),
@@ -237,7 +239,7 @@ export const VisaDistributionPage: React.FC = () => {
 
     activeSelectedGroups.forEach((g) => {
       const vCount = g.visaCount;
-      const bCost = vCount * (buyingPrice || 0);
+      const bCost = vCount * (g.buyingPricePerVisa || 0);
       const sRev = vCount * g.sellingPricePerVisa;
 
       totalVisas += vCount;
@@ -263,17 +265,16 @@ export const VisaDistributionPage: React.FC = () => {
       margin,
       agentTotals: Array.from(agentTotals.values()),
     };
-  }, [activeSelectedGroups, buyingPrice, agents]);
+  }, [activeSelectedGroups, agents]);
 
   const canSave = Boolean(
     selectedVendorId &&
-    buyingPrice > 0 &&
     activeSelectedGroups.length > 0
   );
 
   const handleSaveDistribution = async () => {
     if (!canSave) {
-      showError('Please select a Shirka Vendor, enter a valid buying price, and assign at least one group to an agent with a selling price.');
+      showError('Please select a Shirka Vendor and assign at least one group to an agent with selling + buying prices.');
       return;
     }
 
@@ -282,6 +283,7 @@ export const VisaDistributionPage: React.FC = () => {
       const agentGroupMap = new Map<string, {
         agentId: string;
         sellingPricePerVisa: number;
+        buyingPricePerVisa: number;
         groupCode: string;
         groupName: string;
         visaIds: string[];
@@ -293,6 +295,7 @@ export const VisaDistributionPage: React.FC = () => {
         agentGroupMap.set(`${g.groupCode}-${g.agentId}`, {
           agentId: g.agentId,
           sellingPricePerVisa: g.sellingPricePerVisa,
+          buyingPricePerVisa: g.buyingPricePerVisa,
           groupCode: g.groupCode,
           groupName: g.groupName,
           visaIds: g.visaIds,
@@ -303,7 +306,6 @@ export const VisaDistributionPage: React.FC = () => {
 
       await createVisaDistributionBatch({
         vendorId: selectedVendorId,
-        buyingPricePerVisa: buyingPrice,
         agentGroupMap,
         date: distributionDate,
         createdBy: userProfile?.name || 'Operator',
@@ -339,14 +341,14 @@ export const VisaDistributionPage: React.FC = () => {
         }
       />
 
-      {/* STEP 1: Top Batch Parameters (Vendor & Buying Price) */}
+      {/* STEP 1: Source Shirka Vendor (buying rates are now entered per group in Step 2) */}
       <Card padding="md" className="border-slate-200 shadow-xs space-y-4 bg-slate-50/50">
         <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
             <Building2 className="w-4 h-4 text-[#0e2c4c]" />
-            <span>Step 1: Source Shirka Vendor & Buying Cost</span>
+            <span>Step 1: Source Shirka Vendor</span>
           </h3>
-          <span className="text-[11px] text-slate-500 font-medium">Mandatory for batch cost calculation</span>
+          <span className="text-[11px] text-slate-500 font-medium">Buying rate is entered per group below</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -367,21 +369,6 @@ export const VisaDistributionPage: React.FC = () => {
                 </option>
               ))}
             </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Buying Price Per Visa (SAR) *
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={buyingPrice || ''}
-              onChange={(e) => setBuyingPrice(parseFloat(e.target.value) || 0)}
-              placeholder="e.g. 350"
-              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900"
-            />
           </div>
 
           <div>
@@ -420,7 +407,7 @@ export const VisaDistributionPage: React.FC = () => {
         ) : (
           <div className="space-y-4">
             {groupedVisas.map((group) => {
-              const selection = groupSelections.get(group.groupCode) || { agentId: '', sellingPricePerVisa: 0, commissionEnabled: false };
+              const selection = groupSelections.get(group.groupCode) || { agentId: '', sellingPricePerVisa: 0, buyingPricePerVisa: 0, commissionEnabled: false };
               const isExpanded = expandedGroups.has(group.groupCode);
 
               return (
@@ -463,7 +450,21 @@ export const VisaDistributionPage: React.FC = () => {
                         </select>
                       </div>
 
-                      <div className="w-full sm:w-36">
+                      <div className="w-full sm:w-32">
+                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5">Buying / Visa *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={selection.buyingPricePerVisa || ''}
+                          onChange={(e) => handleGroupSelectionChange(group.groupCode, 'buyingPricePerVisa', parseFloat(e.target.value) || 0)}
+                          placeholder="SAR 0.00"
+                          title="Purchase rate for THIS group (rates differ per group)"
+                          className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-rose-700 text-right"
+                        />
+                      </div>
+
+                      <div className="w-full sm:w-32">
                         <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5">Selling Price / Visa *</label>
                         <input
                           type="number"
@@ -481,6 +482,11 @@ export const VisaDistributionPage: React.FC = () => {
                         <strong className="font-mono text-xs text-slate-900">
                           SAR {(group.visaCount * selection.sellingPricePerVisa).toLocaleString()}
                         </strong>
+                        {(selection.buyingPricePerVisa || 0) > 0 && (selection.sellingPricePerVisa || 0) > 0 && (
+                          <span className="text-[10px] font-mono text-emerald-700 block">
+                            Margin SAR {((selection.sellingPricePerVisa - selection.buyingPricePerVisa) * group.visaCount).toLocaleString()}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

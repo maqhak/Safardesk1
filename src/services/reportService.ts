@@ -71,6 +71,7 @@ export async function generateVisaProfitability(range: ReportRange): Promise<voi
     if (!inRange(d.date, range)) return;
     (d.groups || []).forEach((g) => {
       const issued = visas.filter((v) => (g.visaIds || []).includes(v.id)).length;
+      const buyRate = (g as any).buyingPricePerVisa > 0 ? (g as any).buyingPricePerVisa : d.buyingPricePerVisa;
       rows.push({
         'Distribution No': d.distributionNo,
         'Date': d.date,
@@ -78,11 +79,11 @@ export async function generateVisaProfitability(range: ReportRange): Promise<voi
         'Group Name': g.groupName,
         'Visas': g.visaCount,
         'Issued (live)': issued,
-        'Buying SAR/visa': d.buyingPricePerVisa,
+        'Buying SAR/visa': buyRate,
         'Selling SAR/visa': g.sellingPricePerVisa,
-        'Total Buying SAR': Math.round(d.buyingPricePerVisa * g.visaCount * 100) / 100,
+        'Total Buying SAR': Math.round(buyRate * g.visaCount * 100) / 100,
         'Total Selling SAR': Math.round(g.sellingPricePerVisa * g.visaCount * 100) / 100,
-        'Margin SAR': Math.round((g.sellingPricePerVisa - d.buyingPricePerVisa) * g.visaCount * 100) / 100,
+        'Margin SAR': Math.round((g.sellingPricePerVisa - buyRate) * g.visaCount * 100) / 100,
       });
     });
   });
