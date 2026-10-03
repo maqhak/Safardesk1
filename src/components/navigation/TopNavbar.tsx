@@ -37,24 +37,88 @@ import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { checkCan } from '../../hooks/useCan';
 
+interface NavChild {
+  name: string;
+  path: string;
+  module?: AppModule;
+}
+
 interface NavItem {
   name: string;
   path: string;
   module?: AppModule;
   icon: any;
+  children?: NavChild[];
 }
 
 const ALL_NAV_ITEMS: NavItem[] = [
   { name: 'Dashboard', path: '/', module: 'Dashboard', icon: LayoutDashboard },
+  {
+    name: 'Accounts', path: '/accounts', module: 'Accounts', icon: Calculator,
+    children: [
+      { name: 'Ledgers', path: '/accounts', module: 'Accounts' },
+      { name: 'Balances Summary', path: '/accounts/balances', module: 'Accounts' },
+      { name: 'Payments', path: '/accounts/payments', module: 'Accounts' },
+      { name: 'Day Book', path: '/accounts/day-book', module: 'Accounts' },
+      { name: 'Journal Vouchers', path: '/accounts/journal-vouchers', module: 'Accounts' },
+    ],
+  },
+  { name: 'Vendors', path: '/vendors', module: 'Masters', icon: Briefcase },
+  { name: 'Inventory', path: '/inventory', module: 'Masters', icon: Database },
   { name: 'Visas', path: '/visas', module: 'Visas', icon: FileCheck },
   { name: 'Customers', path: '/customers', module: 'Visas', icon: UsersIcon },
   { name: 'Vouchers', path: '/vouchers', module: 'Vouchers', icon: Building },
   { name: 'Tickets', path: '/tickets', module: 'Tickets', icon: Plane },
-  { name: 'Accounts', path: '/accounts', module: 'Accounts', icon: Calculator },
-  { name: 'Masters', path: '/masters', module: 'Masters', icon: Database },
+  { name: 'Masters', path: '/masters', module: 'Masters', icon: Compass },
   { name: 'Reports', path: '/reports', module: 'Reports', icon: BarChart3 },
   { name: 'Settings', path: '/settings', module: 'Settings', icon: SettingsIcon },
 ];
+
+const MobileNavGroup: React.FC<{ item: NavItem; onNavigate: () => void }> = ({ item, onNavigate }) => {
+  const [open, setOpen] = useState(false);
+  const location = useLocation();
+  const Icon = item.icon;
+  const childActive = item.children?.some((c) =>
+    c.path === '/accounts' ? location.pathname === '/accounts' : location.pathname.startsWith(c.path)
+  );
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
+          childActive ? 'bg-white/20 text-white font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/10'
+        }`}
+      >
+        <Icon className="w-4 h-4 text-gold-400" />
+        <span className="flex-1 text-left">{item.name}</span>
+        <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="ml-9 mt-1 space-y-0.5">
+          {item.children!.map((child) => {
+            const cActive = child.path === '/accounts'
+              ? location.pathname === '/accounts'
+              : location.pathname.startsWith(child.path);
+            return (
+              <NavLink
+                key={child.path}
+                to={child.path}
+                onClick={onNavigate}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] transition ${
+                  cActive ? 'bg-white/15 text-white font-semibold' : 'text-slate-400 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${cActive ? 'bg-[#c9a227]' : 'bg-slate-500'}`} />
+                {child.name}
+              </NavLink>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const TopNavbar: React.FC = () => {
   const { userProfile, role, signOutUser, switchRole, changePassword } = useAuth();
@@ -123,6 +187,10 @@ export const TopNavbar: React.FC = () => {
     return ALL_NAV_ITEMS.filter((item) => {
       if (!item.module) return true;
       return checkCan(userProfile, item.module, 'view');
+    }).map((item) => {
+      if (!item.children) return item;
+      const kids = item.children.filter((c) => !c.module || checkCan(userProfile, c.module, 'view'));
+      return kids.length > 0 ? { ...item, children: kids } : { ...item, children: undefined };
     });
   }, [role, userProfile]);
 
@@ -212,27 +280,73 @@ export const TopNavbar: React.FC = () => {
             {/* CENTER: Horizontal Menu Items (Filtered by Role & Permissions) */}
             <nav className="hidden lg:flex items-center gap-1">
               {visibleNavItems.map((item) => {
+                const childActive = item.children?.some((c) =>
+                  c.path === '/accounts'
+                    ? location.pathname === '/accounts'
+                    : location.pathname.startsWith(c.path)
+                );
+                const itemActive = childActive || (item.path === '/' ? location.pathname === '/' : (!item.children && location.pathname.startsWith(item.path)));
+                if (!item.children) {
+                  return (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      className={() =>
+                        `relative px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 flex items-center gap-1.5 ${
+                          itemActive
+                            ? 'bg-white/15 text-white shadow-inner font-semibold'
+                            : 'text-slate-200 hover:text-white hover:bg-white/10'
+                        }`
+                      }
+                    >
+                      <span>{item.name}</span>
+                      {itemActive && (
+                        <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-[#c9a227] rounded-full" />
+                      )}
+                    </NavLink>
+                  );
+                }
                 return (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    className={({ isActive }) =>
-                      `relative px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 flex items-center gap-1.5 ${
-                        isActive
+                  <div key={item.path} className="relative group">
+                    <button
+                      type="button"
+                      onClick={() => navigate(item.path)}
+                      className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 flex items-center gap-1 cursor-pointer ${
+                        itemActive
                           ? 'bg-white/15 text-white shadow-inner font-semibold'
                           : 'text-slate-200 hover:text-white hover:bg-white/10'
-                      }`
-                    }
-                  >
-                    {({ isActive }) => (
-                      <>
-                        <span>{item.name}</span>
-                        {isActive && (
-                          <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-[#c9a227] rounded-full" />
-                        )}
-                      </>
-                    )}
-                  </NavLink>
+                      }`}
+                    >
+                      <span>{item.name}</span>
+                      <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+                      {itemActive && (
+                        <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-[#c9a227] rounded-full" />
+                      )}
+                    </button>
+                    <div className="absolute left-0 top-full pt-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-50">
+                      <div className="min-w-[190px] bg-[#0a223c] border border-white/10 rounded-xl shadow-xl py-1.5 overflow-hidden">
+                        {item.children.map((child) => {
+                          const cActive = child.path === '/accounts'
+                            ? location.pathname === '/accounts'
+                            : location.pathname.startsWith(child.path);
+                          return (
+                            <NavLink
+                              key={child.path}
+                              to={child.path}
+                              className={`flex items-center gap-2 px-4 py-2 text-[13px] transition ${
+                                cActive
+                                  ? 'bg-white/15 text-white font-semibold'
+                                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+                              }`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${cActive ? 'bg-[#c9a227]' : 'bg-slate-500'}`} />
+                              {child.name}
+                            </NavLink>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
             </nav>
@@ -423,21 +537,31 @@ export const TopNavbar: React.FC = () => {
           <div className="lg:hidden border-t border-[#163b63] bg-[#0a223c] px-4 py-3 space-y-1">
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
+              if (!item.children) {
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={({ isActive }) =>
+                      `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                        isActive
+                          ? 'bg-white/20 text-white font-semibold'
+                          : 'text-slate-300 hover:text-white hover:bg-white/10'
+                      }`
+                    }
+                  >
+                    <Icon className="w-4 h-4 text-gold-400" />
+                    <span>{item.name}</span>
+                  </NavLink>
+                );
+              }
               return (
-                <NavLink
+                <MobileNavGroup
                   key={item.path}
-                  to={item.path}
-                  className={({ isActive }) =>
-                    `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
-                      isActive
-                        ? 'bg-white/20 text-white font-semibold'
-                        : 'text-slate-300 hover:text-white hover:bg-white/10'
-                    }`
-                  }
-                >
-                  <Icon className="w-4 h-4 text-gold-400" />
-                  <span>{item.name}</span>
-                </NavLink>
+                  item={item}
+                  onNavigate={() => setMobileMenuOpen(false)}
+                />
               );
             })}
           </div>

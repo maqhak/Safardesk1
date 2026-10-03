@@ -21,31 +21,24 @@ import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { AgentsPage } from './AgentsPage';
 import { AirlinesPage } from './AirlinesPage';
-import { VendorsPage } from './VendorsPage';
 import { VehiclesPage } from './VehiclesPage';
-import { HotelsPage } from './HotelsPage';
 import { INITIAL_AIRLINES } from '../data/airlines';
 import { AIRPORTS_DATA } from '../data/airports';
-import { fetchHotels } from '../services/masterService';
 
-type MasterTab = 'agents' | 'hotels' | 'airlines' | 'airports' | 'vendors' | 'vehicles';
+type MasterTab = 'agents' | 'airlines' | 'airports' | 'vehicles';
 
 export const MastersPage: React.FC = () => {
   const { info, success } = useToast();
   const [activeTab, setActiveTab] = useState<MasterTab>('airlines');
-  const [hotelCount, setHotelCount] = useState<number>(0);
-  const canCreate = useCan('Masters', 'create');
 
-  useEffect(() => {
-    fetchHotels().then((h) => setHotelCount(h.length)).catch(() => setHotelCount(10));
-  }, []);
+  const canCreate = useCan('Masters', 'create');
 
   const tabs: { key: MasterTab; label: string; icon: any; count: number }[] = [
     { key: 'airlines', label: 'Airlines', icon: Plane, count: INITIAL_AIRLINES.length },
     { key: 'agents', label: 'B2B Sub-Agents', icon: Users, count: 48 },
-    { key: 'hotels', label: 'Hotels Directory', icon: Building, count: hotelCount },
+
     { key: 'airports', label: 'Airports & Reference', icon: MapPin, count: AIRPORTS_DATA.length },
-    { key: 'vendors', label: 'Suppliers & Vendors', icon: Database, count: 26 },
+
     { key: 'vehicles', label: 'Vehicles & Transport', icon: Bus, count: 5 },
   ];
 
@@ -114,21 +107,6 @@ export const MastersPage: React.FC = () => {
     );
   }
 
-  if (activeTab === 'hotels') {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Master Records & Directories"
-          subtitle="Manage foundational business master data: sub-agents, contracted hotel inventory, airline codes, and service suppliers."
-          breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
-        />
-        {renderQaBanner()}
-        {renderTabsBar()}
-        <HotelsPage />
-      </div>
-    );
-  }
-
   if (activeTab === 'agents') {
     return (
       <div className="space-y-6">
@@ -140,21 +118,6 @@ export const MastersPage: React.FC = () => {
         {renderQaBanner()}
         {renderTabsBar()}
         <AgentsPage />
-      </div>
-    );
-  }
-
-  if (activeTab === 'vendors') {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Master Records & Directories"
-          subtitle="Manage foundational business master data: sub-agents, contracted hotel inventory, airline codes, and service suppliers."
-          breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
-        />
-        {renderQaBanner()}
-        {renderTabsBar()}
-        <VendorsPage />
       </div>
     );
   }

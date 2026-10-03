@@ -40,7 +40,7 @@ import { fetchLedgerEntries } from '../services/accountingService';
 import { VoucherDoc, SectorItem, HotelStayItem, VoucherChargeItem } from '../types/voucher';
 import { fetchVouchers, createVoucher, cancelVoucher, markCommissionPaid } from '../services/voucherService';
 import { fetchVisas } from '../services/visaService';
-import { fetchHotels, fetchVehicles } from '../services/masterService';
+import { fetchHotels, fetchVehicles, fetchVendors } from '../services/masterService';
 import { fetchCustomers } from '../services/customerService';
 import { fetchAgents } from '../services/agentService';
 import { HotelDoc, VehicleDoc } from '../types/master';
@@ -83,6 +83,9 @@ export const VouchersPage: React.FC = () => {
   const [availableVisas, setAvailableVisas] = useState<any[]>([]);
   const [customersList, setCustomersList] = useState<CustomerDoc[]>([]);
   const [agentsList, setAgentsList] = useState<AgentDoc[]>([]);
+  const [vendorsMaster, setVendorsMaster] = useState<any[]>([]);
+
+  const [voucherShirkaId, setVoucherShirkaId] = useState<string>('');
 
   // Pilgrim picker (agent-wise, searchable, multi-select) — no link types
   const [selectedVisaIds, setSelectedVisaIds] = useState<string[]>([]);
@@ -104,6 +107,90 @@ export const VouchersPage: React.FC = () => {
   const [hotelStays, setHotelStays] = useState<HotelStayItem[]>([
     { city: 'Makkah', hotelName: '', checkInDate: new Date().toISOString().split('T')[0], checkOutDate: addDays(new Date().toISOString().split('T')[0], 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 0, totalSAR: 0 }
   ]);
+
+  // Compact hotel-stay entry modal (professional small box + description)
+  const [stayModalOpen, setStayModalOpen] = useState<boolean>(false);
+  const [editingStayIdx, setEditingStayIdx] = useState<number | null>(null);
+  const [dCity, setDCity] = useState<string>('Makkah');
+  const [dHotelName, setDHotelName] = useState<string>('');
+  const [dIsSelfHotel, setDIsSelfHotel] = useState<boolean>(false);
+  const [dBedType, setDBedType] = useState<HotelStayItem['bedType']>('Double');
+  const [dRate, setDRate] = useState<string>('');
+  const [dRoomCount, setDRoomCount] = useState<string>('1');
+  const [dCheckIn, setDCheckIn] = useState<string>('');
+  const [dNights, setDNights] = useState<string>('3');
+  const [dDescription, setDDescription] = useState<string>('');
+
+  const openStayModal = (idx: number | null) => {
+    if (idx === null) {
+      const lastStay = hotelStays[hotelStays.length - 1];
+      setDCheckIn(lastStay ? lastStay.checkOutDate : arrivalDate);
+      setDCity(lastStay ? lastStay.city : 'Makkah');
+      setDHotelName('');
+      setDIsSelfHotel(false);
+      setDBedType('Double');
+      setDRate('');
+      setDRoomCount('1');
+      setDNights('3');
+      setDDescription('');
+    } else {
+      const s = hotelStays[idx];
+      setDCity(s.city);
+      setDHotelName(s.hotelName);
+      setDIsSelfHotel(!!s.isSelfHotel);
+      setDBedType(s.bedType);
+      setDRate(s.ratePerNightSAR ? String(s.ratePerNightSAR) : '');
+      setDRoomCount(String(s.roomCount || 1));
+      setDCheckIn(s.checkInDate);
+      setDNights(String(s.nights || 0));
+      setDDescription(s.description || '');
+    }
+    setEditingStayIdx(idx);
+    setStayModalOpen(true);
+  };
+
+  const saveStayModal = () => {
+    const nights = Math.max(0, parseInt(dNights) || 0);
+    const rate = parseFloat(dRate) || 0;
+    const rooms = Math.max(1, parseInt(dRoomCount) || 1);
+    const checkIn = dCheckIn || arrivalDate;
+    const stay: HotelStayItem = {
+      city: dCity,
+      hotelName: dHotelName.trim(),
+      checkInDate: checkIn,
+      checkOutDate: addDays(checkIn, nights),
+      nights,
+      bedType: dBedType,
+      roomCount: rooms,
+      ratePerNightSAR: rate,
+      totalSAR: nights * rate * rooms,
+      isSelfHotel: dIsSelfHotel || undefined,
+      description: dDescription.trim() || undefined,
+    };
+    const updated = [...hotelStays];
+    if (editingStayIdx === null) {
+      updated.push(stay);
+    } else {
+      updated[editingStayIdx] = stay;
+    }
+    // Re-chain dates from the changed stay onward
+    const from = editingStayIdx === null ? updated.length - 1 : editingStayIdx;
+    for (let i = from + 1; i < updated.length; i++) {
+      updated[i].checkInDate = updated[i - 1].checkOutDate;
+      updated[i].checkOutDate = addDays(updated[i].checkInDate, updated[i].nights);
+    }
+    setHotelStays(updated);
+    setStayModalOpen(false);
+  };
+
+  const removeStay = (idx: number) => {
+    const updated = hotelStays.filter((_, i) => i !== idx);
+    for (let i = 0; i < updated.length; i++) {
+      updated[i].checkInDate = i === 0 ? arrivalDate : updated[i - 1].checkOutDate;
+      updated[i].checkOutDate = addDays(updated[i].checkInDate, updated[i].nights);
+    }
+    setHotelStays(updated);
+  };
 
   // Flight Details Section State
   const [allowFlightInfo, setAllowFlightInfo] = useState<boolean>(false);
@@ -163,7 +250,7 @@ export const VouchersPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [vList, visaList, hList, vList2, cList, aList, ledgerList] = await Promise.all([
+      const [vList, visaList, hList, vList2, cList, aList, ledgerList, vndList] = await Promise.all([
         fetchVouchers(),
         fetchVisas(),
         fetchHotels(),
@@ -171,6 +258,7 @@ export const VouchersPage: React.FC = () => {
         fetchCustomers(),
         fetchAgents(),
         fetchLedgerEntries(),
+        fetchVendors(),
       ]);
       setVouchers(vList);
       setAvailableVisas(visaList);
@@ -179,6 +267,7 @@ export const VouchersPage: React.FC = () => {
       setCustomersList(cList);
       setAgentsList(aList);
       setLedgerEntries(ledgerList);
+      setVendorsMaster(vndList || []);
     } catch {
       showError('Failed to load vouchers directory.');
     } finally {
@@ -253,6 +342,7 @@ export const VouchersPage: React.FC = () => {
 
   const openBuilder = () => {
     setBuilderStep(1);
+    setVoucherShirkaId('');
     setSelectedVisaIds([]);
     setPaxSearch('');
     setPaxAgentFilter('all');
@@ -355,6 +445,7 @@ export const VouchersPage: React.FC = () => {
         visaIds: selectedVisaIds,
         customerId: undefined,
         agentId: voucherAgentId,
+        shirkaVendorId: voucherShirkaId || undefined,
         status: 'Confirmed',
         passengers,
         sectors: sectorsWithTransport,
@@ -778,6 +869,23 @@ export const VouchersPage: React.FC = () => {
           {/* Step 1: Select Pilgrims — agent-wise, searchable, multi-select */}
           {builderStep === 1 && (
             <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+                <div className="sm:w-72">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Shirka <span className="text-slate-400 font-semibold normal-case">(kis shirka ka voucher bana hai)</span>
+                  </label>
+                  <select
+                    value={voucherShirkaId}
+                    onChange={(e) => setVoucherShirkaId(e.target.value)}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                  >
+                    <option value="">-- Select Shirka / Vendor --</option>
+                    {vendorsMaster.filter((v: any) => v.isActive !== false).map((v: any) => (
+                      <option key={v.id} value={v.id}>{v.name}{v.vendorCode ? ` (${v.vendorCode})` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <h4 className="font-bold text-slate-900 text-sm">Select Pilgrims</h4>
@@ -1199,213 +1307,161 @@ export const VouchersPage: React.FC = () => {
                 ))}
               </div>
 
-              {/* Accommodation section with smart date chaining and manual blank rate */}
-              <div className="space-y-3 pt-4 border-t border-slate-200">
+              {/* Accommodation stays — compact list + small professional entry modal */}
+              <div className="space-y-2 pt-4 border-t border-slate-200">
                 <h4 className="font-bold text-slate-900 text-sm flex items-center justify-between">
-                  <span>Accommodation Stays (Smart Chaining & Manual Rates)</span>
-                  <Button variant="outline" size="sm" onClick={() => {
-                    const lastStay = hotelStays[hotelStays.length - 1];
-                    const nextCheckIn = lastStay ? lastStay.checkOutDate : arrivalDate;
-                    const nextCheckOut = addDays(nextCheckIn, 3);
-                    setHotelStays([...hotelStays, { city: 'Madinah', hotelName: '', checkInDate: nextCheckIn, checkOutDate: nextCheckOut, nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 0, totalSAR: 0 }]);
-                  }}>
+                  <span>Accommodation Stays</span>
+                  <Button variant="outline" size="sm" onClick={() => openStayModal(null)}>
                     + Add Hotel Stay
                   </Button>
                 </h4>
-                {hotelStays.map((stay, idx) => (
-                  <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-[#0e2c4c]">Stay #{idx + 1} ({stay.city}) — Chained Stay</span>
-                      <button onClick={() => {
-                        const updated = hotelStays.filter((_, i) => i !== idx);
-                        for (let i = 0; i < updated.length; i++) {
-                          if (i === 0) {
-                            updated[i].checkInDate = arrivalDate;
-                          } else {
-                            updated[i].checkInDate = updated[i - 1].checkOutDate;
-                          }
-                          updated[i].checkOutDate = addDays(updated[i].checkInDate, updated[i].nights);
-                        }
-                        setHotelStays(updated);
-                      }} className="text-red-500 hover:text-red-700 font-semibold">Remove Stay</button>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">City</label>
-                        <select
-                          value={stay.city}
-                          onChange={(e) => {
-                            const updated = [...hotelStays];
-                            updated[idx].city = e.target.value as any;
-                            setHotelStays(updated);
-                          }}
-                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs"
-                        >
-                          <option value="Makkah">Makkah</option>
-                          <option value="Madinah">Madinah</option>
-                          <option value="Jeddah">Jeddah</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Hotel Name</label>
-                        {isAgent ? (
-                          <div>
-                            <label className="flex items-center gap-2 mb-1.5 text-[11px] font-semibold text-slate-700 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={!!stay.isSelfHotel}
-                                onChange={(e) => {
-                                  const updated = [...hotelStays];
-                                  updated[idx].isSelfHotel = e.target.checked;
-                                  setHotelStays(updated);
-                                }}
-                                className="w-4 h-4 accent-[#0e2c4c]"
-                              />
-                              Self Hotel (I arranged it myself)
-                            </label>
-                            <input
-                              type="text"
-                              value={stay.hotelName}
-                              onChange={(e) => {
-                                const updated = [...hotelStays];
-                                updated[idx].hotelName = e.target.value;
-                                setHotelStays(updated);
-                              }}
-                              placeholder={stay.isSelfHotel ? "Enter your hotel name..." : "Enter hotel name..."}
-                              className="w-full p-2 bg-white border border-slate-300 rounded text-xs"
-                            />
+                {hotelStays.length === 0 ? (
+                  <div className="text-xs text-slate-500 bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4 text-center">
+                    No hotel stays added yet. Click "+ Add Hotel Stay".
+                  </div>
+                ) : (
+                  <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
+                    {hotelStays.map((stay, idx) => (
+                      <div key={idx} className="px-3 py-2.5 bg-white flex items-center gap-3 text-xs hover:bg-slate-50">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-slate-900 truncate">
+                            {stay.hotelName || <span className="text-slate-400 font-semibold">Unnamed hotel</span>}
+                            <span className="ml-2 font-semibold text-slate-500">({stay.city})</span>
                           </div>
-                        ) : (
-                          <select
-                            value={stay.hotelName}
-                            onChange={(e) => {
-                              const hName = e.target.value;
-                              const updated = [...hotelStays];
-                              updated[idx].hotelName = hName;
-                              setHotelStays(updated);
-                            }}
-                            className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-semibold"
+                          <div className="text-slate-500 truncate">
+                            {stay.checkInDate} → {stay.checkOutDate} • {stay.nights}n • {stay.bedType} • {stay.roomCount} room(s)
+                            {stay.ratePerNightSAR > 0 ? ` • SAR ${stay.ratePerNightSAR}/night` : ' • rate not set'}
+                            {stay.description ? ` • ${stay.description}` : ''}
+                          </div>
+                        </div>
+                        <span className="font-mono font-bold text-[#0e2c4c] whitespace-nowrap">SAR {(stay.totalSAR || 0).toLocaleString()}</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => openStayModal(idx)}
+                            className="px-2 py-1 text-[11px] font-bold text-[#0e2c4c] bg-slate-100 hover:bg-slate-200 rounded"
                           >
-                            <option value="">-- Choose Hotel from Master --</option>
-                            {hotelsMaster.filter(h => h.city.toLowerCase() === stay.city.toLowerCase()).map(h => (
-                              <option key={h.id} value={h.name}>
-                                {h.name} {h.availabilityNote ? `(${h.availabilityNote})` : ''} - {h.starRating}★
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Bed Type</label>
-                        <select
-                          value={stay.bedType || 'Double'}
-                          onChange={(e) => {
-                            const updated = [...hotelStays];
-                            updated[idx].bedType = e.target.value as any;
-                            setHotelStays(updated);
-                          }}
-                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-semibold"
-                        >
-                          <option value="Double">Double Bed</option>
-                          <option value="Triple">Triple Bed</option>
-                          <option value="Sharing">Sharing Bed</option>
-                          <option value="Room">Room</option>
-                          <option value="Quad">Quad Bed</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Rate per Night (SAR)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="10"
-                          value={stay.ratePerNightSAR || ''}
-                          onChange={(e) => {
-                            const r = parseFloat(e.target.value) || 0;
-                            const updated = [...hotelStays];
-                            updated[idx].ratePerNightSAR = r;
-                            updated[idx].totalSAR = r * updated[idx].nights * updated[idx].roomCount;
-                            setHotelStays(updated);
-                          }}
-                          placeholder={isAgent ? "Staff will add the charge" : "Type rate manually..."}
-                          disabled={isAgent}
-                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-[#0e2c4c] disabled:bg-slate-100 disabled:text-slate-400"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Check-In Date</label>
-                        <input
-                          type="date"
-                          value={stay.checkInDate}
-                          onChange={(e) => {
-                            const newIn = e.target.value;
-                            const updated = [...hotelStays];
-                            updated[idx].checkInDate = newIn;
-                            updated[idx].checkOutDate = addDays(newIn, updated[idx].nights);
-                            for (let i = idx + 1; i < updated.length; i++) {
-                              updated[i].checkInDate = updated[i - 1].checkOutDate;
-                              updated[i].checkOutDate = addDays(updated[i].checkInDate, updated[i].nights);
-                            }
-                            setHotelStays(updated);
-                          }}
-                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Nights</label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={stay.nights || ''}
-                          placeholder="0"
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            const n = raw === '' ? 0 : Math.max(0, parseInt(raw) || 0);
-                            const updated = [...hotelStays];
-                            updated[idx].nights = n;
-                            updated[idx].checkOutDate = addDays(updated[idx].checkInDate, n);
-                            updated[idx].totalSAR = n * updated[idx].ratePerNightSAR * updated[idx].roomCount;
-                            for (let i = idx + 1; i < updated.length; i++) {
-                              updated[i].checkInDate = updated[i - 1].checkOutDate;
-                              updated[i].checkOutDate = addDays(updated[i].checkInDate, updated[i].nights);
-                            }
-                            setHotelStays(updated);
-                          }}
-                          className="w-full p-2 bg-white border border-slate-300 rounded text-xs font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Check-Out & Total</label>
-                        <div className="flex gap-1">
-                          <input
-                            type="date"
-                            value={stay.checkOutDate}
-                            onChange={(e) => {
-                              const newOut = e.target.value;
-                              const updated = [...hotelStays];
-                              updated[idx].checkOutDate = newOut;
-                              const d1 = new Date(updated[idx].checkInDate);
-                              const d2 = new Date(newOut);
-                              const diffDays = Math.max(1, Math.round((d2.getTime() - d1.getTime()) / (1000 * 3600 * 24)));
-                              updated[idx].nights = diffDays;
-                              updated[idx].totalSAR = diffDays * updated[idx].ratePerNightSAR * updated[idx].roomCount;
-                              for (let i = idx + 1; i < updated.length; i++) {
-                                updated[i].checkInDate = updated[i - 1].checkOutDate;
-                                updated[i].checkOutDate = addDays(updated[i].checkInDate, updated[i].nights);
-                              }
-                              setHotelStays(updated);
-                            }}
-                            className="w-3/5 p-2 bg-white border border-slate-300 rounded text-xs font-mono text-rose-600 font-bold"
-                          />
-                          <span className="w-2/5 p-2 bg-slate-100 rounded text-xs font-mono font-bold text-[#0e2c4c] flex items-center justify-center">
-                            SAR {stay.totalSAR}
-                          </span>
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeStay(idx)}
+                            className="px-2 py-1 text-[11px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded"
+                          >
+                            Remove
+                          </button>
                         </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
+
+              {/* Compact hotel stay entry modal */}
+              <Modal
+                isOpen={stayModalOpen}
+                onClose={() => setStayModalOpen(false)}
+                title={editingStayIdx === null ? 'Add Hotel Stay' : 'Edit Hotel Stay'}
+                subtitle="Compact charge entry — all fields on one small card"
+                size="sm"
+                footer={
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => setStayModalOpen(false)}>Cancel</Button>
+                    <Button size="sm" onClick={saveStayModal} disabled={!dHotelName.trim()}>
+                      {editingStayIdx === null ? 'Add Stay' : 'Save Changes'}
+                    </Button>
+                  </>
+                }
+              >
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">City</label>
+                    <select value={dCity} onChange={(e) => setDCity(e.target.value)} className="w-full p-2 bg-white border border-slate-300 rounded-lg">
+                      <option value="Makkah">Makkah</option>
+                      <option value="Madinah">Madinah</option>
+                      <option value="Jeddah">Jeddah</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Bed Type</label>
+                    <select value={dBedType} onChange={(e) => setDBedType(e.target.value as any)} className="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold">
+                      <option value="Double">Double Bed</option>
+                      <option value="Triple">Triple Bed</option>
+                      <option value="Sharing">Sharing Bed</option>
+                      <option value="Room">Room</option>
+                      <option value="Quad">Quad Bed</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Hotel</label>
+                    {isAgent ? (
+                      <div className="space-y-1.5">
+                        <label className="flex items-center gap-2 text-[11px] font-semibold text-slate-700 cursor-pointer">
+                          <input type="checkbox" checked={dIsSelfHotel} onChange={(e) => setDIsSelfHotel(e.target.checked)} className="w-4 h-4 accent-[#0e2c4c]" />
+                          Self Hotel (I arranged it myself)
+                        </label>
+                        <input
+                          type="text"
+                          value={dHotelName}
+                          onChange={(e) => setDHotelName(e.target.value)}
+                          placeholder={dIsSelfHotel ? 'Enter your hotel name...' : 'Enter hotel name...'}
+                          className="w-full p-2 bg-white border border-slate-300 rounded-lg"
+                        />
+                      </div>
+                    ) : (
+                      <select value={dHotelName} onChange={(e) => setDHotelName(e.target.value)} className="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold">
+                        <option value="">-- Choose Hotel from Master --</option>
+                        {hotelsMaster.filter((h) => h.city.toLowerCase() === dCity.toLowerCase()).map((h) => (
+                          <option key={h.id} value={h.name}>
+                            {h.name}{h.availabilityNote ? ` (${h.availabilityNote})` : ''} — {h.starRating}★
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Rate / Night (SAR)</label>
+                    <input
+                      type="number" min="0" step="10"
+                      value={dRate}
+                      onChange={(e) => setDRate(e.target.value)}
+                      placeholder={isAgent ? 'Staff will add' : 'Type rate...'}
+                      disabled={isAgent}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-[#0e2c4c] disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Rooms</label>
+                    <input type="number" min="1" value={dRoomCount} onChange={(e) => setDRoomCount(e.target.value)} className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Check-In</label>
+                    <input type="date" value={dCheckIn} onChange={(e) => setDCheckIn(e.target.value)} className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Nights</label>
+                    <input type="number" min="0" value={dNights} onChange={(e) => setDNights(e.target.value)} placeholder="0" className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono" />
+                  </div>
+                  <div className="col-span-2 flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                    <span className="text-[11px] font-semibold text-slate-500">
+                      Check-out: <span className="font-mono font-bold text-slate-700">{dCheckIn ? addDays(dCheckIn, Math.max(0, parseInt(dNights) || 0)) : '—'}</span>
+                    </span>
+                    <span className="text-sm font-mono font-bold text-[#0e2c4c]">
+                      SAR {((Math.max(0, parseInt(dNights) || 0)) * (parseFloat(dRate) || 0) * (Math.max(1, parseInt(dRoomCount) || 1))).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">Description <span className="text-slate-400 font-normal">(optional note — shows on voucher & ledger)</span></label>
+                    <textarea
+                      value={dDescription}
+                      onChange={(e) => setDDescription(e.target.value)}
+                      rows={2}
+                      placeholder="e.g. 2 rooms near Haram gate, breakfast included..."
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg resize-none"
+                    />
+                  </div>
+                </div>
+              </Modal>
             </div>
           )}
 
@@ -1565,6 +1621,11 @@ export const VouchersPage: React.FC = () => {
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-sky-100 text-sky-800 text-[11px] font-bold">
                 Visa-linked: {(selectedVoucher.visaIds || []).length} visas
               </span>
+              {(selectedVoucher as any).shirkaVendorId && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold">
+                  Shirka: {vendorsMaster.find((v: any) => v.id === (selectedVoucher as any).shirkaVendorId)?.name || (selectedVoucher as any).shirkaVendorId}
+                </span>
+              )}
               {selectedVoucher.linkType === 'agent' && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 text-[11px] font-bold">
                   Agent: {agentsList.find(a => a.id === selectedVoucher.agentId)?.companyName || selectedVoucher.agentId}

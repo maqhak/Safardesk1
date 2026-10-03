@@ -219,14 +219,27 @@ export const HotelsPage: React.FC = () => {
     }
   };
 
+  // One-time idempotent seed: skips hotels whose name+city already exist (no duplicates ever)
   const handleSeedFullInventory = async () => {
     if (!userProfile) return;
     setSeeding(true);
     try {
+      const existing = await fetchHotels();
+      const seen = new Set(existing.map((h) => `${h.name.trim().toLowerCase()}|${(h.city || '').trim().toLowerCase()}`));
+      let added = 0;
+      let skipped = 0;
       for (const item of INITIAL_HOTELS_SEED) {
+        const key = `${item.name.trim().toLowerCase()}|${(item.city || '').trim().toLowerCase()}`;
+        if (seen.has(key)) { skipped++; continue; }
         await createHotel(userProfile, item as any);
+        seen.add(key);
+        added++;
       }
-      success(`Successfully seeded full Makkah & Madinah hotel inventory.`);
+      if (added > 0) {
+        success(`Seeded ${added} hotels${skipped > 0 ? ` (${skipped} already existed — skipped)` : ''}. Now link each hotel to its vendor from Edit.`);
+      } else {
+        info(`All ${INITIAL_HOTELS_SEED.length} hotels already exist — nothing to seed. No duplicates created.`);
+      }
       await loadData();
     } catch (err: any) {
       showError('Failed to seed inventory.');
@@ -238,12 +251,11 @@ export const HotelsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Contracted Hotels Directory & Rates"
-        subtitle="Manage Makkah and Madinah hotel properties, Shirka supplier links, bed type nightly rates, and live availability."
+        title="Hotel Inventory"
+        subtitle="Makkah & Madinah hotel inventory — link each hotel to its Shirka/vendor, set contracted bed rates, track availability."
         breadcrumbs={[
           { label: 'Dashboard', href: '/' },
-          { label: 'Masters', href: '/masters' },
-          { label: 'Hotels' }
+          { label: 'Inventory' }
         ]}
         actions={
           <div className="flex items-center gap-2">

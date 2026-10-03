@@ -21,6 +21,8 @@ import { BalancesSummaryPage } from './pages/BalancesSummaryPage';
 import { DayBookPage } from './pages/DayBookPage';
 import { JournalVouchersPage } from './pages/JournalVouchersPage';
 import { MastersPage } from './pages/MastersPage';
+import { VendorsPage } from './pages/VendorsPage';
+import { HotelsPage } from './pages/HotelsPage';
 import { AgentsPage } from './pages/AgentsPage';
 import { AirlinesPage } from './pages/AirlinesPage';
 import { ExchangeRatesPage } from './pages/ExchangeRatesPage';
@@ -175,6 +177,22 @@ export default function App() {
                   element={
                     <ProtectedRoute requiredModule="Accounts">
                       <JournalVouchersPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/vendors"
+                  element={
+                    <ProtectedRoute requiredModule="Masters">
+                      <VendorsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/inventory"
+                  element={
+                    <ProtectedRoute requiredModule="Masters">
+                      <HotelsPage />
                     </ProtectedRoute>
                   }
                 />

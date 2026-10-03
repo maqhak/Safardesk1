@@ -644,6 +644,58 @@ export async function approvePaymentReceipt(paymentId: string, ownerName: string
 }
 
 /**
+ * Replace the receipt attached to a payment (Owner/Staff).
+ * The old receipt is discarded; AI verification + Drive sync restart for the new file.
+ */
+export async function updatePaymentReceipt(
+  paymentId: string,
+  receipt: { receiptFile: string; receiptFileName?: string; receiptFileType?: 'image' | 'pdf' },
+  actorName: string
+): Promise<PaymentDoc> {
+  if (!receipt.receiptFile || !receipt.receiptFile.trim()) {
+    throw new Error('A replacement receipt file is required.');
+  }
+  const currentPayments = await fetchPayments();
+  const idx = currentPayments.findIndex((p) => p.id === paymentId);
+  if (idx === -1) {
+    throw new Error('Payment not found');
+  }
+  if (currentPayments[idx].isVoid) {
+    throw new Error('Cannot replace the receipt of a voided payment.');
+  }
+
+  const now = new Date().toISOString();
+  const updated: PaymentDoc = {
+    ...currentPayments[idx],
+    receiptFile: receipt.receiptFile,
+    receiptFileName: receipt.receiptFileName || currentPayments[idx].receiptFileName,
+    receiptFileType: receipt.receiptFileType || currentPayments[idx].receiptFileType,
+    // Restart verification + Drive sync for the new file
+    aiStatus: 'Needs Review',
+    aiNotes: `Receipt replaced by ${actorName} on ${now.split('T')[0]} — re-verification pending.`,
+    needsOwnerReview: true,
+    ownerApproved: false,
+    driveSyncStatus: 'pending',
+    driveFileId: null,
+    webViewLink: null,
+    driveError: null,
+  };
+
+  currentPayments[idx] = updated;
+  localStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(currentPayments));
+
+  try {
+    if (!isConfigPlaceholder) {
+      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), updated);
+    }
+  } catch (err) {
+    console.warn('Could not update payment receipt in Firestore:', err);
+  }
+
+  return updated;
+}
+
+/**
  * Void a payment (Owner only). Reverses/voids ledger entries and marks payment as voided.
  */
 export async function voidPayment(

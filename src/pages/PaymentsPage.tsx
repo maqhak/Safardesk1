@@ -59,6 +59,7 @@ import {
   processReceiptFile,
   retryDriveUploadForPayment,
   approvePaymentReceipt,
+  updatePaymentReceipt,
   saveBank,} from '../services/paymentService';
 import { fetchLedgerAccounts,
   saveLedgerAccount,} from '../services/accountingService';
@@ -116,6 +117,8 @@ export const PaymentsPage: React.FC = () => {
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
   // Receipt Viewer Modal
+  const [replacingId, setReplacingId] = useState<string | null>(null);
+  const replaceFileRef = React.useRef<HTMLInputElement>(null);
   const [viewerReceiptUrl, setViewerReceiptUrl] = useState<string | null>(null);
   const [viewerFileName, setViewerFileName] = useState<string>('');
   const [viewerFileType, setViewerFileType] = useState<'image' | 'pdf'>('image');
@@ -257,6 +260,29 @@ export const PaymentsPage: React.FC = () => {
       setReceiptDataUrl('');
     } finally {
       setIsProcessingFile(false);
+    }
+  };
+
+  const handleReplaceReceipt = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (replacingId) e.target.value = '';
+    if (!file || !replacingId) return;
+    const pid = replacingId;
+    setReplacingId(null);
+    try {
+      const processed = await processReceiptFile(file);
+      if (!window.confirm(`Replace the receipt for this payment with "${processed.fileName}"? The old receipt will be discarded and AI verification will restart.`)) {
+        return;
+      }
+      await updatePaymentReceipt(pid, {
+        receiptFile: processed.dataUrl,
+        receiptFileName: processed.fileName,
+        receiptFileType: processed.fileType,
+      }, userProfile?.name || userProfile?.email || 'Staff');
+      success('Receipt replaced. AI verification restarted for the new file.');
+      await loadData();
+    } catch (err: any) {
+      showError(err.message || 'Failed to replace receipt.');
     }
   };
 
@@ -1007,6 +1033,20 @@ export const PaymentsPage: React.FC = () => {
                             <Eye className="w-3 h-3 text-[#c9a227]" />
                             <span>View</span>
                           </button>
+                          {!isAgent && !p.isVoid && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReplacingId(p.id);
+                                setTimeout(() => replaceFileRef.current?.click(), 50);
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 rounded font-semibold text-[11px] cursor-pointer transition"
+                              title="Replace this receipt with a new file"
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                              <span>Replace</span>
+                            </button>
+                          )}
 
                           {/* Drive status badge & Retry action */}
                           {p.driveSyncStatus === 'synced' && p.webViewLink ? (
@@ -1060,6 +1100,15 @@ export const PaymentsPage: React.FC = () => {
           </table>
         </div>
       </Card>
+
+      {/* Hidden input for receipt replacement */}
+      <input
+        ref={replaceFileRef}
+        type="file"
+        accept="image/*,application/pdf"
+        className="hidden"
+        onChange={handleReplaceReceipt}
+      />
 
       {/* Receipt Viewer Modal with Drive Link & AI Verification */}
       <ReceiptViewerModal

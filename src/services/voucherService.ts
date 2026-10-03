@@ -197,7 +197,7 @@ async function postVoucherToLedger(actor: UserProfile, voucher: VoucherDoc): Pro
       date,
       entryType: 'Voucher Charge',
       transNo: voucher.voucherNo,
-      particulars: `Hotel: ${stay.city} - ${stay.hotelName} (${stay.nights}n, ${stay.bedType} bed)`,
+      particulars: `Hotel: ${stay.city} - ${stay.hotelName} (${stay.nights}n, ${stay.bedType} bed)${(stay as any).description ? ` — ${(stay as any).description}` : ''}`,
       voucherNo: voucher.voucherNo,
       rate,
       debitAccountId: receivableId,

@@ -32,6 +32,7 @@ export interface HotelStayItem {
   ratePerNightSAR: number;
   totalSAR: number;
   isSelfHotel?: boolean; // For agents
+  description?: string; // Free-text note for the charge (shows on voucher + ledger)
 }
 
 export interface FlightBlockInfo {
@@ -72,6 +73,7 @@ export interface VoucherDoc {
   visaIds: string[];
   customerId?: string;
   agentId?: string;
+  shirkaVendorId?: string; // Which Shirka/vendor this voucher was made for
   status: 'Draft' | 'Confirmed' | 'Cancelled';
   passengers: PassengerSnapshot[];
   sectors: SectorItem[];
