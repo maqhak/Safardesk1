@@ -959,15 +959,22 @@ function ledgerDownloadName(statement: LedgerStatementSummary, ext: string): str
 
 function statementTableRows(statement: LedgerStatementSummary): Array<Array<string | number>> {
   const c = statement.currency;
+  const showRate = c === 'PKR'; // exchange rate shown only in PKR ledger/entries
   const rows: Array<Array<string | number>> = [];
-  rows.push(['S#', 'Date', 'Inv/Vou', 'Description', 'PNR / Passport', 'Ticket # / Group', 'Sector', `Debit (${c})`, `Credit (${c})`, `Balance (${c})`]);
-  rows.push(['', '—', '—', 'Previous Balance (B/F)', '', '', '', 0, 0, Number(statement.previousBalance.toFixed(2))]);
+  const header: Array<string | number> = ['S#', 'Date', 'Inv/Vou', 'Description', 'PNR / Passport', 'Ticket # / Group', 'Sector'];
+  if (showRate) header.push('Rate (1 SAR = PKR)');
+  header.push(`Debit (${c})`, `Credit (${c})`, `Balance (${c})`);
+  rows.push(header);
+  const opening: Array<string | number> = ['', '—', '—', 'Previous Balance (B/F)', '', '', ''];
+  if (showRate) opening.push('');
+  opening.push(0, 0, Number(statement.previousBalance.toFixed(2)));
+  rows.push(opening);
   statement.rows.forEach((r, i) => {
     const e = r.entry;
     const s = toSampleLedgerRow(e.particulars, e.invoiceRef, e.transNo, (e as any).voucherNo);
     const debit = c === 'SAR' ? e.debitSAR : e.debitPKR;
     const credit = c === 'SAR' ? e.creditSAR : e.creditPKR;
-    rows.push([
+    const row: Array<string | number> = [
       i + 1,
       fmtDateDMY(e.date),
       s.invVou || '—',
@@ -975,10 +982,14 @@ function statementTableRows(statement: LedgerStatementSummary): Array<Array<stri
       s.pnr,
       s.ticketNo,
       s.sector,
+    ];
+    if (showRate) row.push(Number(e.rate.toFixed(2)));
+    row.push(
       Number(debit.toFixed(2)),
       Number(credit.toFixed(2)),
       Number(r.runningBalance.toFixed(2)),
-    ]);
+    );
+    rows.push(row);
   });
   return rows;
 }
@@ -997,8 +1008,10 @@ export function exportLedgerToExcel(statement: LedgerStatementSummary, companyNa
     [`Statement Period: ${statement.periodLabel}`, `Generated: ${new Date().toLocaleString()}`],
     [],
   ];
-  const ws = XLSX.utils.aoa_to_sheet([...header, ...statementTableRows(statement)]);
-  ws['!cols'] = [{ wch: 5 }, { wch: 12 }, { wch: 12 }, { wch: 55 }, { wch: 14 }, { wch: 26 }, { wch: 14 }, { wch: 13 }, { wch: 13 }, { wch: 16 }];
+  const tableRows = statementTableRows(statement);
+  const ws = XLSX.utils.aoa_to_sheet([...header, ...tableRows]);
+  const colCount = (tableRows[0] || []).length;
+  ws['!cols'] = [{ wch: 5 }, { wch: 12 }, { wch: 12 }, { wch: 55 }, { wch: 14 }, { wch: 26 }, { wch: 14 }, { wch: 10 }, { wch: 13 }, { wch: 13 }, { wch: 16 }].slice(0, colCount);
   const footerRow = header.length + statementTableRows(statement).length + 2;
   const footer = [
     [`SUMMARY & TOTALS (${c})`],

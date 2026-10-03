@@ -742,7 +742,8 @@ export const AccountsPage: React.FC = () => {
               <Badge variant="navy">{selectedAccount?.accountCode}</Badge>
             </h4>
             <p className="text-[11px] text-slate-500">
-              Showing statement in <strong>{currency}</strong>. Rate column reflects exchange rate applied.
+              Showing statement in <strong>{currency}</strong>
+              {currency === 'PKR' ? ' — Rate column shows the SAR→PKR exchange rate applied per entry.' : ' — clean SAR amounts.'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -762,7 +763,7 @@ export const AccountsPage: React.FC = () => {
                 <th className="py-3 px-3">Trans.#</th>
                 <th className="py-3 px-3">Particulars</th>
                 <th className="py-3 px-3">Inv-Ref</th>
-                <th className="py-3 px-3">Rate</th>
+                {currency === 'PKR' && <th className="py-3 px-3">Rate</th>}
                 <th className="py-3 px-3 text-right">Debit ({currency})</th>
                 <th className="py-3 px-3 text-right">Credit ({currency})</th>
                 <th className="py-3 px-3 text-right">Balance ({currency})</th>
@@ -783,7 +784,7 @@ export const AccountsPage: React.FC = () => {
                   Previous Balance (B/F)
                 </td>
                 <td className="py-2.5 px-3 text-slate-400">—</td>
-                <td className="py-2.5 px-3 text-slate-400 font-mono">—</td>
+                {currency === 'PKR' && <td className="py-2.5 px-3 text-slate-400 font-mono">—</td>}
                 <td className="py-2.5 px-3 text-right text-slate-400 font-mono">0.00</td>
                 <td className="py-2.5 px-3 text-right text-slate-400 font-mono">0.00</td>
                 <td className="py-2.5 px-3 text-right font-mono font-bold text-[#0e2c4c]">
@@ -795,7 +796,7 @@ export const AccountsPage: React.FC = () => {
               {/* Data Rows */}
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-500">
+                  <td colSpan={currency === 'PKR' ? 10 : 9} className="py-12 text-center text-slate-500">
                     Loading ledger statement...
                   </td>
                 </tr>
@@ -926,9 +927,11 @@ export const AccountsPage: React.FC = () => {
                           e.invoiceRef || '—'
                         )}
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">
-                        {row.formattedRate}
-                      </td>
+                      {currency === 'PKR' && (
+                        <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">
+                          {row.formattedRate}
+                        </td>
+                      )}
                       <td className="py-2.5 px-3 text-right font-mono font-semibold whitespace-nowrap">
                         {debit > 0 ? (
                           <span className={isVoid ? 'text-slate-400' : 'text-slate-900'}>

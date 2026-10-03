@@ -74,6 +74,7 @@ export const TicketsPage: React.FC = () => {
   const [supplierName, setSupplierName] = useState<string>('Saudia GDS Direct');
   const [purchaseCost, setPurchaseCost] = useState<string>('');
   const [salePrice, setSalePrice] = useState<string>('');
+  const [salePricePKR, setSalePricePKR] = useState<string>('');
   const [buyerType, setBuyerType] = useState<'customer' | 'agent'>('customer');
   const [buyerId, setBuyerId] = useState<string>('');
   const [passengers, setPassengers] = useState<TicketPassenger[]>([
@@ -128,17 +129,24 @@ export const TicketsPage: React.FC = () => {
     e.preventDefault();
     if (!userProfile) return;
 
-    if (!pnr.trim() || !airline || !sectorFrom || !sectorTo || !purchaseCost || !salePrice) {
-      showError('Please complete all required fields (PNR, Airline, Sectors, Cost, Sale).');
+    if (!pnr.trim() || !airline || !sectorFrom || !sectorTo || !purchaseCost || !salePricePKR) {
+      showError('Please complete all required fields (PNR, Airline, Sectors, Cost, Sale PKR).');
       return;
     }
 
     const costNum = parseFloat(purchaseCost);
-    const saleNum = parseFloat(salePrice);
-    if (isNaN(costNum) || isNaN(saleNum) || costNum < 0 || saleNum < 0) {
+    const pkrNum = parseFloat(salePricePKR);
+    const rateNum = parseFloat(String(exchangeRate));
+    if (isNaN(costNum) || isNaN(pkrNum) || costNum < 0 || pkrNum < 0) {
       showError('Please enter valid purchase and sale prices.');
       return;
     }
+    if (isNaN(rateNum) || rateNum <= 0) {
+      showError('Please enter a valid exchange rate (1 SAR = ? PKR).');
+      return;
+    }
+    // Sale entered in PKR + exchange rate → SAR for the ledger
+    const saleNum = Math.round((pkrNum / rateNum) * 100) / 100;
 
     const buyerObj = buyerType === 'customer' 
       ? customers.find((c) => c.id === buyerId) 
@@ -173,6 +181,7 @@ export const TicketsPage: React.FC = () => {
       setFlightNo('');
       setPurchaseCost('');
       setSalePrice('');
+      setSalePricePKR('');
       setPassengers([{ name: '', passportNumber: '', ageType: 'Adult', ticketNo: '' }]);
       await loadData();
     } catch (err: any) {
@@ -514,23 +523,43 @@ export const TicketsPage: React.FC = () => {
                 required
               />
             </div>
-            <div>
-              <Input
-                label="Sale Price (SAR)"
-                type="number"
-                step="0.01"
-                placeholder="e.g. 1750"
-                value={salePrice}
-                onChange={(e) => setSalePrice(e.target.value)}
-                required
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Input
+                  label="Sale Price (PKR)"
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 150000"
+                  value={salePricePKR}
+                  onChange={(e) => setSalePricePKR(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <Input
+                  label="Exchange Rate (1 SAR = PKR)"
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 74.5"
+                  value={String(exchangeRate)}
+                  onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 0)}
+                  required
+                />
+              </div>
             </div>
           </div>
 
-          {purchaseCost && salePrice && (
+          {salePricePKR && parseFloat(String(exchangeRate)) > 0 && (
+            <div className="p-3 bg-sky-50 border border-sky-200 rounded-lg text-xs font-semibold text-sky-800 flex items-center justify-between">
+              <span>Sale in SAR (posts to ledger):</span>
+              <span className="font-mono text-sm">SAR {(parseFloat(salePricePKR) / parseFloat(String(exchangeRate))).toFixed(2)}</span>
+            </div>
+          )}
+
+          {purchaseCost && salePricePKR && parseFloat(String(exchangeRate)) > 0 && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800 flex items-center justify-between">
               <span>Calculated Agency Margin:</span>
-              <span className="font-mono text-sm">SAR {(parseFloat(salePrice) - parseFloat(purchaseCost)).toFixed(2)}</span>
+              <span className="font-mono text-sm">SAR {(parseFloat(salePricePKR) / parseFloat(String(exchangeRate)) - parseFloat(purchaseCost)).toFixed(2)}</span>
             </div>
           )}
 
