@@ -70,6 +70,7 @@ export async function getNextInvoiceNumber(): Promise<string> {
 
 export async function createVisaDistributionBatch(params: {
   vendorId: string;
+  shirkaId?: string;
   agentGroupMap: Map<string, {
     agentId: string;
     sellingPricePerVisa: number;
@@ -112,6 +113,15 @@ export async function createVisaDistributionBatch(params: {
 
   const distribId = `distrib-${Date.now()}`;
   const distribNo = `DIST-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  // Resolve Shirka display name for stamping
+  let shirkaName = '';
+  try {
+    const { fetchVendors } = await import('./masterService');
+    const vnd = (await fetchVendors()).find((v: any) => v.id === params.vendorId);
+    const shk = (vnd?.shirkas || []).find((s: any) => s.id === params.shirkaId);
+    shirkaName = shk?.name || '';
+  } catch { /* best-effort */ }
 
   // Group distributions by agentId
   const agentBatches = new Map<string, {
@@ -188,6 +198,9 @@ export async function createVisaDistributionBatch(params: {
             status: 'Distributed',
             agentId: batch.agentId,
             distributionId: distribId,
+            vendorId: params.vendorId,
+            shirkaId: params.shirkaId || undefined,
+            shirkaName: shirkaName || undefined,
           } as any;
         }
       });
@@ -280,7 +293,7 @@ export async function createVisaDistributionBatch(params: {
       accountId: params.vendorId,
       entryType: 'Invoice',
       transNo: invoiceNo,
-      particulars: `Visa Purchase Cost for Invoice #${invoiceNo} (${batch.totalVisas} Visas)`,
+      particulars: `Visa Purchase Cost for Invoice #${invoiceNo} (${batch.totalVisas} Visas)${shirkaName ? ` — ${shirkaName}` : ''}`,
       invoiceRef: invoiceNo,
       rate: exchangeRate,
       debitSAR: 0,
@@ -322,6 +335,7 @@ export async function createVisaDistributionBatch(params: {
     id: distribId,
     distributionNo: distribNo,
     vendorId: params.vendorId,
+    shirkaId: params.shirkaId || undefined,
     buyingPricePerVisa: totalVisasAll > 0 ? Math.round((totalBuyingAll / totalVisasAll) * 100) / 100 : 0,
     groups: createdGroups,
     totalVisas: totalVisasAll,

@@ -12,6 +12,7 @@ export interface VisaDistributionDoc {
   id: string;
   distributionNo: string;
   vendorId: string;
+  shirkaId?: string; // Sub-Shirka of the vendor (empty = vendor itself)
   buyingPricePerVisa: number;
   groups: DistributionGroupLine[];
   totalVisas: number;

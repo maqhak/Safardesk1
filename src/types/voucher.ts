@@ -74,7 +74,9 @@ export interface VoucherDoc {
   visaIds: string[];
   customerId?: string;
   agentId?: string;
-  shirkaVendorId?: string; // Which Shirka/vendor this voucher was made for
+  shirkaVendorId?: string; // Which vendor company this voucher was made for
+  shirkaId?: string; // Which sub-Shirka (empty = vendor company itself)
+  shirkaName?: string; // Denormalized Shirka display name
   status: 'Draft' | 'Confirmed' | 'Cancelled';
   passengers: PassengerSnapshot[];
   sectors: SectorItem[];
@@ -103,6 +105,8 @@ export interface VoucherEditPayload {
   visaIds: string[];
   agentId?: string;
   shirkaVendorId?: string;
+  shirkaId?: string;
+  shirkaName?: string;
   passengers: PassengerSnapshot[];
   sectors: SectorItem[];
   hotelStays: HotelStayItem[];

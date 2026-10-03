@@ -23,7 +23,7 @@ import { CurrencyAmount } from '../components/ui/CurrencyAmount';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
-import { VendorDoc } from '../types/master';
+import { VendorDoc, ShirkaUnit } from '../types/master';
 import { LedgerAccountDoc } from '../types/agent';
 import { 
   fetchVendors, 
@@ -69,6 +69,10 @@ export const VendorsPage: React.FC = () => {
   const [editMobile, setEditMobile] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [editShirkas, setEditShirkas] = useState<ShirkaUnit[]>([]);
+  const [newShirkaName, setNewShirkaName] = useState('');
+  const [newShirkaOperator, setNewShirkaOperator] = useState('');
+  const [newShirkaMobile, setNewShirkaMobile] = useState('');
   const [editing, setEditing] = useState<boolean>(false);
 
   // View Ledger Modal
@@ -147,6 +151,8 @@ export const VendorsPage: React.FC = () => {
     setEditMobile(v.mobile);
     setEditEmail(v.email);
     setEditNotes(v.notes);
+    setEditShirkas((v.shirkas || []).map((s) => ({ ...s })));
+    setNewShirkaName(''); setNewShirkaOperator(''); setNewShirkaMobile('');
     setEditModalOpen(true);
   };
 
@@ -164,6 +170,7 @@ export const VendorsPage: React.FC = () => {
         mobile: editMobile,
         email: editEmail,
         notes: editNotes,
+        shirkas: editShirkas,
       });
 
       success(`Vendor ${targetVendor.vendorCode} updated successfully.`);
@@ -280,7 +287,12 @@ export const VendorsPage: React.FC = () => {
                     </td>
                     <td className="py-3.5 px-4">
                       <span className="font-semibold text-slate-900 block">{v.name}</span>
-                      <span className="text-xs text-slate-400 font-mono">{v.email}</span>
+                      {(v.shirkas || []).length > 0 && (
+                        <span className="text-[10px] font-bold text-[#0e2c4c] bg-[#0e2c4c]/10 px-1.5 py-0.5 rounded">
+                          {(v.shirkas || []).length} Shirka{(v.shirkas || []).length > 1 ? 's' : ''}: {(v.shirkas || []).map((s) => s.name).join(', ')}
+                        </span>
+                      )}
+                      <span className="text-xs text-slate-400 font-mono block">{v.email}</span>
                     </td>
                     <td className="py-3.5 px-4 text-xs">
                       <span className="font-medium text-slate-800 block">{v.contactPerson}</span>
@@ -457,6 +469,65 @@ export const VendorsPage: React.FC = () => {
               value={editEmail}
               onChange={(e) => setEditEmail(e.target.value)}
             />
+          </div>
+          {/* Sub-Shirkas under this company — one ledger for the company, Shirkas tracked separately */}
+          <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/60">
+            <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">Shirkas under this company</div>
+            <p className="text-[11px] text-slate-500 mb-2">One company can run several Shirkas (A, B, C). Ledger stays one for the company — each Shirka is tracked separately by name and operator.</p>
+            {editShirkas.length === 0 && (
+              <div className="text-[11px] text-slate-400 italic mb-2">No sub-Shirkas — the company itself acts as the Shirka.</div>
+            )}
+            <div className="space-y-1.5 mb-2">
+              {editShirkas.map((s) => (
+                <div key={s.id} className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-slate-900 truncate">{s.name}</div>
+                    <div className="text-slate-500 truncate">Run by: {s.operatorName}{s.operatorMobile ? ` • ${s.operatorMobile}` : ''}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditShirkas(editShirkas.filter((x) => x.id !== s.id))}
+                    className="text-red-500 hover:text-red-700 font-semibold shrink-0"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <input
+                value={newShirkaName}
+                onChange={(e) => setNewShirkaName(e.target.value)}
+                placeholder="Shirka name (e.g. Shirka A)"
+                className="px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg"
+              />
+              <input
+                value={newShirkaOperator}
+                onChange={(e) => setNewShirkaOperator(e.target.value)}
+                placeholder="Run by (operator name)"
+                className="px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg"
+              />
+              <div className="flex gap-2">
+                <input
+                  value={newShirkaMobile}
+                  onChange={(e) => setNewShirkaMobile(e.target.value)}
+                  placeholder="Operator mobile"
+                  className="flex-1 min-w-0 px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (!newShirkaName.trim() || !newShirkaOperator.trim()) { showError('Enter Shirka name and who runs it.'); return; }
+                    setEditShirkas([...editShirkas, { id: `sh-${Date.now()}`, name: newShirkaName.trim(), operatorName: newShirkaOperator.trim(), operatorMobile: newShirkaMobile.trim() || undefined, isActive: true }]);
+                    setNewShirkaName(''); setNewShirkaOperator(''); setNewShirkaMobile('');
+                  }}
+                >
+                  + Add
+                </Button>
+              </div>
+            </div>
           </div>
         </form>
       </Modal>

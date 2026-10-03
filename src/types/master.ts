@@ -1,13 +1,26 @@
+// A sub-Shirka operating under one vendor company.
+// One vendor company can run several Shirkas (A, B, C): ledger stays ONE
+// for the vendor, but each Shirka is tracked separately (name + who runs it).
+export interface ShirkaUnit {
+  id: string;
+  name: string; // e.g. "Shirka A"
+  operatorName: string; // kon chala rha hai — person running this Shirka
+  operatorMobile?: string;
+  notes?: string;
+  isActive?: boolean;
+}
+
 export interface VendorDoc {
   id: string;
   vendorCode: string; // e.g. "VND-001"
-  name: string; // Shirka / Vendor name
+  name: string; // Shirka / Vendor company name
   country: string;
   city: string;
   contactPerson: string;
   mobile: string;
   email: string;
   notes: string;
+  shirkas?: ShirkaUnit[]; // Sub-Shirkas under this company (empty = the company itself is the Shirka)
   isActive: boolean;
   createdAt: string;
   createdBy: string;

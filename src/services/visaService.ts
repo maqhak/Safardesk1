@@ -87,6 +87,9 @@ export interface VisaDoc {
   dateSource?: 'original' | 'auto';
   agentId?: string;
   status: 'Distributed' | 'Pending' | 'Approved';
+  vendorId?: string; // Vendor company the visa was bought from
+  shirkaId?: string; // Sub-Shirka (empty = vendor company itself)
+  shirkaName?: string; // Denormalized Shirka display name
   createdAt: string;
   isDuplicate?: boolean;
   skipImport?: boolean;

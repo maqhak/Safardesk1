@@ -214,6 +214,9 @@ export const VoucherPrintDocument: React.FC<{
 
           <div className="fsv-metabar">
             <div><span className="fsv-lbl">VOUCHER NO.</span><span className="fsv-val">{voucher.voucherNo}</span></div>
+            {((voucher as any).shirkaName || (voucher as any).shirkaVendorId) && (
+              <div style={{ justifyContent: 'center' }}><span className="fsv-lbl">SHIRKA</span><span className="fsv-val">{(voucher as any).shirkaName || (voucher as any).shirkaVendorId}</span></div>
+            )}
             <div style={{ justifyContent: 'flex-end' }}><span className="fsv-lbl">DATE CREATED</span><span className="fsv-val">{createdStr}</span></div>
           </div>
 

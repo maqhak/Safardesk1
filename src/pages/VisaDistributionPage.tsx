@@ -72,6 +72,7 @@ export const VisaDistributionPage: React.FC = () => {
 
   // Batch header fields
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
+  const [selectedShirkaId, setSelectedShirkaId] = useState<string>('');
   const [distributionDate, setDistributionDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   // Per group distribution mapping
@@ -306,6 +307,7 @@ export const VisaDistributionPage: React.FC = () => {
 
       await createVisaDistributionBatch({
         vendorId: selectedVendorId,
+        shirkaId: selectedShirkaId || undefined,
         agentGroupMap,
         date: distributionDate,
         createdBy: userProfile?.name || 'Operator',
@@ -358,7 +360,7 @@ export const VisaDistributionPage: React.FC = () => {
             </label>
             <select
               value={selectedVendorId}
-              onChange={(e) => setSelectedVendorId(e.target.value)}
+              onChange={(e) => { setSelectedVendorId(e.target.value); setSelectedShirkaId(''); }}
               required
               className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none"
             >
@@ -366,6 +368,24 @@ export const VisaDistributionPage: React.FC = () => {
               {vendors.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name} ({v.city}, {v.country})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Shirka <span className="text-slate-400 font-semibold normal-case">(under this company)</span>
+            </label>
+            <select
+              value={selectedShirkaId}
+              onChange={(e) => setSelectedShirkaId(e.target.value)}
+              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none"
+            >
+              <option value="">-- Company itself (no sub-Shirka) --</option>
+              {(vendors.find((v) => v.id === selectedVendorId)?.shirkas || []).filter((s) => s.isActive !== false).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} — run by {s.operatorName}
                 </option>
               ))}
             </select>
