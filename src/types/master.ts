@@ -39,7 +39,7 @@ export interface HotelDoc {
 
 export interface VehicleDoc {
   id: string;
-  vehicleType: 'Car' | 'Staria' | 'Hiace' | 'Coaster' | 'Bus';
+  vehicleType: 'Car' | 'Staria' | 'Hiace' | 'Coaster' | 'Bus' | 'GMC';
   seatCount: number;
   referenceRateSAR: number;
   description: string;

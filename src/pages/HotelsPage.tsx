@@ -29,7 +29,8 @@ import { HotelDoc, VendorDoc, RoomTypeRate } from '../types/master';
 import { fetchHotels, createHotel, updateHotel, toggleHotelStatus, deleteOrDeactivateHotel, fetchVendors } from '../services/masterService';
 import { MAKKAH_HOTELS_SEED, MADINAH_HOTELS_SEED } from '../data/hotels';
 
-export const HotelsPage: React.FC = () => {
+export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lockedCity }) => {
+  const cityLabel = lockedCity === 'Madinah' ? 'Madina' : (lockedCity || '');
   const { userProfile, role } = useAuth();
   const { success, error: showError, info } = useToast();
   const isOwner = role === 'owner';
@@ -42,7 +43,7 @@ export const HotelsPage: React.FC = () => {
 
   // Filter states
   const [search, setSearch] = useState<string>('');
-  const [cityFilter, setCityFilter] = useState<string>('Makkah');
+  const [cityFilter, setCityFilter] = useState<string>(lockedCity || 'Makkah');
 
   // Add/Edit Modal
   const [modalOpen, setModalOpen] = useState<boolean>(false);
@@ -254,32 +255,37 @@ export const HotelsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Hotel Inventory"
-        subtitle="Makkah & Madinah hotel inventory — link each hotel to its Shirka/vendor, set contracted bed rates, track availability."
+        title={lockedCity ? `${cityLabel} Hotels` : 'Hotel Inventory'}
+        subtitle={lockedCity ? `${cityLabel} hotel inventory — seed ${cityLabel} hotels, link each hotel to its Shirka/vendor, set contracted bed rates.` : 'Makkah & Madinah hotel inventory — link each hotel to its Shirka/vendor, set contracted bed rates, track availability.'}
         breadcrumbs={[
           { label: 'Dashboard', href: '/' },
-          { label: 'Inventory' }
+          { label: 'Inventory', href: '/inventory' },
+          ...(lockedCity ? [{ label: `${cityLabel} Hotels` }] : [{ label: 'Hotels' }]),
         ]}
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
-              onClick={() => handleSeedCity('Makkah')}
-              loading={seeding}
-            >
-              Seed Makkah Hotels
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
-              onClick={() => handleSeedCity('Madinah')}
-              loading={seeding}
-            >
-              Seed Madina Hotels
-            </Button>
+            {(!lockedCity || lockedCity === 'Makkah') && (
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
+                onClick={() => handleSeedCity('Makkah')}
+                loading={seeding}
+              >
+                Seed Makkah Hotels
+              </Button>
+            )}
+            {(!lockedCity || lockedCity === 'Madinah') && (
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
+                onClick={() => handleSeedCity('Madinah')}
+                loading={seeding}
+              >
+                Seed Madina Hotels
+              </Button>
+            )}
             {canCreate && (
               <Button
                 variant="primary"
@@ -310,15 +316,21 @@ export const HotelsPage: React.FC = () => {
           </div>
 
           <div>
-            <select
-              value={cityFilter}
-              onChange={(e) => setCityFilter(e.target.value)}
-              className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none"
-            >
-              <option value="Makkah">Makkah Hotels ({hotels.filter(h => h.city.toLowerCase() === 'makkah').length})</option>
-              <option value="Madinah">Madina Hotels ({hotels.filter(h => h.city.toLowerCase() === 'madinah').length})</option>
-              <option value="Other">Other Cities ({hotels.filter(h => !['makkah', 'madinah'].includes(h.city.toLowerCase())).length})</option>
-            </select>
+            {lockedCity ? (
+              <div className="w-full p-2 bg-[#0e2c4c] text-white rounded-lg text-xs font-bold text-center">
+                {cityLabel} Hotels ({hotels.filter(h => h.city.toLowerCase() === lockedCity.toLowerCase()).length})
+              </div>
+            ) : (
+              <select
+                value={cityFilter}
+                onChange={(e) => setCityFilter(e.target.value)}
+                className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none"
+              >
+                <option value="Makkah">Makkah Hotels ({hotels.filter(h => h.city.toLowerCase() === 'makkah').length})</option>
+                <option value="Madinah">Madina Hotels ({hotels.filter(h => h.city.toLowerCase() === 'madinah').length})</option>
+                <option value="Other">Other Cities ({hotels.filter(h => !['makkah', 'madinah'].includes(h.city.toLowerCase())).length})</option>
+              </select>
+            )}
           </div>
         </div>
       </Card>

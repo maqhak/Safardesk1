@@ -1264,6 +1264,7 @@ export const VouchersPage: React.FC = () => {
                           <option value="Hiace">Hiace (12 Seater High Roof)</option>
                           <option value="Coaster">Toyota Coaster Bus</option>
                           <option value="Bus">49-Seater Luxury Bus</option>
+                          <option value="GMC">GMC (VIP SUV)</option>
                         </select>
                         {isAgent && (
                           <label className="flex items-center gap-2 mt-2 text-[11px] font-semibold text-slate-700 cursor-pointer">

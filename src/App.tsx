@@ -23,6 +23,7 @@ import { JournalVouchersPage } from './pages/JournalVouchersPage';
 import { MastersPage } from './pages/MastersPage';
 import { VendorsPage } from './pages/VendorsPage';
 import { HotelsPage } from './pages/HotelsPage';
+import { VehiclesPage } from './pages/VehiclesPage';
 import { AgentsPage } from './pages/AgentsPage';
 import { AirlinesPage } from './pages/AirlinesPage';
 import { ExchangeRatesPage } from './pages/ExchangeRatesPage';
@@ -190,9 +191,29 @@ export default function App() {
                 />
                 <Route
                   path="/inventory"
+                  element={<Navigate to="/inventory/makkah" replace />}
+                />
+                <Route
+                  path="/inventory/makkah"
                   element={
                     <ProtectedRoute requiredModule="Masters">
-                      <HotelsPage />
+                      <HotelsPage lockedCity="Makkah" />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/inventory/madina"
+                  element={
+                    <ProtectedRoute requiredModule="Masters">
+                      <HotelsPage lockedCity="Madinah" />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/inventory/transport"
+                  element={
+                    <ProtectedRoute requiredModule="Masters">
+                      <VehiclesPage />
                     </ProtectedRoute>
                   }
                 />

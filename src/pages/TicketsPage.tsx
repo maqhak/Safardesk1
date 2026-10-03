@@ -310,16 +310,6 @@ export const TicketsPage: React.FC = () => {
                 Flight Manifest
               </button>
             </div>
-            {role !== 'agent' && (
-              <Button
-                variant="outline"
-                size="sm"
-                leftIcon={<Compass className="w-4 h-4 text-[#0e2c4c]" />}
-                onClick={() => navigate('/tickets/movement-reports')}
-              >
-                Movement Reports
-              </Button>
-            )}
             {canCreate && (
               <Button
                 variant="primary"

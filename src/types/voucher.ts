@@ -15,7 +15,7 @@ export interface SectorItem {
   airline?: AirlineDoc | null;
   flightNo?: string;
   time?: string;
-  vehicleType?: 'Car' | 'Staria' | 'Hiace' | 'Coaster' | 'Bus';
+  vehicleType?: 'Car' | 'Staria' | 'Hiace' | 'Coaster' | 'Bus' | 'GMC';
   isSelfGari?: boolean; // For agents
   transportRateSAR?: number;
 }

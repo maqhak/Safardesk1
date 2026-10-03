@@ -25,7 +25,7 @@ import { VehiclesPage } from './VehiclesPage';
 import { INITIAL_AIRLINES } from '../data/airlines';
 import { AIRPORTS_DATA } from '../data/airports';
 
-type MasterTab = 'agents' | 'airlines' | 'airports' | 'vehicles';
+type MasterTab = 'agents' | 'airlines' | 'airports';
 
 export const MastersPage: React.FC = () => {
   const { info, success } = useToast();
@@ -39,7 +39,7 @@ export const MastersPage: React.FC = () => {
 
     { key: 'airports', label: 'Airports & Reference', icon: MapPin, count: AIRPORTS_DATA.length },
 
-    { key: 'vehicles', label: 'Vehicles & Transport', icon: Bus, count: 5 },
+
   ];
 
   const renderQaBanner = () => (
@@ -118,21 +118,6 @@ export const MastersPage: React.FC = () => {
         {renderQaBanner()}
         {renderTabsBar()}
         <AgentsPage />
-      </div>
-    );
-  }
-
-  if (activeTab === 'vehicles') {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Master Records & Directories"
-          subtitle="Manage foundational business master data: sub-agents, contracted hotel inventory, airline codes, and service suppliers."
-          breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
-        />
-        {renderQaBanner()}
-        {renderTabsBar()}
-        <VehiclesPage />
       </div>
     );
   }

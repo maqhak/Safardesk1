@@ -64,7 +64,14 @@ const ALL_NAV_ITEMS: NavItem[] = [
     ],
   },
   { name: 'Vendors', path: '/vendors', module: 'Masters', icon: Briefcase },
-  { name: 'Inventory', path: '/inventory', module: 'Masters', icon: Database },
+  {
+    name: 'Inventory', path: '/inventory', module: 'Masters', icon: Database,
+    children: [
+      { name: 'Makkah Hotels', path: '/inventory/makkah', module: 'Masters' },
+      { name: 'Madina Hotels', path: '/inventory/madina', module: 'Masters' },
+      { name: 'Transport', path: '/inventory/transport', module: 'Masters' },
+    ],
+  },
   { name: 'Visas', path: '/visas', module: 'Visas', icon: FileCheck },
   { name: 'Customers', path: '/customers', module: 'Visas', icon: UsersIcon },
   { name: 'Vouchers', path: '/vouchers', module: 'Vouchers', icon: Building },

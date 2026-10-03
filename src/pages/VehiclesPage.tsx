@@ -34,7 +34,7 @@ export const VehiclesPage: React.FC = () => {
   const [editingVehicle, setEditingVehicle] = useState<VehicleDoc | null>(null);
 
   // Form State
-  const [vehicleType, setVehicleType] = useState<'Car' | 'Staria' | 'Hiace' | 'Coaster' | 'Bus'>('Car');
+  const [vehicleType, setVehicleType] = useState<'Car' | 'Staria' | 'Hiace' | 'Coaster' | 'Bus' | 'GMC'>('Car');
   const [seatCount, setSeatCount] = useState<number>(4);
   const [referenceRateSAR, setReferenceRateSAR] = useState<number>(250);
   const [description, setDescription] = useState('');
@@ -275,6 +275,7 @@ export const VehiclesPage: React.FC = () => {
               <option value="Hiace">Hiace (High Roof)</option>
               <option value="Coaster">Coaster (AC Bus)</option>
               <option value="Bus">Bus (49-Seater Luxury)</option>
+              <option value="GMC">GMC (VIP SUV)</option>
             </select>
           </div>
 
