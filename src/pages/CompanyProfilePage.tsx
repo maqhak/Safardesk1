@@ -459,6 +459,37 @@ export const CompanyProfilePage: React.FC = () => {
                   />
                 </div>
 
+                {/* Default KSA ground staff — prefilled on every new voucher, changeable per voucher */}
+                <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-3">
+                  <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wide">Default KSA Ground Staff Contacts</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      label="Makkah Staff Name"
+                      value={formData.makkahStaffName}
+                      onChange={(e) => handleInputChange('makkahStaffName', e.target.value)}
+                      placeholder="e.g. Ahmed Khan"
+                    />
+                    <Input
+                      label="Makkah Staff Mobile"
+                      value={formData.makkahStaffPhone}
+                      onChange={(e) => handleInputChange('makkahStaffPhone', e.target.value)}
+                      placeholder="e.g. +966 5X XXX XXXX"
+                    />
+                    <Input
+                      label="Madina Staff Name"
+                      value={formData.madinaStaffName}
+                      onChange={(e) => handleInputChange('madinaStaffName', e.target.value)}
+                      placeholder="e.g. Bilal Ahmed"
+                    />
+                    <Input
+                      label="Madina Staff Mobile"
+                      value={formData.madinaStaffPhone}
+                      onChange={(e) => handleInputChange('madinaStaffPhone', e.target.value)}
+                      placeholder="e.g. +966 5X XXX XXXX"
+                    />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
                     label="Official Operations Email"

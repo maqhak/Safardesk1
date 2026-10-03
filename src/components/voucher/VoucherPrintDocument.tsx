@@ -318,8 +318,8 @@ export const VoucherPrintDocument: React.FC<{
           </div>
 
           <div className="fsv-contact">
-            <div><span className="fsv-k">MAKKAH STAFF<br /><span className="fsv-v">{company.mobile || company.phone || '—'}</span></span></div>
-            <div><span className="fsv-k">MADINA STAFF<br /><span className="fsv-v">{company.phone || '—'}</span></span></div>
+            <div><span className="fsv-k">MAKKAH STAFF{voucher.makkahStaffName ? ` — ${voucher.makkahStaffName}` : ''}<br /><span className="fsv-v">{voucher.makkahStaffPhone || company.makkahStaffPhone || company.mobile || company.phone || '—'}</span></span></div>
+            <div><span className="fsv-k">MADINA STAFF{voucher.madinaStaffName ? ` — ${voucher.madinaStaffName}` : ''}<br /><span className="fsv-v">{voucher.madinaStaffPhone || company.madinaStaffPhone || company.phone || '—'}</span></span></div>
             <div style={{ justifyContent: 'center' }}>
               {company.stampUrl ? (
                 <img src={company.stampUrl} alt="Company stamp" className="fsv-stampimg" />

@@ -119,8 +119,14 @@ export async function createVoucher(
   const voucherId = `vch-${Date.now()}`;
   const exchangeRate = getCurrentRate('SAR-PKR');
 
+  // Approval workflow: owner vouchers auto-confirm; staff/agent vouchers
+  // need owner approval before ledger posting.
+  const initialStatus: VoucherDoc['status'] =
+    actor.role === 'owner' ? 'Confirmed' : 'Pending Approval';
+
   const newVoucher: VoucherDoc = {
     ...data,
+    status: initialStatus,
     id: voucherId,
     voucherNo,
     totals: {
@@ -244,6 +250,98 @@ export async function postVoucherToLedger(actor: UserProfile, voucher: VoucherDo
   }
 }
 
+
+/**
+ * Owner approves a pending voucher — status becomes Confirmed and
+ * charges post to the ledger at approval time (not at creation).
+ */
+export async function approveVoucher(actor: UserProfile, voucherId: string): Promise<void> {
+  if (actor.role !== 'owner') {
+    throw new Error('Only the Owner can approve vouchers.');
+  }
+  const vouchers = await fetchVouchers();
+  const index = vouchers.findIndex((v) => v.id === voucherId);
+  if (index === -1) throw new Error('Voucher not found.');
+  const voucher = vouchers[index];
+  if (voucher.status !== 'Pending Approval' && voucher.status !== 'Draft') {
+    throw new Error('Only pending/draft vouchers can be approved.');
+  }
+  const updated = {
+    ...voucher,
+    status: 'Confirmed' as const,
+    approvedBy: actor.uid,
+    approvedByName: actor.name || actor.email,
+    approvedAt: new Date().toISOString(),
+  };
+  vouchers[index] = updated;
+  try {
+    if (!isConfigPlaceholder) {
+      await setDoc(doc(db, VOUCHERS_COLLECTION, voucherId), updated);
+    }
+  } catch (err) {
+    console.warn('Firestore write failed for voucher approval:', err);
+  }
+  localStorage.setItem(LOCAL_STORAGE_VOUCHERS_KEY, JSON.stringify(vouchers));
+
+  // Post charges to ledger now that the voucher is confirmed
+  await postVoucherToLedger(actor, updated);
+
+  await logAuditEvent({
+    action: 'VOUCHER_APPROVED',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: voucherId,
+    targetUserName: voucher.voucherNo,
+    details: { totalSAR: voucher.totals.totalSAR },
+  });
+}
+
+/**
+ * Owner disapproves (sends back) a pending voucher — returns to Draft
+ * so the creator can fix and resubmit. Nothing posts to the ledger.
+ */
+export async function disapproveVoucher(actor: UserProfile, voucherId: string, note?: string): Promise<void> {
+  if (actor.role !== 'owner') {
+    throw new Error('Only the Owner can disapprove vouchers.');
+  }
+  const vouchers = await fetchVouchers();
+  const index = vouchers.findIndex((v) => v.id === voucherId);
+  if (index === -1) throw new Error('Voucher not found.');
+  const voucher = vouchers[index];
+  if (voucher.status !== 'Pending Approval' && voucher.status !== 'Draft') {
+    throw new Error('Only pending/draft vouchers can be disapproved.');
+  }
+  const updated = {
+    ...voucher,
+    status: 'Draft' as const,
+    disapprovedBy: actor.uid,
+    disapprovedByName: actor.name || actor.email,
+    disapprovedAt: new Date().toISOString(),
+    disapprovalNote: note?.trim() || '',
+  };
+  vouchers[index] = updated;
+  try {
+    if (!isConfigPlaceholder) {
+      await setDoc(doc(db, VOUCHERS_COLLECTION, voucherId), updated);
+    }
+  } catch (err) {
+    console.warn('Firestore write failed for voucher disapproval:', err);
+  }
+  localStorage.setItem(LOCAL_STORAGE_VOUCHERS_KEY, JSON.stringify(vouchers));
+
+  await logAuditEvent({
+    action: 'VOUCHER_DISAPPROVED',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: voucherId,
+    targetUserName: voucher.voucherNo,
+    details: { note: note?.trim() || '' },
+  });
+}
 
 export async function cancelVoucher(actor: UserProfile, voucherId: string): Promise<void> {
   if (actor.role !== 'owner' && actor.role !== 'staff') {

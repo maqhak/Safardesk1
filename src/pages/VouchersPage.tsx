@@ -38,7 +38,7 @@ import { useDeepOpen } from '../hooks/useDeepOpen';
 import * as XLSX from 'xlsx';
 import { fetchLedgerEntries } from '../services/accountingService';
 import { VoucherDoc, SectorItem, HotelStayItem, VoucherChargeItem, VoucherEditPayload, VoucherEditRequest } from '../types/voucher';
-import { fetchVouchers, createVoucher, cancelVoucher, markCommissionPaid } from '../services/voucherService';
+import { fetchVouchers, createVoucher, cancelVoucher, markCommissionPaid, approveVoucher, disapproveVoucher } from '../services/voucherService';
 import { fetchVisas } from '../services/visaService';
 import { fetchHotels, fetchVehicles, fetchVendors } from '../services/masterService';
 import {
@@ -125,6 +125,12 @@ export const VouchersPage: React.FC = () => {
   const [hotelStays, setHotelStays] = useState<HotelStayItem[]>([
     { city: 'Makkah', hotelName: '', checkInDate: new Date().toISOString().split('T')[0], checkOutDate: addDays(new Date().toISOString().split('T')[0], 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 0, totalSAR: 0 }
   ]);
+
+  // KSA ground staff contacts — editable per voucher, prefilled from company defaults
+  const [makkahStaffName, setMakkahStaffName] = useState('');
+  const [makkahStaffPhone, setMakkahStaffPhone] = useState('');
+  const [madinaStaffName, setMadinaStaffName] = useState('');
+  const [madinaStaffPhone, setMadinaStaffPhone] = useState('');
 
   // Compact hotel-stay entry modal (professional small box + description)
   const [stayModalOpen, setStayModalOpen] = useState<boolean>(false);
@@ -400,6 +406,10 @@ export const VouchersPage: React.FC = () => {
     setCommissionName('');
     setCommissionContact('');
     setCommissionAmount('');
+    setMakkahStaffName(company?.makkahStaffName || '');
+    setMakkahStaffPhone(company?.makkahStaffPhone || '');
+    setMadinaStaffName(company?.madinaStaffName || '');
+    setMadinaStaffPhone(company?.madinaStaffPhone || '');
     setBuilderOpen(true);
   };
 
@@ -419,6 +429,10 @@ export const VouchersPage: React.FC = () => {
     setVoucherShirkaId((v as any).shirkaId || '');
     setArrivalDate(v.sectors?.[0]?.date || new Date().toISOString().split('T')[0]);
     setSectors(JSON.parse(JSON.stringify(v.sectors || [])));
+    setMakkahStaffName(v.makkahStaffName || company?.makkahStaffName || '');
+    setMakkahStaffPhone(v.makkahStaffPhone || company?.makkahStaffPhone || '');
+    setMadinaStaffName(v.madinaStaffName || company?.madinaStaffName || '');
+    setMadinaStaffPhone(v.madinaStaffPhone || company?.madinaStaffPhone || '');
     setHotelStays(JSON.parse(JSON.stringify(v.hotelStays || [])));
     setAllowFlightInfo(!!fd?.allowFlightInfo);
     setDepAirline(fd?.departureFlight?.airline || null);
@@ -638,6 +652,10 @@ export const VouchersPage: React.FC = () => {
           totalPKR: payload.totals.totalPKR,
         },
         commission: payload.commission,
+        makkahStaffName: makkahStaffName.trim() || undefined,
+        makkahStaffPhone: makkahStaffPhone.trim() || undefined,
+        madinaStaffName: madinaStaffName.trim() || undefined,
+        madinaStaffPhone: madinaStaffPhone.trim() || undefined,
       });
 
       success('Unified trip voucher created successfully and posted to ledger.');
@@ -727,7 +745,7 @@ export const VouchersPage: React.FC = () => {
   };
 
   const downloadVerificationList = (kind: 'created' | 'pending') => {
-    let list = vouchers.filter(v => kind === 'created' ? v.status === 'Confirmed' : v.status === 'Draft');
+    let list = vouchers.filter(v => kind === 'created' ? v.status === 'Confirmed' : (v.status === 'Draft' || v.status === 'Pending Approval'));
     if (isAgent && userProfile?.agentId) list = list.filter(v => v.agentId === userProfile.agentId);
     const rows: Record<string, string>[] = [];
     list.forEach(v => {
@@ -830,7 +848,7 @@ export const VouchersPage: React.FC = () => {
       key: 'status',
       header: 'Status',
       render: (row) => (
-        <Badge variant={row.status === 'Confirmed' ? 'success' : row.status === 'Cancelled' ? 'danger' : 'gold'}>
+        <Badge variant={row.status === 'Confirmed' ? 'success' : row.status === 'Cancelled' ? 'danger' : row.status === 'Pending Approval' ? 'warning' : 'gold'}>
           {row.status}
         </Badge>
       ),
@@ -847,6 +865,37 @@ export const VouchersPage: React.FC = () => {
           >
             View Itinerary
           </Button>
+          {isOwner && row.status === 'Pending Approval' && (
+            <>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await approveVoucher(userProfile!, row.id);
+                    success(`Voucher ${row.voucherNo} approved & posted to ledger.`);
+                    await loadData();
+                  } catch (e: any) { showError(e.message); }
+                }}
+              >
+                Approve
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  const note = prompt('Disapproval note for the creator (optional):') || '';
+                  try {
+                    await disapproveVoucher(userProfile!, row.id, note);
+                    info(`Voucher ${row.voucherNo} sent back to draft.`);
+                    await loadData();
+                  } catch (e: any) { showError(e.message); }
+                }}
+              >
+                Disapprove
+              </Button>
+            </>
+          )}
           {isOwner && row.status !== 'Cancelled' && (
             <Button
               variant="danger"
@@ -1040,6 +1089,7 @@ export const VouchersPage: React.FC = () => {
             >
               <option value="all">All Statuses</option>
               <option value="Confirmed">Confirmed</option>
+              <option value="Pending Approval">Pending Approval</option>
               <option value="Draft">Draft</option>
               <option value="Cancelled">Cancelled</option>
             </select>
@@ -1819,6 +1869,27 @@ export const VouchersPage: React.FC = () => {
             </div>
           )}
 
+              {/* KSA Ground Staff Contacts — editable per voucher, prefilled from Company Profile defaults */}
+              <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">📞</span>
+                  <h5 className="font-bold text-slate-900 text-xs uppercase tracking-wide">KSA Ground Staff Contacts</h5>
+                  <span className="text-[10px] text-slate-500">(changeable per voucher — prints on the voucher)</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 bg-white border border-emerald-200 rounded-lg space-y-2">
+                    <p className="text-[11px] font-bold text-emerald-800 uppercase">Makkah Staff</p>
+                    <Input label="Name" placeholder="e.g. Ahmed Khan" value={makkahStaffName} onChange={(e) => setMakkahStaffName(e.target.value)} />
+                    <Input label="Mobile Number" placeholder="e.g. +966 5X XXX XXXX" value={makkahStaffPhone} onChange={(e) => setMakkahStaffPhone(e.target.value)} />
+                  </div>
+                  <div className="p-3 bg-white border border-emerald-200 rounded-lg space-y-2">
+                    <p className="text-[11px] font-bold text-emerald-800 uppercase">Madina Staff</p>
+                    <Input label="Name" placeholder="e.g. Bilal Ahmed" value={madinaStaffName} onChange={(e) => setMadinaStaffName(e.target.value)} />
+                    <Input label="Mobile Number" placeholder="e.g. +966 5X XXX XXXX" value={madinaStaffPhone} onChange={(e) => setMadinaStaffPhone(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
           {/* Step 4: Review Summary */}
           {builderStep === 4 && (
             <div className="space-y-4 text-xs">
@@ -1985,6 +2056,42 @@ export const VouchersPage: React.FC = () => {
                 <Button variant="primary" onClick={() => window.print()} rightIcon={<Printer className="w-3.5 h-3.5" />}>
                   Print Voucher
                 </Button>
+                {isOwner && selectedVoucher.status === 'Pending Approval' && (
+                  <>
+                    <Button
+                      variant="primary"
+                      onClick={async () => {
+                        try {
+                          await approveVoucher(userProfile!, selectedVoucher.id);
+                          success(`Voucher ${selectedVoucher.voucherNo} approved & posted to ledger.`);
+                          setDetailModalOpen(false);
+                          await loadData();
+                        } catch (e: any) { showError(e.message); }
+                      }}
+                    >
+                      Approve Voucher
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        const note = prompt('Disapproval note for the creator (optional):') || '';
+                        try {
+                          await disapproveVoucher(userProfile!, selectedVoucher.id, note);
+                          info(`Voucher ${selectedVoucher.voucherNo} sent back to draft.`);
+                          setDetailModalOpen(false);
+                          await loadData();
+                        } catch (e: any) { showError(e.message); }
+                      }}
+                    >
+                      Disapprove
+                    </Button>
+                  </>
+                )}
+                {selectedVoucher.disapprovalNote && (
+                  <span className="inline-flex items-center px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-800 text-[11px] font-bold border border-amber-300" title={selectedVoucher.disapprovalNote}>
+                    Sent back: {selectedVoucher.disapprovalNote.slice(0, 60)}{selectedVoucher.disapprovalNote.length > 60 ? '…' : ''}
+                  </span>
+                )}
                 {selectedVoucher.status !== 'Cancelled' && !editRequests.some((r) => r.voucherId === selectedVoucher.id && r.status === 'pending') && (
                   <Button
                     variant="outline"

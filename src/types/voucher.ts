@@ -81,7 +81,14 @@ export interface VoucherDoc {
   makkahStaffPhone?: string;
   madinaStaffName?: string;
   madinaStaffPhone?: string;
-  status: 'Draft' | 'Confirmed' | 'Cancelled';
+  status: 'Draft' | 'Pending Approval' | 'Confirmed' | 'Cancelled';
+  approvedBy?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+  disapprovedBy?: string;
+  disapprovedByName?: string;
+  disapprovedAt?: string;
+  disapprovalNote?: string;
   passengers: PassengerSnapshot[];
   sectors: SectorItem[];
   hotelStays: HotelStayItem[];
