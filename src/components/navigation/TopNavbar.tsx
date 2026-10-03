@@ -286,81 +286,7 @@ export const TopNavbar: React.FC = () => {
               </NavLink>
             </div>
 
-            {/* CENTER: Horizontal Menu Items (Filtered by Role & Permissions) */}
-            <nav className="hidden lg:flex items-center gap-1">
-              {visibleNavItems.map((item) => {
-                const childActive = item.children?.some((c) =>
-                  c.path === '/accounts'
-                    ? location.pathname === '/accounts'
-                    : location.pathname.startsWith(c.path)
-                );
-                const itemActive = childActive || (item.path === '/' ? location.pathname === '/' : (!item.children && location.pathname.startsWith(item.path)));
-                if (!item.children) {
-                  return (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      className={() =>
-                        `relative px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 flex items-center gap-1.5 ${
-                          itemActive
-                            ? 'bg-white/15 text-white shadow-inner font-semibold'
-                            : 'text-slate-200 hover:text-white hover:bg-white/10'
-                        }`
-                      }
-                    >
-                      <span>{item.name}</span>
-                      {itemActive && (
-                        <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-[#c9a227] rounded-full" />
-                      )}
-                    </NavLink>
-                  );
-                }
-                return (
-                  <div key={item.path} className="relative group">
-                    <button
-                      type="button"
-                      onClick={() => navigate(item.path)}
-                      className={`relative px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 flex items-center gap-1 cursor-pointer ${
-                        itemActive
-                          ? 'bg-white/15 text-white shadow-inner font-semibold'
-                          : 'text-slate-200 hover:text-white hover:bg-white/10'
-                      }`}
-                    >
-                      <span>{item.name}</span>
-                      <ChevronDown className="w-3.5 h-3.5 opacity-70" />
-                      {itemActive && (
-                        <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-[#c9a227] rounded-full" />
-                      )}
-                    </button>
-                    <div className="absolute left-0 top-full pt-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-50">
-                      <div className="min-w-[190px] bg-[#0a223c] border border-white/10 rounded-xl shadow-xl py-1.5 overflow-hidden">
-                        {item.children.map((child) => {
-                          const cActive = child.path === '/accounts'
-                            ? location.pathname === '/accounts'
-                            : location.pathname.startsWith(child.path);
-                          return (
-                            <NavLink
-                              key={child.path}
-                              to={child.path}
-                              className={`flex items-center gap-2 px-4 py-2 text-[13px] transition ${
-                                cActive
-                                  ? 'bg-white/15 text-white font-semibold'
-                                  : 'text-slate-300 hover:text-white hover:bg-white/10'
-                              }`}
-                            >
-                              <span className={`w-1.5 h-1.5 rounded-full ${cActive ? 'bg-[#c9a227]' : 'bg-slate-500'}`} />
-                              {child.name}
-                            </NavLink>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </nav>
-
-            {/* RIGHT: Search, Forex pill & User Avatar Menu */}
+            {/* RIGHT: Search, Menu Drawer, Forex pill & User Avatar Menu */}            {/* RIGHT: Search, Forex pill & User Avatar Menu */}
             <div className="flex items-center gap-2 sm:gap-3">
               
               {/* Prominent Global Search Button */}
@@ -528,22 +454,46 @@ export const TopNavbar: React.FC = () => {
                 )}
               </div>
 
-              {/* Mobile Menu Toggle Button */}
+              {/* Menu Drawer Toggle Button (right side) */}
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen((prev) => !prev)}
-                className="lg:hidden p-2 rounded-lg text-slate-200 hover:text-white hover:bg-white/10"
-                aria-label="Toggle Navigation Menu"
+                className="flex items-center gap-2 p-2 rounded-lg text-slate-200 hover:text-white hover:bg-white/10"
+                aria-label="Open Navigation Menu"
               >
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                <Menu className="w-5 h-5" />
+                <span className="hidden sm:inline text-sm font-medium">Menu</span>
               </button>
             </div>
           </div>
         </div>
 
-        {/* Mobile Nav Drawer */}
+        {/* Right-Side Navigation Drawer */}
         {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-[#163b63] bg-[#0a223c] px-4 py-3 space-y-1">
+          <div
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[1px]"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+        <div
+          className={`fixed top-0 right-0 z-50 h-full w-[300px] max-w-[85vw] bg-[#0a223c] border-l border-white/10 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${
+            mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+          aria-hidden={!mobileMenuOpen}
+        >
+          <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
+            <span className="text-sm font-bold text-white uppercase tracking-wider">Menu</span>
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(false)}
+              className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10"
+              aria-label="Close Navigation Menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1">
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
               if (!item.children) {
@@ -574,7 +524,7 @@ export const TopNavbar: React.FC = () => {
               );
             })}
           </div>
-        )}
+        </div>
       </header>
 
       {/* Global Spotlight Search Modal */}

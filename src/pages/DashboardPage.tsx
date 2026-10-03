@@ -16,6 +16,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { StatCard } from '../components/ui/StatCard';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import { Modal } from '../components/ui/Modal';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { fetchVouchers } from '../services/voucherService';
@@ -62,6 +63,7 @@ export const DashboardPage: React.FC = () => {
 
   // KSA Status Date Selector
   const [ksaDate, setKsaDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [calcOpen, setCalcOpen] = useState<boolean>(false);
 
   useEffect(() => {
     Promise.all([fetchVouchers(), fetchVisas(), fetchLedgerEntries(), fetchLedgerAccounts()])
@@ -253,6 +255,20 @@ export const DashboardPage: React.FC = () => {
     return { total, adults, children, infants };
   }, [vouchers]);
 
+  // 4b. Voucher Completion Report — pilgrims with vouchers vs remaining (numbers)
+  const voucherCompletion = useMemo(() => {
+    const usedVisaIds = new Set<string>();
+    vouchers.forEach((v) => {
+      if (v.status === 'Cancelled') return;
+      (v.visaIds || []).forEach((id) => usedVisaIds.add(id));
+    });
+    const total = visas.length;
+    const done = visas.filter((v) => usedVisaIds.has(v.id)).length;
+    const remaining = Math.max(0, total - done);
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    return { total, done, remaining, pct };
+  }, [vouchers, visas]);
+
   // 5. Latest Umrah Group Packages from real visa import data
   const latestGroups = useMemo(() => {
     const groupMap = new Map<string, { groupCode: string; groupName: string; paxCount: number; date: string; agent?: string }>();
@@ -424,6 +440,25 @@ export const DashboardPage: React.FC = () => {
         breadcrumbs={[{ label: 'Dashboard' }]}
       />
 
+      {/* 1. Package Calculator — button opens the calculator */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-[#0e2c4c]/10 rounded-xl flex items-center justify-center">
+              <Calculator className="w-5 h-5 text-[#0e2c4c]" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">Umrah Package Cost Calculator</h3>
+              <p className="text-xs text-slate-500">Instant per-person and group costing in SAR and PKR</p>
+            </div>
+          </div>
+          <Button variant="primary" onClick={() => setCalcOpen(true)} leftIcon={<Calculator className="w-4 h-4" />}>
+            Open Calculator
+          </Button>
+        </div>
+      </div>
+
+      <Modal isOpen={calcOpen} onClose={() => setCalcOpen(false)} title="Umrah Package Cost Calculator" subtitle="Instant per-person and group costing in SAR and PKR" size="2xl">
       {/* 1. Package Calculator at the Very Top */}
       <div className="bg-gradient-to-br from-[#0e2c4c] to-[#1a4473] text-white rounded-2xl p-6 shadow-xl space-y-5">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-white/10 pb-4">
@@ -553,6 +588,8 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      </Modal>
 
       {/* 2. Account Summary (SAR) Panel */}
       <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
@@ -723,6 +760,37 @@ export const DashboardPage: React.FC = () => {
                 <span className="text-sm font-mono font-bold text-slate-900">{bookingsDemographics.infants}</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* 4b. Voucher Completion Report — numbers */}
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <FileCheck className="w-5 h-5 text-[#0e2c4c]" />
+              <h3 className="text-sm font-bold text-slate-900">Voucher Completion Report</h3>
+            </div>
+            <span className="text-xs font-mono font-bold text-[#0e2c4c]">{voucherCompletion.pct}% Complete</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl">
+              <span className="text-[10px] text-emerald-700 block uppercase font-bold">Vouchers Made</span>
+              <span className="text-2xl font-mono font-bold text-emerald-700">{voucherCompletion.done}</span>
+              <span className="text-[10px] text-emerald-600 block">pilgrims</span>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
+              <span className="text-[10px] text-amber-700 block uppercase font-bold">Remaining</span>
+              <span className="text-2xl font-mono font-bold text-amber-700">{voucherCompletion.remaining}</span>
+              <span className="text-[10px] text-amber-600 block">pilgrims</span>
+            </div>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+              <span className="text-[10px] text-slate-500 block uppercase font-bold">Total Pilgrims</span>
+              <span className="text-2xl font-mono font-bold text-slate-900">{voucherCompletion.total}</span>
+              <span className="text-[10px] text-slate-400 block">visas imported</span>
+            </div>
+          </div>
+          <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full transition-all" style={{ width: `${voucherCompletion.pct}%` }} />
           </div>
         </div>
 
