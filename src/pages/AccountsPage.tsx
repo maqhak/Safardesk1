@@ -340,7 +340,7 @@ export const AccountsPage: React.FC = () => {
   // Download PDF
   const handleExportPDF = () => {
     if (!statement) return;
-    exportLedgerToPDF(statement, company.companyName);
+    exportLedgerToPDF(statement, company.companyName, (company as any).city || '');
     success(`Statement for ${statement.account.accountCode} downloaded as PDF.`);
   };
 
@@ -839,37 +839,27 @@ export const AccountsPage: React.FC = () => {
                       <td className="py-2.5 px-3 font-mono font-bold text-[#0e2c4c] whitespace-nowrap">
                         {e.transNo || '—'}
                       </td>
-                      <td className="py-2.5 px-3">
-                        <div className="font-medium text-slate-900 leading-snug">
-                          {e.particulars}
-                        </div>
-                        {/* Interactive voucherNo tag - clicking opens voucher modal */}
-                        {e.voucherNo && (
-                          <div className="mt-0.5 flex items-center gap-1.5">
+                      <td className="py-2.5 px-3 max-w-[340px]">
+                        <div className="flex items-center gap-1.5 whitespace-nowrap">
+                          <div className="font-medium text-slate-900 leading-snug overflow-hidden text-ellipsis shrink min-w-0" title={e.particulars}>
+                            {e.particulars}
+                          </div>
+                          {/* Interactive voucherNo tag - clicking opens voucher modal */}
+                          {e.voucherNo && (
                             <button
                               type="button"
                               onClick={(ev) => {
                                 ev.stopPropagation();
                                 setActiveVoucherNo(e.voucherNo!);
                               }}
-                              className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-[#0e2c4c] bg-amber-50 hover:bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded cursor-pointer transition no-underline"
+                              className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-[#0e2c4c] bg-amber-50 hover:bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded cursor-pointer transition no-underline shrink-0"
                               title="Click to view voucher"
                             >
                               <FileText className="w-3 h-3 text-[#c9a227]" />
                               <span>{e.voucherNo}</span>
                             </button>
-                            {(e.mofaPax || 0) > 0 && (
-                              <span className="text-[10px] bg-slate-100 text-slate-600 px-1 rounded font-semibold">
-                                MoFA: {e.mofaPax} Pax
-                              </span>
-                            )}
-                            {(e.hotelPax || 0) > 0 && (
-                              <span className="text-[10px] bg-slate-100 text-slate-600 px-1 rounded font-semibold">
-                                Hotel: {e.hotelPax} Pax
-                              </span>
-                            )}
-                          </div>
-                        )}
+                          )}
+                        </div>
                         {/* Void reason note */}
                         {isVoid && e.voidReason && (
                           <div className="text-[10px] text-rose-600 font-semibold mt-0.5 not-line-through">

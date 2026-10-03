@@ -960,17 +960,24 @@ function ledgerDownloadName(statement: LedgerStatementSummary, ext: string): str
 function statementTableRows(statement: LedgerStatementSummary): Array<Array<string | number>> {
   const c = statement.currency;
   const rows: Array<Array<string | number>> = [];
-  rows.push(['Date', 'Type', 'Trans.#', 'Particulars', 'Inv-Ref', 'Rate', `Debit (${c})`, `Credit (${c})`, `Balance (${c})`]);
-  rows.push(['—', 'Opening', '—', 'Previous Balance (B/F)', '—', '—', 0, 0, Number(statement.previousBalance.toFixed(2))]);
-  statement.rows.forEach((r) => {
+  rows.push(['S#', 'Date', 'Inv/Vou', 'Description', 'PNR / Passport', 'Ticket # / Group', 'Sector', `Debit (${c})`, `Credit (${c})`, `Balance (${c})`]);
+  rows.push(['', '—', '—', 'Previous Balance (B/F)', '', '', '', 0, 0, Number(statement.previousBalance.toFixed(2))]);
+  statement.rows.forEach((r, i) => {
     const e = r.entry;
+    const s = toSampleLedgerRow(e.particulars, e.invoiceRef, e.transNo, (e as any).voucherNo);
     const debit = c === 'SAR' ? e.debitSAR : e.debitPKR;
     const credit = c === 'SAR' ? e.creditSAR : e.creditPKR;
     rows.push([
-      e.date, e.entryType, e.transNo || '—',
-      (e.particulars || '') + (e.voucherNo ? ` [Voucher: ${e.voucherNo}]` : '') + (e.isVoid ? ` (VOIDED: ${e.voidReason || 'Voided'})` : ''),
-      e.invoiceRef || '—', Number(e.rate.toFixed(2)),
-      Number(debit.toFixed(2)), Number(credit.toFixed(2)), Number(r.runningBalance.toFixed(2)),
+      i + 1,
+      fmtDateDMY(e.date),
+      s.invVou || '—',
+      s.description + (e.isVoid ? ` (VOIDED: ${e.voidReason || 'Voided'})` : ''),
+      s.pnr,
+      s.ticketNo,
+      s.sector,
+      Number(debit.toFixed(2)),
+      Number(credit.toFixed(2)),
+      Number(r.runningBalance.toFixed(2)),
     ]);
   });
   return rows;
@@ -991,7 +998,7 @@ export function exportLedgerToExcel(statement: LedgerStatementSummary, companyNa
     [],
   ];
   const ws = XLSX.utils.aoa_to_sheet([...header, ...statementTableRows(statement)]);
-  ws['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 60 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
+  ws['!cols'] = [{ wch: 5 }, { wch: 12 }, { wch: 12 }, { wch: 55 }, { wch: 14 }, { wch: 26 }, { wch: 14 }, { wch: 13 }, { wch: 13 }, { wch: 16 }];
   const footerRow = header.length + statementTableRows(statement).length + 2;
   const footer = [
     [`SUMMARY & TOTALS (${c})`],
@@ -1007,73 +1014,139 @@ export function exportLedgerToExcel(statement: LedgerStatementSummary, companyNa
   XLSX.writeFile(wb, ledgerDownloadName(statement, 'xlsx'));
 }
 
-/** Branded PDF download of the ledger statement — COMPACT layout (more rows per page). */
-export function exportLedgerToPDF(statement: LedgerStatementSummary, companyName: string): void {
+/**
+ * Split a ledger entry into the sample-style columns:
+ * S# | DATE | INV/VOU | DESCRIPTION | PNR | TICKET # | SECTOR | DEBIT | CREDIT | BALANCE
+ * Visa pax lines ("Visa — Name | PP: XXXXX | GRP (Group Name) — SAR 450/visa") are
+ * broken into: DESCRIPTION=name, PNR=passport, TICKET #=group — exactly like the
+ * reference statement (one pax per single line).
+ */
+export interface SampleLedgerRow {
+  invVou: string;
+  description: string;
+  pnr: string;
+  ticketNo: string;
+  sector: string;
+}
+export function toSampleLedgerRow(particulars: string, invoiceRef?: string | null, transNo?: string | null, voucherNo?: string | null): SampleLedgerRow {
+  const p = particulars || '';
+  const visa = p.match(/^Visa [\u2014-]\s*(.+?)\s*\|\s*PP:\s*([A-Za-z0-9]+)\s*\|\s*(.+?)(?:\s*[\u2014-]\s*SAR|$)/);
+  if (visa) {
+    return {
+      invVou: invoiceRef || transNo || '',
+      description: visa[1].trim(),
+      pnr: visa[2].trim().toUpperCase(),
+      ticketNo: visa[3].trim(),
+      sector: '',
+    };
+  }
+  return {
+    invVou: invoiceRef || transNo || '',
+    description: p,
+    pnr: '',
+    ticketNo: voucherNo ? `Voucher ${voucherNo}` : '',
+    sector: '',
+  };
+}
+
+function fmtDateDMY(iso: string): string {
+  const m = (iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || '—');
+}
+
+function fmtBalCrDr(n: number): string {
+  const abs = Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (Math.abs(n) < 0.005) return '0.00';
+  return `${abs} ${n < 0 ? 'Cr' : 'Dr'}`;
+}
+
+/** Branded PDF download of the ledger statement — sample-style dense layout.
+ * Matches the reference statement: S# | DATE | INV/VOU | DESCRIPTION | PNR |
+ * TICKET # | SECTOR | DEBIT | CREDIT | BALANCE (Cr/Dr). One pax per single line,
+ * ~35 rows per portrait A4 page.
+ */
+export function exportLedgerToPDF(statement: LedgerStatementSummary, companyName: string, companyCity?: string): void {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { jsPDF } = require('jspdf');
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   require('jspdf-autotable');
   const c = statement.currency;
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  const pageW = 297;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageW = 210;
 
-  // Slim header band
-  doc.setFillColor(14, 44, 76);
-  doc.rect(0, 0, pageW, 15, 'F');
-  doc.setTextColor(255, 255, 255);
+  // Centered header like the sample
+  doc.setTextColor(20, 20, 20);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
-  doc.text(companyName, 10, 7);
-  doc.setFontSize(8);
+  doc.setFontSize(14);
+  doc.text(companyName, pageW / 2, 14, { align: 'center' });
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Statement of Account — ${statement.account.title} (${statement.account.accountCode})`, 10, 12);
+  if (companyCity) doc.text(`${companyCity} Office`, pageW / 2, 19, { align: 'center' });
+  const periodLine = statement.startDate && statement.endDate
+    ? `From ${fmtDateDMY(statement.startDate)} TO ${fmtDateDMY(statement.endDate)}`
+    : statement.periodLabel;
+  doc.setFontSize(8.5);
+  doc.text(periodLine, pageW / 2, companyCity ? 23.5 : 20, { align: 'center' });
 
-  // One-line meta
-  doc.setTextColor(60, 60, 60);
-  doc.setFontSize(7.5);
-  const meta = `Type: ${statement.account.accountType.toUpperCase()}   |   Period: ${statement.periodLabel}   |   Currency: ${c}   |   Generated: ${new Date().toLocaleString()}   |   Prev. Balance: ${c} ${statement.previousBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-  doc.text(meta, 10, 20);
+  // Account name, left, bold (like "LEADING TRAVEL & TOURS")
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  const accY = companyCity ? 29 : 26;
+  doc.text(statement.account.title.toUpperCase(), 10, accY);
 
-  const body = statement.rows.map((r) => {
+  const money = (n: number) => n > 0 ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+
+  const body: string[][] = [];
+  // Opening balance row
+  body.push([
+    '', '', '', 'Previous Balance (B/F)', '', '', '',
+    '', '',
+    fmtBalCrDr(statement.previousBalance),
+  ]);
+  statement.rows.forEach((r, i) => {
     const e = r.entry;
+    const s = toSampleLedgerRow(e.particulars, e.invoiceRef, e.transNo, (e as any).voucherNo);
     const debit = c === 'SAR' ? e.debitSAR : e.debitPKR;
     const credit = c === 'SAR' ? e.creditSAR : e.creditPKR;
-    return [
-      e.date, e.entryType, e.transNo || '—',
-      (e.particulars || '') + (e.voucherNo ? ` [Voucher: ${e.voucherNo}]` : '') + (e.isVoid ? ' (VOIDED)' : ''),
-      e.invoiceRef || '—', e.rate.toFixed(2),
-      debit > 0 ? debit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—',
-      credit > 0 ? credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—',
-      r.runningBalance.toLocaleString(undefined, { minimumFractionDigits: 2 }),
-    ];
+    body.push([
+      String(i + 1),
+      fmtDateDMY(e.date),
+      s.invVou,
+      s.description + (e.isVoid ? ' (VOIDED)' : ''),
+      s.pnr,
+      s.ticketNo,
+      s.sector,
+      money(debit),
+      money(credit),
+      fmtBalCrDr(r.runningBalance),
+    ]);
   });
 
   (doc as any).autoTable({
-    startY: 23,
-    head: [['Date', 'Type', 'Trans.#', 'Particulars', 'Inv-Ref', 'Rate', `Dr (${c})`, `Cr (${c})`, `Bal (${c})`]],
+    startY: accY + 3,
+    head: [['S#', 'DATE', 'INV/VOU', 'DESCRIPTION', 'PNR', 'TICKET #', 'SECTOR', 'DEBIT', 'CREDIT', 'BALANCE']],
     body,
     theme: 'grid',
-    styles: { fontSize: 7, cellPadding: 1.4, lineWidth: 0.1 },
-    headStyles: { fillColor: [14, 44, 76], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+    styles: { fontSize: 7, cellPadding: 1.1, lineWidth: 0.1, textColor: [20, 20, 20] },
+    headStyles: { fillColor: [255, 255, 255], textColor: [20, 20, 20], fontStyle: 'bold', fontSize: 7 },
     columnStyles: {
-      0: { cellWidth: 17 },
+      0: { cellWidth: 8, halign: 'center' },
       1: { cellWidth: 17 },
-      2: { cellWidth: 20 },
+      2: { cellWidth: 17 },
       3: { cellWidth: 'auto' },
-      4: { cellWidth: 18 },
-      5: { cellWidth: 12 },
-      6: { cellWidth: 20, halign: 'right' },
-      7: { cellWidth: 20, halign: 'right' },
-      8: { cellWidth: 22, halign: 'right' },
+      4: { cellWidth: 19 },
+      5: { cellWidth: 24 },
+      6: { cellWidth: 20 },
+      7: { cellWidth: 17, halign: 'right' },
+      8: { cellWidth: 17, halign: 'right' },
+      9: { cellWidth: 24, halign: 'right' },
+    },
+    didDrawPage: (d: any) => {
+      doc.setFontSize(7);
+      doc.setTextColor(120, 120, 120);
+      doc.text(`Page ${d.pageNumber}`, pageW - 10, 292, { align: 'right' });
     },
   });
-
-  const fy = (doc as any).lastAutoTable.finalY + 6;
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(14, 44, 76);
-  const fmt = (n: number) => `${c} ${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-  doc.text(`Total Dr: ${fmt(statement.totalDebit)}      Total Cr: ${fmt(statement.totalCredit)}      Closing: ${fmt(statement.closingBalance)}`, 10, fy);
 
   doc.save(ledgerDownloadName(statement, 'pdf'));
 }
