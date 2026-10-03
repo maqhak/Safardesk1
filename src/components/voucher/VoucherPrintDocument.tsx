@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'react-qr-code';
-import { VoucherDoc } from '../../types/voucher';
+import { VoucherDoc, DEFAULT_PACKAGE_INCLUDES } from '../../types/voucher';
 import { CompanyProfile } from '../../types/company';
 import kaabaSketch from '../../assets/voucher/kaaba-sketch.jpg';
 import madinahSketch from '../../assets/voucher/madinah-sketch.jpg';
@@ -99,7 +99,7 @@ export const VoucherPrintDocument: React.FC<{
   const half = Math.ceil(pax.length / 2);
   const cols = [pax.slice(0, half), pax.slice(half)];
 
-  const includes = ['Return Air Ticket', 'Airport Transfers', 'Umrah Visa', 'Inter City Transportation', 'Hotel Accommodation', 'Ziarat (As Per Itinerary)', 'Daily Breakfast', '24/7 Assistance'];
+  const includes = voucher.packageIncludes && voucher.packageIncludes.length > 0 ? voucher.packageIncludes : DEFAULT_PACKAGE_INCLUDES;
   const notes = ['Please keep this voucher with you during travel.', 'Present this voucher at the time of check-in.', 'All timings are local and subject to change.', 'The company is not responsible for any loss of personal belongings.', 'For any assistance, contact our representatives.'];
 
   const shareUrl = typeof window !== 'undefined'

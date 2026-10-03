@@ -39,6 +39,7 @@ import * as XLSX from 'xlsx';
 import { fetchLedgerEntries } from '../services/accountingService';
 import { VoucherDoc, SectorItem, HotelStayItem, VoucherChargeItem, VoucherEditPayload, VoucherEditRequest } from '../types/voucher';
 import { fetchVouchers, createVoucher, cancelVoucher, markCommissionPaid, approveVoucher, disapproveVoucher } from '../services/voucherService';
+import { DEFAULT_PACKAGE_INCLUDES } from '../types/voucher';
 import { fetchVisas } from '../services/visaService';
 import { fetchHotels, fetchVehicles, fetchVendors } from '../services/masterService';
 import {
@@ -131,6 +132,8 @@ export const VouchersPage: React.FC = () => {
   const [makkahStaffPhone, setMakkahStaffPhone] = useState('');
   const [madinaStaffName, setMadinaStaffName] = useState('');
   const [madinaStaffPhone, setMadinaStaffPhone] = useState('');
+  // Package Includes checklist — manually selectable per voucher
+  const [packageIncludes, setPackageIncludes] = useState<string[]>([...DEFAULT_PACKAGE_INCLUDES]);
 
   // Compact hotel-stay entry modal (professional small box + description)
   const [stayModalOpen, setStayModalOpen] = useState<boolean>(false);
@@ -410,6 +413,7 @@ export const VouchersPage: React.FC = () => {
     setMakkahStaffPhone(company?.makkahStaffPhone || '');
     setMadinaStaffName(company?.madinaStaffName || '');
     setMadinaStaffPhone(company?.madinaStaffPhone || '');
+    setPackageIncludes([...DEFAULT_PACKAGE_INCLUDES]);
     setBuilderOpen(true);
   };
 
@@ -433,6 +437,7 @@ export const VouchersPage: React.FC = () => {
     setMakkahStaffPhone(v.makkahStaffPhone || company?.makkahStaffPhone || '');
     setMadinaStaffName(v.madinaStaffName || company?.madinaStaffName || '');
     setMadinaStaffPhone(v.madinaStaffPhone || company?.madinaStaffPhone || '');
+    setPackageIncludes(v.packageIncludes && v.packageIncludes.length > 0 ? [...v.packageIncludes] : [...DEFAULT_PACKAGE_INCLUDES]);
     setHotelStays(JSON.parse(JSON.stringify(v.hotelStays || [])));
     setAllowFlightInfo(!!fd?.allowFlightInfo);
     setDepAirline(fd?.departureFlight?.airline || null);
@@ -675,6 +680,7 @@ export const VouchersPage: React.FC = () => {
         makkahStaffPhone: makkahStaffPhone.trim() || undefined,
         madinaStaffName: madinaStaffName.trim() || undefined,
         madinaStaffPhone: madinaStaffPhone.trim() || undefined,
+        packageIncludes: [...packageIncludes],
       });
 
       success('Unified trip voucher created successfully and posted to ledger.');
@@ -1890,6 +1896,35 @@ export const VouchersPage: React.FC = () => {
               </div>
             </div>
           )}
+
+              {/* Package Includes — manually selectable checklist (prints on voucher) */}
+              <div className="p-4 bg-[#0e2c4c]/5 border border-[#0e2c4c]/20 rounded-xl space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h5 className="font-bold text-slate-900 text-xs uppercase tracking-wide">Package Includes</h5>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setPackageIncludes([...DEFAULT_PACKAGE_INCLUDES])} className="text-[11px] font-bold text-[#0e2c4c] hover:underline">Select All</button>
+                    <span className="text-slate-300">|</span>
+                    <button type="button" onClick={() => setPackageIncludes([])} className="text-[11px] font-bold text-slate-500 hover:underline">Clear</button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {DEFAULT_PACKAGE_INCLUDES.map((item) => (
+                    <label key={item} className="flex items-center gap-2.5 p-2.5 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-[#0e2c4c]/40 transition text-xs font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={packageIncludes.includes(item)}
+                        onChange={(e) => {
+                          setPackageIncludes(e.target.checked
+                            ? [...packageIncludes, item]
+                            : packageIncludes.filter((x) => x !== item));
+                        }}
+                        className="w-4 h-4 accent-[#0e2c4c]"
+                      />
+                      <span>✓ {item}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
 
               {/* KSA Ground Staff Contacts — editable per voucher, prefilled from Company Profile defaults */}
               <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-3">

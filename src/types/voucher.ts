@@ -1,5 +1,17 @@
 import { AirportRef, AirlineDoc } from './master';
 
+/** Default Package Includes checklist — user ticks/unticks per voucher. */
+export const DEFAULT_PACKAGE_INCLUDES = [
+  'Return Air Ticket',
+  'Airport Transfers',
+  'Umrah Visa',
+  'Inter City Transportation',
+  'Hotel Accommodation',
+  'Ziarat (As Per Itinerary)',
+  'Daily Breakfast',
+  '24/7 Assistance',
+];
+
 export interface PassengerSnapshot {
   name: string;
   passportNumber: string;
@@ -81,6 +93,7 @@ export interface VoucherDoc {
   makkahStaffPhone?: string;
   madinaStaffName?: string;
   madinaStaffPhone?: string;
+  packageIncludes?: string[]; // Manually selected Package Includes checklist
   status: 'Draft' | 'Pending Approval' | 'Confirmed' | 'Cancelled';
   approvedBy?: string;
   approvedByName?: string;
@@ -122,6 +135,7 @@ export interface VoucherEditPayload {
   makkahStaffPhone?: string;
   madinaStaffName?: string;
   madinaStaffPhone?: string;
+  packageIncludes?: string[];
   passengers: PassengerSnapshot[];
   sectors: SectorItem[];
   hotelStays: HotelStayItem[];
