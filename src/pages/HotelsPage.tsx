@@ -27,7 +27,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { HotelDoc, VendorDoc, RoomTypeRate } from '../types/master';
 import { fetchHotels, createHotel, updateHotel, toggleHotelStatus, deleteOrDeactivateHotel, fetchVendors } from '../services/masterService';
-import { INITIAL_HOTELS_SEED } from '../data/hotels';
+import { MAKKAH_HOTELS_SEED, MADINAH_HOTELS_SEED } from '../data/hotels';
 
 export const HotelsPage: React.FC = () => {
   const { userProfile, role } = useAuth();
@@ -42,7 +42,7 @@ export const HotelsPage: React.FC = () => {
 
   // Filter states
   const [search, setSearch] = useState<string>('');
-  const [cityFilter, setCityFilter] = useState<string>('all');
+  const [cityFilter, setCityFilter] = useState<string>('Makkah');
 
   // Add/Edit Modal
   const [modalOpen, setModalOpen] = useState<boolean>(false);
@@ -98,7 +98,9 @@ export const HotelsPage: React.FC = () => {
 
   const filteredHotels = useMemo(() => {
     return hotels.filter((h) => {
-      if (cityFilter !== 'all' && h.city.toLowerCase() !== cityFilter.toLowerCase()) return false;
+      if (cityFilter === 'Makkah' && h.city.toLowerCase() !== 'makkah') return false;
+      if (cityFilter === 'Madinah' && h.city.toLowerCase() !== 'madinah') return false;
+      if (cityFilter === 'Other' && ['makkah', 'madinah'].includes(h.city.toLowerCase())) return false;
       if (search.trim()) {
         const q = search.toLowerCase();
         const vName = vendorMap.get(h.vendorId)?.name || '';
@@ -219,16 +221,17 @@ export const HotelsPage: React.FC = () => {
     }
   };
 
-  // One-time idempotent seed: skips hotels whose name+city already exist (no duplicates ever)
-  const handleSeedFullInventory = async () => {
+  // One-time idempotent per-city seed: skips hotels whose name+city already exist (no duplicates ever)
+  const handleSeedCity = async (city: 'Makkah' | 'Madinah') => {
     if (!userProfile) return;
+    const list = city === 'Makkah' ? MAKKAH_HOTELS_SEED : MADINAH_HOTELS_SEED;
     setSeeding(true);
     try {
       const existing = await fetchHotels();
       const seen = new Set(existing.map((h) => `${h.name.trim().toLowerCase()}|${(h.city || '').trim().toLowerCase()}`));
       let added = 0;
       let skipped = 0;
-      for (const item of INITIAL_HOTELS_SEED) {
+      for (const item of list) {
         const key = `${item.name.trim().toLowerCase()}|${(item.city || '').trim().toLowerCase()}`;
         if (seen.has(key)) { skipped++; continue; }
         await createHotel(userProfile, item as any);
@@ -236,9 +239,9 @@ export const HotelsPage: React.FC = () => {
         added++;
       }
       if (added > 0) {
-        success(`Seeded ${added} hotels${skipped > 0 ? ` (${skipped} already existed — skipped)` : ''}. Now link each hotel to its vendor from Edit.`);
+        success(`Seeded ${added} ${city} hotels${skipped > 0 ? ` (${skipped} already existed — skipped)` : ''}. Now link each hotel to its vendor from Edit.`);
       } else {
-        info(`All ${INITIAL_HOTELS_SEED.length} hotels already exist — nothing to seed. No duplicates created.`);
+        info(`All ${list.length} ${city} hotels already exist — nothing to seed. No duplicates created.`);
       }
       await loadData();
     } catch (err: any) {
@@ -263,10 +266,19 @@ export const HotelsPage: React.FC = () => {
               variant="outline"
               size="sm"
               leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
-              onClick={handleSeedFullInventory}
+              onClick={() => handleSeedCity('Makkah')}
               loading={seeding}
             >
-              Seed Makkah & Madinah Inventory
+              Seed Makkah Hotels
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
+              onClick={() => handleSeedCity('Madinah')}
+              loading={seeding}
+            >
+              Seed Madina Hotels
             </Button>
             {canCreate && (
               <Button
@@ -303,10 +315,9 @@ export const HotelsPage: React.FC = () => {
               onChange={(e) => setCityFilter(e.target.value)}
               className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none"
             >
-              <option value="all">All Cities ({hotels.length} Hotels)</option>
-              <option value="Makkah">Makkah</option>
-              <option value="Madinah">Madinah</option>
-              <option value="Other">Other</option>
+              <option value="Makkah">Makkah Hotels ({hotels.filter(h => h.city.toLowerCase() === 'makkah').length})</option>
+              <option value="Madinah">Madina Hotels ({hotels.filter(h => h.city.toLowerCase() === 'madinah').length})</option>
+              <option value="Other">Other Cities ({hotels.filter(h => !['makkah', 'madinah'].includes(h.city.toLowerCase())).length})</option>
             </select>
           </div>
         </div>

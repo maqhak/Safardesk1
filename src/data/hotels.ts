@@ -36,7 +36,7 @@ const md = (name: string, starRating: 3 | 4 | 5, distanceFromHaram: string): See
   isActive: true,
 });
 
-export const INITIAL_HOTELS_SEED: SeedHotel[] = [
+export const MAKKAH_HOTELS_SEED: SeedHotel[] = [
   // ---------------- Makkah — 5 star (Haram view / Abraj Al Bait & Jabal Omar) ----------------
   mk('Makkah Clock Royal Tower, A Fairmont Hotel', 5, '50m — Abraj Al Bait'),
   mk('Raffles Makkah Palace', 5, '60m — Abraj Al Bait'),
@@ -75,7 +75,9 @@ export const INITIAL_HOTELS_SEED: SeedHotel[] = [
   mk('Rayyan Ajyad Hotel', 3, '550m — Ajyad'),
   mk('Dar Al Eiman Al Sud Hotel', 3, '400m — Ajyad'),
   mk('Al Safwah Towers Hotel', 3, '800m — shuttle service'),
+];
 
+export const MADINAH_HOTELS_SEED: SeedHotel[] = [
   // ---------------- Madinah — 5 star (Markaziah, facing Masjid an-Nabawi) ----------------
   md('The Oberoi Madina', 5, '0m — Markaziah, Haram view'),
   md('Pullman ZamZam Madina', 5, '0m — Markaziah, Haram view'),
@@ -99,3 +101,6 @@ export const INITIAL_HOTELS_SEED: SeedHotel[] = [
   md('Saja Al Madinah Hotel', 3, '450m — Markaziah edge'),
   md('Nusk Al Hijrah Hotel', 3, '700m — shuttle service'),
 ];
+
+// Combined (Makkah first, then Madinah)
+export const INITIAL_HOTELS_SEED: SeedHotel[] = [...MAKKAH_HOTELS_SEED, ...MADINAH_HOTELS_SEED];
