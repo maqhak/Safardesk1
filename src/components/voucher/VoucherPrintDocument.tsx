@@ -59,42 +59,22 @@ export const VoucherPrintDocument: React.FC<{
   };
   const createdStr = fmtDate(voucher.createdAt);
 
-  // Single-line transport summary with PROVIDER clarity, e.g.
-  // "Arrival (JED - MAK) by CAR (Company), remaining by BUS (Agent Self Gari)".
-  // Every part says WHO provides it: Company transport vs the agent's Self Gari.
-  const transportGroups: { trips: string; by: string; provider: string }[] = [];
-  {
-    let curKey = '';
-    let curTrips: string[] = [];
-    const flush = () => {
-      if (curTrips.length && curKey) {
-        const [by, provider] = curKey.split('|');
-        transportGroups.push({ trips: curTrips.join(' + '), by, provider });
-      }
-      curTrips = [];
+  // Per-sector transport rows: each Umrah sector on its own row showing
+  // exactly which transport the company provides (vs agent's Self Gari).
+  interface TransportRow { sector: string; date: string; vehicle: string; provider: string; }
+  const transportRows: TransportRow[] = sectors.map((s) => {
+    const note = (s as any).vehicleNote ? ` — ${(s as any).vehicleNote}` : '';
+    let sectorLabel = s.type;
+    const ap = `${s.fromAirport?.iata || ''}${s.toAirport?.iata ? ` → ${s.toAirport.iata}` : ''}`;
+    if (ap.trim() && ap.trim() !== '→') sectorLabel += ` (${ap.trim()})`;
+    const vehicle = s.isSelfGari ? 'Self Gari' : (s.vehicleType || '—');
+    return {
+      sector: sectorLabel,
+      date: s.date ? fmtDate(s.date) : '—',
+      vehicle: vehicle + note,
+      provider: s.isSelfGari ? 'Agent (Self)' : 'Company',
     };
-    sectors.forEach((s) => {
-      const note = (s as any).vehicleNote ? ` — ${(s as any).vehicleNote}` : '';
-      const by = (s.isSelfGari ? 'SELF GARI' : (s.vehicleType || '—').toUpperCase()) + note;
-      const provider = s.isSelfGari ? 'Agent Self Gari' : 'Company';
-      const key = `${by}|${provider}`;
-      let trip = s.type;
-      const ap = `${s.fromAirport?.iata || ''}${s.toAirport?.iata ? ` - ${s.toAirport.iata}` : ''}`;
-      if (ap.trim() && ap.trim() !== '-') trip += ` (${ap.trim()})`;
-      if (key !== curKey) { flush(); curKey = key; }
-      curTrips.push(trip);
-    });
-    flush();
-  }
-  const gLabel = (g: { trips: string; by: string; provider: string }) => `${g.trips} by ${g.by} (${g.provider})`;
-  let transportLine = '—';
-  if (transportGroups.length === 1) {
-    transportLine = gLabel(transportGroups[0]);
-  } else if (transportGroups.length > 1) {
-    const [first, ...rest] = transportGroups;
-    transportLine = `${gLabel(first)}, remaining by ${rest.map((g) => `${g.by} (${g.provider})`).join(' + ')}`;
-  }
-  const transportByLine = [...new Set(transportGroups.map((g) => `${g.by} (${g.provider})`))].join(' + ') || '—';
+  });
 
   const half = Math.ceil(pax.length / 2);
   const cols = [pax.slice(0, half), pax.slice(half)];
@@ -284,12 +264,18 @@ export const VoucherPrintDocument: React.FC<{
 
           <div className="fsv-secttl">TRANSPORTATION</div>
           <table className="fsv-vt">
-            <thead><tr><th>TRANSPORT TRIP</th><th>TRANSPORT BY</th></tr></thead>
+            <thead><tr><th>SECTOR</th><th>DATE</th><th>TRANSPORT</th><th>PROVIDED BY</th></tr></thead>
             <tbody>
-              <tr>
-                <td>{transportLine || '—'}</td>
-                <td>{transportByLine}</td>
-              </tr>
+              {transportRows.length > 0 ? transportRows.map((r, i) => (
+                <tr key={i}>
+                  <td className="fsv-nm">{r.sector}</td>
+                  <td>{r.date}</td>
+                  <td>{r.vehicle}</td>
+                  <td>{r.provider}</td>
+                </tr>
+              )) : (
+                <tr><td colSpan={4}>—</td></tr>
+              )}
             </tbody>
           </table>
 
