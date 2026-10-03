@@ -48,9 +48,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/login" replace />;
   }
 
-  // Agent Role Constraint: Agents are strictly redirected to Agent Portal routes only
+  // Agent Role Constraint: Agents can use the Agent Portal and their own Vouchers only
   if (role === 'agent') {
-    if (!location.pathname.startsWith('/agent-portal')) {
+    if (!location.pathname.startsWith('/agent-portal') && !location.pathname.startsWith('/vouchers')) {
       return <Navigate to="/agent-portal" replace />;
     }
     return children ? <>{children}</> : null;

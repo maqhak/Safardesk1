@@ -4,7 +4,6 @@ import {
   FileCheck, 
   Ticket, 
   CreditCard, 
-  Plus, 
   Search, 
   Download, 
   ArrowUpRight, 
@@ -14,7 +13,8 @@ import {
   Printer,
   ArrowLeftRight,
   FileText,
-  Mic
+  Mic,
+  Plane
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatCard } from '../components/ui/StatCard';
@@ -22,14 +22,12 @@ import { DataTable, Column } from '../components/ui/DataTable';
 import { Badge } from '../components/ui/Badge';
 import { CurrencyAmount } from '../components/ui/CurrencyAmount';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
 import { formatDate } from '../utils/formatters';
-import { TENANT } from '../config';
 import { 
   fetchLedgerAccounts, 
   fetchLedgerEntries, 
@@ -39,7 +37,9 @@ import {
 import { LedgerAccountDoc, LedgerEntryDoc } from '../types/accounting';
 import { VoucherQuickModal } from '../components/accounting/VoucherQuickModal';
 import { ReceiptViewerModal } from '../components/accounting/ReceiptViewerModal';
-import { fetchVisas, fetchVisaRequests, submitVisaRequest, VisaDoc, VisaRequestDoc } from '../services/visaService';
+import { fetchVisas, fetchVisaRequests, VisaDoc, VisaRequestDoc } from '../services/visaService';
+import { fetchVouchers } from '../services/voucherService';
+import { VoucherDoc } from '../types/voucher';
 import * as XLSX from 'xlsx';
 
 interface AgentVisaRow {
@@ -57,10 +57,9 @@ export const AgentPortalPage: React.FC = () => {
   const { profile: company } = useCompany();
   const { success, error: showError, info } = useToast();
 
-  const [activeTab, setActiveTab] = useState<'statement' | 'visas'>('statement');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [applicantName, setApplicantName] = useState('');
-  const [passportNumber, setPassportNumber] = useState('');
+  const [activeTab, setActiveTab] = useState<'statement' | 'visas' | 'flights'>('statement');
+  const [agentVouchers, setAgentVouchers] = useState<VoucherDoc[]>([]);
+
 
   const [agentVisas, setAgentVisas] = useState<VisaDoc[]>([]);
   const [agentRequests, setAgentRequests] = useState<VisaRequestDoc[]>([]);
@@ -95,7 +94,7 @@ export const AgentPortalPage: React.FC = () => {
   };
 
   const reloadAgentData = () => {
-    Promise.all([fetchLedgerAccounts(), fetchLedgerEntries(), fetchVisas(), fetchVisaRequests()]).then(([accs, ents, visaList, reqList]) => {
+    Promise.all([fetchLedgerAccounts(), fetchLedgerEntries(), fetchVisas(), fetchVisaRequests(), fetchVouchers().catch(() => [])]).then(([accs, ents, visaList, reqList, vList]) => {
       // Find matching agent account — never fall back to another account
       const found = accs.find((a) => a.linkedId === userProfile?.agentId || a.linkedId === userProfile?.uid) || null;
       setAgentAccount(found);
@@ -107,6 +106,7 @@ export const AgentPortalPage: React.FC = () => {
       const myAgentId = userProfile?.agentId;
       setAgentVisas(visaList.filter((v) => v.agentId && v.agentId === myAgentId));
       setAgentRequests(reqList.filter((r) => r.agentId === myAgentId));
+      setAgentVouchers((vList as VoucherDoc[]).filter((v) => v.agentId === myAgentId && v.status !== 'Cancelled'));
     });
   };
 
@@ -190,26 +190,6 @@ export const AgentPortalPage: React.FC = () => {
     },
   ];
 
-  const handleApply = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!applicantName || !passportNumber || !userProfile) return;
-    try {
-      await submitVisaRequest(userProfile, {
-        agentId: userProfile.agentId || userProfile.uid,
-        agentName: userProfile.agencyName || userProfile.name || 'Agent',
-        pilgrimName: applicantName,
-        passportNumber: passportNumber,
-      });
-      setModalOpen(false);
-      success(`Visa application for ${applicantName} submitted for review.`);
-      setApplicantName('');
-      setPassportNumber('');
-      reloadAgentData();
-    } catch (err: any) {
-      showError(err?.message || 'Failed to submit visa application.');
-    }
-  };
-
   const handleExportStatement = () => {
     if (!statement) return;
     exportLedgerToCSV(statement, company.companyName);
@@ -276,14 +256,7 @@ export const AgentPortalPage: React.FC = () => {
               Export Statement
             </Button>
 
-            <Button
-              variant="primary"
-              size="sm"
-              leftIcon={<Plus className="w-3.5 h-3.5" />}
-              onClick={() => setModalOpen(true)}
-            >
-              Submit Visa
-            </Button>
+
           </div>
         }
       />
@@ -337,6 +310,17 @@ export const AgentPortalPage: React.FC = () => {
         >
           <FileCheck className="w-4 h-4" />
           <span>My Visa Applications</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('flights')}
+          className={`py-2 px-4 border-b-2 font-bold text-sm transition cursor-pointer flex items-center gap-2 ${
+            activeTab === 'flights'
+              ? 'border-[#0e2c4c] text-[#0e2c4c]'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Plane className="w-4 h-4" />
+          <span>My Flights</span>
         </button>
       </div>
 
@@ -550,9 +534,58 @@ export const AgentPortalPage: React.FC = () => {
             data={agentVisaRows}
             keyExtractor={(row) => row.id}
             emptyTitle="No visa applications yet"
-            emptyDescription="Submit a visa application above — it will appear here with its live status."
+            emptyDescription="Your distributed visas will appear here with live status."
             onRowClick={(row) => info(`Selected applicant: ${row.applicantName}`)}
           />
+        </div>
+      )}
+
+      {/* Tab 3: My Flights — movement of own vouchers */}
+      {activeTab === 'flights' && (
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 tracking-tight">My Flights</h3>
+            <p className="text-xs text-slate-500">Flight movement for your own vouchers only</p>
+          </div>
+          <Card padding="none" className="border-slate-200 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase tracking-wider">
+                    <th className="px-3 py-2.5 font-bold">Voucher</th>
+                    <th className="px-3 py-2.5 font-bold">Sector</th>
+                    <th className="px-3 py-2.5 font-bold">Date</th>
+                    <th className="px-3 py-2.5 font-bold">Flight</th>
+                    <th className="px-3 py-2.5 font-bold">Time</th>
+                    <th className="px-3 py-2.5 font-bold">Route</th>
+                    <th className="px-3 py-2.5 font-bold">Transport</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {agentVouchers.length === 0 && (
+                    <tr><td colSpan={7} className="px-3 py-8 text-center text-slate-400">No vouchers yet — create one from My Vouchers.</td></tr>
+                  )}
+                  {agentVouchers.flatMap((v) =>
+                    (v.sectors || []).map((s, i) => (
+                      <tr key={`${v.id}-${i}`} className="hover:bg-slate-50/60">
+                        <td className="px-3 py-2 font-mono font-bold text-[#0e2c4c] whitespace-nowrap">{v.voucherNo}</td>
+                        <td className="px-3 py-2 font-semibold">{s.type}</td>
+                        <td className="px-3 py-2 font-mono whitespace-nowrap">{s.date ? formatDate(s.date) : '—'}</td>
+                        <td className="px-3 py-2 font-mono whitespace-nowrap">
+                          {s.airline?.iataCode ? `${s.airline.iataCode} ` : ''}{s.flightNo || '—'}
+                        </td>
+                        <td className="px-3 py-2 font-mono">{s.time || '—'}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {s.fromAirport?.iata || ''}{s.fromAirport?.iata || s.toAirport?.iata ? ' → ' : '—'}{s.toAirport?.iata || ''}
+                        </td>
+                        <td className="px-3 py-2">{s.isSelfGari ? 'Self Gari' : (s.vehicleType || '—')}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
       )}
 
@@ -562,44 +595,6 @@ export const AgentPortalPage: React.FC = () => {
         isOpen={Boolean(activeVoucherNo)}
         onClose={() => setActiveVoucherNo(null)}
       />
-
-      {/* Submit Visa Modal */}
-      <Modal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title="Submit Pilgrim Visa Application"
-        subtitle="Submit pilgrim passport details to SafarDesk operations for MoFA issuance"
-        footer={
-          <>
-            <Button variant="outline" size="sm" onClick={() => setModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" onClick={handleApply}>
-              Submit Application
-            </Button>
-          </>
-        }
-      >
-        <form onSubmit={handleApply} className="space-y-4">
-          <Input
-            label="Pilgrim Full Name (As per passport)"
-            value={applicantName}
-            onChange={(e) => setApplicantName(e.target.value)}
-            placeholder="e.g. Tariq Mehmood"
-            required
-          />
-          <Input
-            label="Passport Number"
-            value={passportNumber}
-            onChange={(e) => setPassportNumber(e.target.value)}
-            placeholder="e.g. AB8920194"
-            required
-          />
-          <div className="p-3 bg-navy-50 rounded-lg text-xs text-slate-700 leading-relaxed border border-navy-100">
-            Current B2B contracted rate: <strong>450.00 SAR</strong> (≈ {TENANT.currency.defaultExchangeRate * 450} PKR). Debit will be recorded to your agency ledger upon visa issuance.
-          </div>
-        </form>
-      </Modal>
 
       {/* Linked Receipt Proof Viewer Modal with Security Check */}
       <ReceiptViewerModal

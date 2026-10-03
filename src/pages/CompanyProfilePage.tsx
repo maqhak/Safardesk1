@@ -64,6 +64,10 @@ export const CompanyProfilePage: React.FC = () => {
     defaultForeignCurrency: 'SAR',
     agentBackdateHours: 12,
     statementFooterNote: '',
+    makkahStaffName: '',
+    makkahStaffPhone: '',
+    madinaStaffName: '',
+    madinaStaffPhone: '',
   });
 
   const [loading, setLoading] = useState<boolean>(true);

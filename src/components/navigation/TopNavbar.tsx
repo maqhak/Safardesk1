@@ -14,6 +14,7 @@ import {
   DollarSign,
   LayoutDashboard,
   FileCheck,
+  Ticket,
   Building,
   Plane,
   Calculator,
@@ -182,6 +183,7 @@ export const TopNavbar: React.FC = () => {
     if (role === 'agent') {
       return [
         { name: 'Agent Portal', path: '/agent-portal', icon: LayoutDashboard },
+        { name: 'My Vouchers', path: '/vouchers', icon: Ticket },
         { name: 'Visa Manifest', path: '/agent-portal#visas', icon: FileCheck },
       ];
     }

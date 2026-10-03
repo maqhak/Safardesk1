@@ -39,6 +39,10 @@ export const DEFAULT_COMPANY_PROFILE: CompanyProfile = {
   baseCurrency: 'PKR', // Fixed "PKR"
   defaultForeignCurrency: 'SAR', // "SAR"
   agentBackdateHours: 12, // Default 12, editable
+  makkahStaffName: '',
+  makkahStaffPhone: '',
+  madinaStaffName: '',
+  madinaStaffPhone: '',
   statementFooterNote: 'Official computer generated statement from SafarDesk. All transactions are subject to final airline and hotel audit verification. For discrepancies, please notify accounts@safardesk.com within 48 hours.',
   updatedAt: '2026-10-01T00:00:00Z',
   updatedBy: 'system_default',

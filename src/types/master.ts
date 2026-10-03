@@ -4,6 +4,7 @@
 export interface ShirkaUnit {
   id: string;
   name: string; // e.g. "Shirka A"
+  arabicName?: string; // Shirka name in Arabic — printed on the voucher header (top right)
   operatorName: string; // kon chala rha hai — person running this Shirka
   operatorMobile?: string;
   notes?: string;

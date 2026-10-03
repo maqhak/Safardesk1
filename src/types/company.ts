@@ -18,6 +18,10 @@ export interface CompanyProfile {
   baseCurrency: string; // Fixed "PKR"
   defaultForeignCurrency: string; // e.g. "SAR"
   agentBackdateHours: number; // default 12, editable
+  makkahStaffName: string; // default KSA staff contacts (editable per voucher)
+  makkahStaffPhone: string;
+  madinaStaffName: string;
+  madinaStaffPhone: string;
   statementFooterNote: string;
   updatedAt?: string;
   updatedBy?: string;

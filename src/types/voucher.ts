@@ -77,6 +77,10 @@ export interface VoucherDoc {
   shirkaVendorId?: string; // Which vendor company this voucher was made for
   shirkaId?: string; // Which sub-Shirka (empty = vendor company itself)
   shirkaName?: string; // Denormalized Shirka display name
+  makkahStaffName?: string; // Editable per voucher, all roles
+  makkahStaffPhone?: string;
+  madinaStaffName?: string;
+  madinaStaffPhone?: string;
   status: 'Draft' | 'Confirmed' | 'Cancelled';
   passengers: PassengerSnapshot[];
   sectors: SectorItem[];
@@ -107,6 +111,10 @@ export interface VoucherEditPayload {
   shirkaVendorId?: string;
   shirkaId?: string;
   shirkaName?: string;
+  makkahStaffName?: string;
+  makkahStaffPhone?: string;
+  madinaStaffName?: string;
+  madinaStaffPhone?: string;
   passengers: PassengerSnapshot[];
   sectors: SectorItem[];
   hotelStays: HotelStayItem[];
