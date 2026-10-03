@@ -84,11 +84,10 @@ export const VouchersPage: React.FC = () => {
   const [customersList, setCustomersList] = useState<CustomerDoc[]>([]);
   const [agentsList, setAgentsList] = useState<AgentDoc[]>([]);
 
-  // Linking Rules (No-Orphan Rule)
-  const [linkType, setLinkType] = useState<'visa' | 'customer' | 'agent'>('visa');
+  // Pilgrim picker (agent-wise, searchable, multi-select) — no link types
   const [selectedVisaIds, setSelectedVisaIds] = useState<string[]>([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
-  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+  const [paxSearch, setPaxSearch] = useState<string>('');
+  const [paxAgentFilter, setPaxAgentFilter] = useState<string>('all');
 
   const [hotelsMaster, setHotelsMaster] = useState<HotelDoc[]>([]);
   const [vehiclesMaster, setVehiclesMaster] = useState<VehicleDoc[]>([]);
@@ -205,13 +204,58 @@ export const VouchersPage: React.FC = () => {
   const remainingVisas = useMemo(() => {
     return availableVisas.filter((v) => !usedVisaIds.has(v.id));
   }, [availableVisas, usedVisaIds]);
+  // Pilgrim picker: agent-wise grouping, name/passport search, multi-select
+  const pickerAgentName = (agentId: string): string => {
+    if (!agentId) return 'Unassigned';
+    const a = agentsList.find((x: any) => x.id === agentId);
+    return a ? ((a as any).companyName || agentId) : agentId;
+  };
+  const pickerVisas = useMemo(() => {
+    let list = remainingVisas;
+    if (isAgent && userProfile?.agentId) list = list.filter((v) => v.agentId === userProfile.agentId);
+    if (paxAgentFilter !== 'all') list = list.filter((v) => (v.agentId || '') === paxAgentFilter);
+    const q = paxSearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter((v) =>
+        (v.pilgrimName || '').toLowerCase().includes(q) ||
+        (v.passportNumber || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [remainingVisas, isAgent, userProfile, paxAgentFilter, paxSearch]);
+  const pickerAgentIds = useMemo(() => {
+    const ids: string[] = [];
+    remainingVisas.forEach((v) => {
+      const id = v.agentId || '';
+      if (!ids.includes(id)) ids.push(id);
+    });
+    return ids;
+  }, [remainingVisas]);
+  const groupedPicker = useMemo(() => {
+    const map = new Map<string, any[]>();
+    pickerVisas.forEach((v) => {
+      const id = v.agentId || '';
+      if (!map.has(id)) map.set(id, []);
+      map.get(id)!.push(v);
+    });
+    return Array.from(map.entries()).map(([agentId, visas]) => ({ agentId, visas }));
+  }, [pickerVisas]);
+  const toggleVisa = (id: string) => {
+    setSelectedVisaIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+  const selectPickerIds = (ids: string[]) => {
+    setSelectedVisaIds((prev) => Array.from(new Set([...prev, ...ids])));
+  };
+  const deselectPickerIds = (ids: string[]) => {
+    setSelectedVisaIds((prev) => prev.filter((x) => !ids.includes(x)));
+  };
+
 
   const openBuilder = () => {
     setBuilderStep(1);
-    setLinkType('visa');
     setSelectedVisaIds([]);
-    setSelectedCustomerId('');
-    setSelectedAgentId('');
+    setPaxSearch('');
+    setPaxAgentFilter('all');
     setArrivalDate(new Date().toISOString().split('T')[0]);
     setSectors([{ type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', vehicleType: undefined, transportRateSAR: 0 }]);
     setHotelStays([{ city: 'Makkah', hotelName: '', checkInDate: new Date().toISOString().split('T')[0], checkOutDate: addDays(new Date().toISOString().split('T')[0], 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 0, totalSAR: 0 }]);
@@ -258,17 +302,9 @@ export const VouchersPage: React.FC = () => {
   const handleSaveVoucher = async () => {
     if (!userProfile) return;
 
-    // No-orphan rule validation
-    if (linkType === 'visa' && selectedVisaIds.length === 0) {
-      showError('No-orphan rule: Voucher linked to visas must have at least one pilgrim visa selected.');
-      return;
-    }
-    if (linkType === 'customer' && !selectedCustomerId) {
-      showError('No-orphan rule: Voucher linked to a direct customer must select a customer profile.');
-      return;
-    }
-    if (linkType === 'agent' && !selectedAgentId) {
-      showError('No-orphan rule: Voucher linked to a B2B sub-agent must select a sub-agent.');
+    // Pilgrim selection required
+    if (selectedVisaIds.length === 0) {
+      showError('Please select at least one pilgrim for this voucher.');
       return;
     }
 
@@ -299,39 +335,26 @@ export const VouchersPage: React.FC = () => {
       return;
     }
 
-    let passengers: any[] = [];
-    if (linkType === 'visa') {
-      const selectedVisasData = availableVisas.filter((v) => selectedVisaIds.includes(v.id));
-      passengers = selectedVisasData.map((v) => ({
-        name: v.pilgrimName,
-        passportNumber: v.passportNumber,
-        ageType: 'Adult' as const,
-        visaId: v.id,
-      }));
-    } else if (linkType === 'customer') {
-      const cust = customersList.find((c) => c.id === selectedCustomerId);
-      passengers = [{
-        name: cust?.fullName || 'Direct Customer',
-        passportNumber: cust?.passportNumber || 'N/A',
-        ageType: 'Adult' as const,
-      }];
-    } else if (linkType === 'agent') {
-      passengers = [{
-        name: 'Agent Group Booking (Hotel-Only / Package)',
-        passportNumber: 'N/A',
-        ageType: 'Adult' as const,
-      }];
-    }
+    const selectedVisasData = availableVisas.filter((v) => selectedVisaIds.includes(v.id));
+    const passengers = selectedVisasData.map((v) => ({
+      name: v.pilgrimName,
+      passportNumber: v.passportNumber,
+      ageType: 'Adult' as const,
+      visaId: v.id,
+    }));
+    // Voucher agent: the single agent all selected pax belong to (undefined when mixed)
+    const paxAgents = Array.from(new Set(selectedVisasData.map((v) => v.agentId).filter(Boolean)));
+    const voucherAgentId = paxAgents.length === 1 ? paxAgents[0] : undefined;
 
     const totalPKR = convert(totalSAR, getCurrentRate('SAR-PKR'));
 
     setSaving(true);
     try {
       await createVoucher(userProfile, {
-        linkType,
-        visaIds: linkType === 'visa' ? selectedVisaIds : [],
-        customerId: linkType === 'customer' ? selectedCustomerId : undefined,
-        agentId: linkType === 'agent' ? selectedAgentId : undefined,
+        linkType: 'visa',
+        visaIds: selectedVisaIds,
+        customerId: undefined,
+        agentId: voucherAgentId,
         status: 'Confirmed',
         passengers,
         sectors: sectorsWithTransport,
@@ -752,107 +775,114 @@ export const VouchersPage: React.FC = () => {
         }
       >
         <div className="py-2">
-          {/* Step 1: Linking Rules */}
+          {/* Step 1: Select Pilgrims — agent-wise, searchable, multi-select */}
           {builderStep === 1 && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Voucher Link Type (No-Orphan Rule) *</label>
-                <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h4 className="font-bold text-slate-900 text-sm">Select Pilgrims</h4>
+                  <p className="text-[11px] text-slate-500">
+                    {remainingVisas.length} pax available (distributed visas without a voucher yet). Pick agent-wise, search by name or passport, select multiple.
+                  </p>
+                </div>
+                <span className="text-xs font-bold bg-[#0e2c4c] text-white px-3 py-1.5 rounded-full whitespace-nowrap">
+                  {selectedVisaIds.length} selected
+                </span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <select
+                  value={paxAgentFilter}
+                  onChange={(e) => setPaxAgentFilter(e.target.value)}
+                  className="sm:w-52 p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                >
+                  <option value="all">All Agents</option>
+                  {pickerAgentIds.map((id) => (
+                    <option key={id} value={id}>{pickerAgentName(id)}</option>
+                  ))}
+                </select>
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={paxSearch}
+                    onChange={(e) => setPaxSearch(e.target.value)}
+                    placeholder="Search by name or passport number..."
+                    className="w-full p-2.5 pl-9 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                  />
+                </div>
+                <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setLinkType('visa')}
-                    className={`p-2.5 rounded-lg border text-xs font-bold transition cursor-pointer ${linkType === 'visa' ? 'bg-[#0e2c4c] text-white border-[#0e2c4c]' : 'bg-white text-slate-700 border-slate-300'}`}
+                    onClick={() => selectPickerIds(pickerVisas.map((v) => v.id))}
+                    className="px-3 py-2.5 text-xs font-bold bg-[#0e2c4c] text-white rounded-lg whitespace-nowrap"
                   >
-                    Linked to Visas
+                    Select all
                   </button>
                   <button
                     type="button"
-                    onClick={() => setLinkType('customer')}
-                    className={`p-2.5 rounded-lg border text-xs font-bold transition cursor-pointer ${linkType === 'customer' ? 'bg-[#0e2c4c] text-white border-[#0e2c4c]' : 'bg-white text-slate-700 border-slate-300'}`}
+                    onClick={() => setSelectedVisaIds([])}
+                    className="px-3 py-2.5 text-xs font-bold bg-white text-slate-700 border border-slate-300 rounded-lg whitespace-nowrap"
                   >
-                    Linked to B2C Customer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLinkType('agent')}
-                    className={`p-2.5 rounded-lg border text-xs font-bold transition cursor-pointer ${linkType === 'agent' ? 'bg-[#0e2c4c] text-white border-[#0e2c4c]' : 'bg-white text-slate-700 border-slate-300'}`}
-                  >
-                    Linked to B2B Agent
+                    Clear
                   </button>
                 </div>
               </div>
 
-              {linkType === 'visa' && (
-                <div className="space-y-2">
-                  <div className="text-xs text-slate-600">
-                    Pick pilgrims from distributed visas. Only pilgrims whose voucher is not yet created are shown ("remaining only" — {remainingVisas.length} available).
+              <div className="max-h-80 overflow-y-auto border border-slate-200 rounded-xl">
+                {groupedPicker.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-slate-500">
+                    {remainingVisas.length === 0
+                      ? 'No remaining unvouchered visas available. All distributed visas have vouchers!'
+                      : 'No pilgrims match your search.'}
                   </div>
-                  <div className="max-h-64 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
-                    {remainingVisas.length === 0 ? (
-                      <div className="p-6 text-center text-sm text-slate-500">No remaining unvouchered visas available. All distributed visas have vouchers!</div>
-                    ) : (
-                      remainingVisas.map((visa) => {
-                        const isSelected = selectedVisaIds.includes(visa.id);
-                        return (
-                          <div
-                            key={visa.id}
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedVisaIds(selectedVisaIds.filter(id => id !== visa.id));
-                              } else {
-                                setSelectedVisaIds([...selectedVisaIds, visa.id]);
-                              }
-                            }}
-                            className={`p-3 cursor-pointer flex items-center justify-between text-xs transition-colors ${isSelected ? 'bg-[#0e2c4c]/10' : 'hover:bg-slate-50'}`}
-                          >
-                            <div>
-                              <div className="font-bold text-[#0e2c4c]">{visa.pilgrimName}</div>
-                              <div className="text-slate-500">Passport: <code>{visa.passportNumber}</code> • Group: {visa.groupCode}</div>
+                ) : (
+                  groupedPicker.map((group) => {
+                    const groupIds = group.visas.map((v) => v.id);
+                    const allIn = groupIds.every((id) => selectedVisaIds.includes(id));
+                    return (
+                      <div key={group.agentId || 'unassigned'} className="border-b border-slate-100 last:border-b-0">
+                        <button
+                          type="button"
+                          onClick={() => { allIn ? deselectPickerIds(groupIds) : selectPickerIds(groupIds); }}
+                          className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 hover:bg-slate-100 transition"
+                        >
+                          <span className="text-xs font-bold text-[#0e2c4c]">
+                            {pickerAgentName(group.agentId)}
+                            <span className="ml-2 text-[10px] font-semibold text-slate-500">
+                              {group.visas.length} pax • {groupIds.filter((id) => selectedVisaIds.includes(id)).length} selected
+                            </span>
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${allIn ? 'bg-[#0e2c4c] text-white' : 'bg-white text-slate-600 border border-slate-300'}`}>
+                            {allIn ? 'Deselect group' : 'Select group'}
+                          </span>
+                        </button>
+                        {group.visas.map((visa) => {
+                          const isSelected = selectedVisaIds.includes(visa.id);
+                          return (
+                            <div
+                              key={visa.id}
+                              onClick={() => toggleVisa(visa.id)}
+                              className={`px-3 py-2.5 cursor-pointer flex items-center justify-between gap-3 text-xs transition-colors border-t border-slate-50 ${isSelected ? 'bg-[#0e2c4c]/10' : 'hover:bg-slate-50'}`}
+                            >
+                              <div className="min-w-0">
+                                <div className="font-bold text-slate-900 truncate">{visa.pilgrimName}</div>
+                                <div className="text-slate-500 truncate">
+                                  Passport: <code className="font-mono">{visa.passportNumber}</code>
+                                  {visa.groupCode ? ` • Group: ${visa.groupCode}` : ''}
+                                </div>
+                              </div>
+                              <div className={`w-5 h-5 shrink-0 rounded border flex items-center justify-center ${isSelected ? 'bg-[#0e2c4c] text-white border-[#0e2c4c]' : 'border-slate-300 bg-white'}`}>
+                                {isSelected && <Check className="w-3.5 h-3.5" />}
+                              </div>
                             </div>
-                            <div className={`w-5 h-5 rounded border flex items-center justify-center ${isSelected ? 'bg-[#0e2c4c] text-white border-[#0e2c4c]' : 'border-slate-300'}`}>
-                              {isSelected && <Check className="w-3.5 h-3.5" />}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {linkType === 'customer' && (
-                <div className="space-y-3">
-                  <label className="block text-xs font-bold text-slate-700 uppercase">Select Direct B2C Customer *</label>
-                  <select
-                    value={selectedCustomerId}
-                    onChange={(e) => setSelectedCustomerId(e.target.value)}
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
-                  >
-                    <option value="">-- Choose Direct Customer --</option>
-                    {customersList.map((c) => (
-                      <option key={c.id} value={c.id}>{c.fullName} ({c.passportNumber} — {c.mobile})</option>
-                    ))}
-                  </select>
-                  <div className="text-[11px] text-slate-500">Allows hotel-only or service vouchers without requiring a visa record.</div>
-                </div>
-              )}
-
-              {linkType === 'agent' && (
-                <div className="space-y-3">
-                  <label className="block text-xs font-bold text-slate-700 uppercase">Select B2B Sub-Agent *</label>
-                  <select
-                    value={selectedAgentId}
-                    onChange={(e) => setSelectedAgentId(e.target.value)}
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
-                  >
-                    <option value="">-- Choose Sub-Agent --</option>
-                    {agentsList.map((a) => (
-                      <option key={a.id} value={a.id}>{a.companyName} ({a.agentCode})</option>
-                    ))}
-                  </select>
-                  <div className="text-[11px] text-slate-500">Allows hotel-only or group service vouchers linked to sub-agent ledger.</div>
-                </div>
-              )}
+                          );
+                        })}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
           )}
 
@@ -1325,10 +1355,12 @@ export const VouchersPage: React.FC = () => {
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">Nights</label>
                         <input
                           type="number"
-                          min="1"
-                          value={stay.nights}
+                          min="0"
+                          value={stay.nights || ''}
+                          placeholder="0"
                           onChange={(e) => {
-                            const n = parseInt(e.target.value) || 1;
+                            const raw = e.target.value;
+                            const n = raw === '' ? 0 : Math.max(0, parseInt(raw) || 0);
                             const updated = [...hotelStays];
                             updated[idx].nights = n;
                             updated[idx].checkOutDate = addDays(updated[idx].checkInDate, n);
@@ -1432,14 +1464,8 @@ export const VouchersPage: React.FC = () => {
               <h4 className="font-bold text-slate-900 text-sm">Review Trip Voucher Summary</h4>
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Link Type:</span>
-                  <span className="font-bold text-[#0e2c4c] uppercase">{linkType}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Linked Pilgrims / Party:</span>
-                  <span className="font-bold text-slate-800">
-                    {linkType === 'visa' ? `${selectedVisaIds.length} Pilgrims Selected` : linkType === 'customer' ? `Customer ID: ${selectedCustomerId}` : `Agent ID: ${selectedAgentId}`}
-                  </span>
+                  <span className="text-slate-500">Pilgrims:</span>
+                  <span className="font-bold text-[#0e2c4c]">{selectedVisaIds.length} Pilgrims Selected</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Flight Information:</span>
