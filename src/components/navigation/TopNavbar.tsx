@@ -261,7 +261,7 @@ export const TopNavbar: React.FC = () => {
   return (
     <>
       <header className="sticky top-0 z-40 w-full bg-[#0e2c4c] text-white shadow-md border-b border-[#163b63]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-10">
           <div className="flex items-center justify-between h-16 gap-3">
             
             {/* LEFT: Logo & Company Name */}
