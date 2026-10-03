@@ -29,6 +29,8 @@ import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { usePresetSearch } from '../hooks/useDeepOpen';
 import { fetchVisas, saveVisasBatch, saveVisaImportBatch, VisaDoc } from '../services/visaService';
+import { fetchVendors } from '../services/masterService';
+import { VendorDoc } from '../types/master';
 import { logAuditEvent } from '../services/userService';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -55,6 +57,8 @@ export const VisasPage: React.FC = () => {
   const [manualGroupName, setManualGroupName] = useState('Manual Umrah Group');
   const [manualGender, setManualGender] = useState('Male');
   const [manualAge, setManualAge] = useState<number>(30);
+  const [manualVendorId, setManualVendorId] = useState('');
+  const [manualShirkaId, setManualShirkaId] = useState('');
 
   // Import Wizard Modal States
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -62,17 +66,27 @@ export const VisasPage: React.FC = () => {
   const [importStep, setImportStep] = useState<'upload' | 'preview' | 'importing'>('upload');
   const [parsedRows, setParsedRows] = useState<VisaDoc[]>([]);
   const [uploadDateTag, setUploadDateTag] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [vendors, setVendors] = useState<VendorDoc[]>([]);
+  const [importVendorId, setImportVendorId] = useState('');
+  const [importShirkaId, setImportShirkaId] = useState('');
 
   const loadVisas = async () => {
     setLoading(true);
     try {
-      const vList = await fetchVisas();
+      const [vList, vndList] = await Promise.all([fetchVisas(), fetchVendors().catch(() => [])]);
       setVisas(vList);
+      setVendors((vndList as VendorDoc[]).filter((v) => v.isActive !== false));
     } catch {
       showError('Failed to load visas directory.');
     } finally {
       setLoading(false);
     }
+  };
+  const resolveImportShirkaName = (): string => {
+    const vnd = vendors.find((x) => x.id === importVendorId);
+    if (!vnd) return '';
+    const shk = (vnd.shirkas || []).find((s) => s.id === importShirkaId);
+    return shk ? `${vnd.name} — ${shk.name}` : vnd.name;
   };
 
   React.useEffect(() => {
@@ -240,7 +254,17 @@ export const VisasPage: React.FC = () => {
   }, [parsedRows]);
 
   const handleConfirmImport = async () => {
-    const validRowsToImport = parsedRows.filter(r => !r.skipImport && r.passportNumber);
+    if (!importVendorId) {
+      showError('Please select the Shirka for this upload first — every visa must carry a Shirka stamp.');
+      return;
+    }
+    const shirkaName = resolveImportShirkaName();
+    const validRowsToImport = parsedRows.filter(r => !r.skipImport && r.passportNumber).map((r) => ({
+      ...r,
+      vendorId: importVendorId,
+      shirkaId: importShirkaId || undefined,
+      shirkaName: shirkaName || undefined,
+    }));
     const skippedCount = parsedRows.filter(r => r.skipImport).length;
 
     setImportStep('importing');
@@ -258,6 +282,9 @@ export const VisasPage: React.FC = () => {
         totalRows: parsedRows.length,
         importedRows: validRowsToImport.length,
         skippedDuplicates: skippedCount,
+        vendorId: importVendorId || undefined,
+        shirkaId: importShirkaId || undefined,
+        shirkaName: shirkaName || undefined,
       });
 
       // Write audit log entry
@@ -291,6 +318,12 @@ export const VisasPage: React.FC = () => {
     }
 
     try {
+      if (!manualVendorId) {
+        showError('Please select the Shirka for this visa — every visa must carry a Shirka stamp.');
+        return;
+      }
+      const mvnd = vendors.find((x) => x.id === manualVendorId);
+      const mshk = (mvnd?.shirkas || []).find((s: any) => s.id === manualShirkaId);
       const newVisa: VisaDoc = {
         id: `visa-manual-${Date.now()}`,
         pilgrimName: manualName,
@@ -306,6 +339,9 @@ export const VisasPage: React.FC = () => {
         createdAt: new Date().toISOString(),
         isDuplicate: false,
         skipImport: false,
+        vendorId: manualVendorId,
+        shirkaId: manualShirkaId || undefined,
+        shirkaName: (mshk ? `${mvnd!.name} — ${mshk.name}` : mvnd?.name) || undefined,
       };
 
       await saveVisasBatch([newVisa]);
@@ -397,6 +433,7 @@ export const VisasPage: React.FC = () => {
               size="sm"
               leftIcon={<UploadCloud className="w-4 h-4 text-white" />}
               onClick={() => {
+                setImportVendorId(''); setImportShirkaId(''); setImportStep('upload'); setParsedRows([]);
                 setImportModalOpen(true);
                 setImportStep('upload');
                 setParsedRows([]);
@@ -409,7 +446,7 @@ export const VisasPage: React.FC = () => {
               variant="outline"
               size="sm"
               leftIcon={<Plus className="w-4 h-4" />}
-              onClick={() => setModalOpen(true)}
+              onClick={() => { setManualVendorId(''); setManualShirkaId(''); setModalOpen(true); }}
             >
               New Visa Application
             </Button>
@@ -575,16 +612,50 @@ export const VisasPage: React.FC = () => {
                 Duplicates within file or database are automatically skipped and counted.
               </p>
             </div>
+            <div className="max-w-md mx-auto text-left">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Shirka for this upload <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={`${importVendorId}::${importShirkaId}`}
+                onChange={(e) => {
+                  const [vid, sid] = e.target.value.split('::');
+                  setImportVendorId(vid || '');
+                  setImportShirkaId(sid || '');
+                }}
+                className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+              >
+                <option value="::">-- Select Shirka (whose visas are these?) --</option>
+                {vendors.map((v) => {
+                  const shirkas = (v.shirkas || []).filter((s: any) => s.isActive !== false);
+                  if (shirkas.length === 0) {
+                    return <option key={v.id} value={`${v.id}::`}>{v.name}{v.vendorCode ? ` (${v.vendorCode})` : ''}</option>;
+                  }
+                  return (
+                    <optgroup key={v.id} label={`${v.name}${v.vendorCode ? ` (${v.vendorCode})` : ''}`}>
+                      {shirkas.map((s: any) => (
+                        <option key={s.id} value={`${v.id}::${s.id}`}>{s.name} — run by {s.operatorName}</option>
+                      ))}
+                    </optgroup>
+                  );
+                })}
+              </select>
+              <p className="text-[11px] text-slate-500 mt-1">Upload each Shirka's file separately — every visa will carry this Shirka's stamp.</p>
+            </div>
             <div>
-              <label className="inline-block px-4 py-2.5 bg-[#0e2c4c] hover:bg-[#1a4473] text-white font-bold rounded-xl text-xs cursor-pointer shadow transition">
+              <label className={`inline-block px-4 py-2.5 font-bold rounded-xl text-xs shadow transition ${importVendorId ? 'bg-[#0e2c4c] hover:bg-[#1a4473] text-white cursor-pointer' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
                 <span>Browse Excel File</span>
                 <input
                   type="file"
                   accept=".xlsx, .xls, .csv"
                   onChange={handleFileUpload}
+                  disabled={!importVendorId}
                   className="hidden"
                 />
               </label>
+              {!importVendorId && (
+                <p className="text-[11px] text-amber-700 font-semibold mt-2">Pehle upar Shirka select karein, phir file browse hogi.</p>
+              )}
             </div>
           </div>
         )}
@@ -762,6 +833,37 @@ export const VisasPage: React.FC = () => {
               value={manualGroupName}
               onChange={(e) => setManualGroupName(e.target.value)}
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Shirka <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={`${manualVendorId}::${manualShirkaId}`}
+              onChange={(e) => {
+                const [vid, sid] = e.target.value.split('::');
+                setManualVendorId(vid || '');
+                setManualShirkaId(sid || '');
+              }}
+              required
+              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+            >
+              <option value="::">-- Select Shirka --</option>
+              {vendors.map((v) => {
+                const shirkas = (v.shirkas || []).filter((s: any) => s.isActive !== false);
+                if (shirkas.length === 0) {
+                  return <option key={v.id} value={`${v.id}::`}>{v.name}</option>;
+                }
+                return (
+                  <optgroup key={v.id} label={v.name}>
+                    {shirkas.map((s: any) => (
+                      <option key={s.id} value={`${v.id}::${s.id}`}>{s.name} — run by {s.operatorName}</option>
+                    ))}
+                  </optgroup>
+                );
+              })}
+            </select>
           </div>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">

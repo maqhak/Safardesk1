@@ -1,0 +1,19 @@
+{
+  "_comment": "SafarDesk buyer registry. TEMPLATE — replace placeholders with real buyer data. NEVER commit real API keys or secrets here; Firebase web config is connected by each buyer owner in Settings > Firebase Backend.",
+  "buyers": [
+    {
+      "id": "buyer-001",
+      "companyName": "Example Travels (REPLACE)",
+      "firebaseProjectId": "example-travels-prod",
+      "deployFirestoreRules": true,
+      "notes": "First buyer — use for staged rollout before deploy-all"
+    },
+    {
+      "id": "buyer-002",
+      "companyName": "Another Agency (REPLACE)",
+      "firebaseProjectId": "another-agency-prod",
+      "deployFirestoreRules": true,
+      "notes": ""
+    }
+  ]
+}

@@ -98,35 +98,8 @@ export const VouchersPage: React.FC = () => {
   // Pilgrim picker (agent-wise, searchable, multi-select) — no link types
   const [selectedVisaIds, setSelectedVisaIds] = useState<string[]>([]);
 
-  // ---- Shirka guard: one voucher = one Shirka ----
-  // Distinct stamped (vendor, shirka) pairs among selected pax
-  const paxShirkaKeys = useMemo(() => {
-    const set = new Set<string>();
-    for (const v of availableVisas) {
-      if (selectedVisaIds.includes(v.id) && v.vendorId) {
-        set.add(`${v.vendorId}::${v.shirkaId || ''}`);
-      }
-    }
-    return [...set];
-  }, [availableVisas, selectedVisaIds]);
-  const shirkaGuardLocked = paxShirkaKeys.length === 1 ? paxShirkaKeys[0].split('::') : null; // [vendorId, shirkaId]
-  const shirkaGuardMixed = paxShirkaKeys.length > 1;
-  const shirkaGuardMixedNames = useMemo(() => {
-    if (!shirkaGuardMixed) return [];
-    return paxShirkaKeys.map((k) => {
-      const [vid, sid] = k.split('::');
-      const vnd: any = (vendorsMaster || []).find((x: any) => x.id === vid);
-      const shk = (vnd?.shirkas || []).find((s: any) => s.id === sid);
-      return shk?.name || vnd?.name || vid;
-    });
-  }, [shirkaGuardMixed, paxShirkaKeys]);
-  // Auto-lock the Shirka selector to the pax's Shirka
-  useEffect(() => {
-    if (shirkaGuardLocked) {
-      setVoucherVendorId(shirkaGuardLocked[0]);
-      setVoucherShirkaId(shirkaGuardLocked[1] || '');
-    }
-  }, [shirkaGuardLocked ? shirkaGuardLocked.join('::') : '']);
+  // ---- Shirka-first flow: Shirka is selected BEFORE pax; the picker only shows that Shirka's pax ----
+  // (legacy unstamped visas are always shown — they predate Shirka stamping)
   const resolveShirkaName = (vendorId: string, shirkaId: string): string => {
     const vnd: any = (vendorsMaster || []).find((x: any) => x.id === vendorId);
     if (!vnd) return '';
@@ -362,6 +335,9 @@ export const VouchersPage: React.FC = () => {
     }
     if (isAgent && userProfile?.agentId) list = list.filter((v) => v.agentId === userProfile.agentId);
     if (paxAgentFilter !== 'all') list = list.filter((v) => (v.agentId || '') === paxAgentFilter);
+    if (voucherVendorId) {
+      list = list.filter((v) => !v.vendorId || (v.vendorId === voucherVendorId && (v.shirkaId || '') === voucherShirkaId));
+    }
     const q = paxSearch.trim().toLowerCase();
     if (q) {
       list = list.filter((v) =>
@@ -370,7 +346,7 @@ export const VouchersPage: React.FC = () => {
       );
     }
     return list;
-  }, [remainingVisas, isAgent, userProfile, paxAgentFilter, paxSearch, editingVoucherId, vouchers, availableVisas]);
+  }, [remainingVisas, isAgent, userProfile, paxAgentFilter, paxSearch, editingVoucherId, vouchers, availableVisas, voucherVendorId, voucherShirkaId]);
   const pickerAgentIds = useMemo(() => {
     const ids: string[] = [];
     remainingVisas.forEach((v) => {
@@ -499,9 +475,9 @@ export const VouchersPage: React.FC = () => {
       return null;
     }
 
-    // Shirka guard: one voucher = one Shirka — A's visa can never go in B's voucher
-    if (shirkaGuardMixed) {
-      showError(`Pilgrims from different Shirkas selected (${shirkaGuardMixedNames.join(', ')}). One voucher = one Shirka. Please select pilgrims from a single Shirka.`);
+    // Shirka-first: a Shirka must be selected before pax (mixing is impossible — picker is pre-filtered)
+    if (!voucherVendorId) {
+      showError('Please select a Shirka first (Step 1).');
       return null;
     }
 
@@ -1110,7 +1086,7 @@ export const VouchersPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setBuilderOpen(false)}>Cancel</Button>
               {builderStep < 4 ? (
-                <Button variant="primary" size="sm" onClick={() => setBuilderStep((builderStep + 1) as any)} disabled={builderStep === 1 && shirkaGuardMixed} className="bg-[#0e2c4c] disabled:opacity-40">
+                <Button variant="primary" size="sm" onClick={() => setBuilderStep((builderStep + 1) as any)} disabled={builderStep === 1 && !voucherVendorId} className="bg-[#0e2c4c] disabled:opacity-40" title={builderStep === 1 && !voucherVendorId ? 'Pehle Shirka select karein' : ''}>
                   Next Step
                 </Button>
               ) : editingVoucherId ? (
@@ -1129,47 +1105,46 @@ export const VouchersPage: React.FC = () => {
         <div className="py-2">
           {/* Step 1: Select Pilgrims — agent-wise, searchable, multi-select */}
           {builderStep === 1 && (
-            <div className="space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-end gap-2">
-                <div className="sm:w-72">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Shirka <span className="text-slate-400 font-semibold normal-case">(kis shirka ka voucher bana hai)</span>
-                  </label>
-                  <select
-                    value={`${voucherVendorId}::${voucherShirkaId}`}
-                    disabled={!!shirkaGuardLocked}
-                    onChange={(e) => {
-                      const [vid, sid] = e.target.value.split('::');
-                      setVoucherVendorId(vid || '');
-                      setVoucherShirkaId(sid || '');
-                    }}
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold disabled:bg-slate-100 disabled:text-slate-500"
-                  >
-                    <option value="::">-- Select Shirka --</option>
-                    {vendorsMaster.filter((v: any) => v.isActive !== false).map((v: any) => {
-                      const shirkas = (v.shirkas || []).filter((s: any) => s.isActive !== false);
-                      if (shirkas.length === 0) {
-                        return <option key={v.id} value={`${v.id}::`}>{v.name}{v.vendorCode ? ` (${v.vendorCode})` : ''}</option>;
-                      }
-                      return (
-                        <optgroup key={v.id} label={`${v.name}${v.vendorCode ? ` (${v.vendorCode})` : ''}`}>
-                          {shirkas.map((s: any) => (
-                            <option key={s.id} value={`${v.id}::${s.id}`}>{s.name} — run by {s.operatorName}</option>
-                          ))}
-                        </optgroup>
-                      );
-                    })}
-                  </select>
-                  {shirkaGuardLocked && (
-                    <div className="text-[11px] text-emerald-700 font-semibold mt-1">🔒 Shirka locked — all selected pilgrims are from {resolveShirkaName(shirkaGuardLocked[0], shirkaGuardLocked[1])}.</div>
-                  )}
-                </div>
+            <div className="space-y-4">
+              {/* Step 1a: Shirka FIRST — mandatory, picker filters on it */}
+              <div className="p-4 bg-[#0e2c4c]/5 border-2 border-[#0e2c4c]/25 rounded-xl">
+                <label className="block text-sm font-bold text-[#0e2c4c] mb-1">
+                  Step 1: Select Shirka <span className="text-red-500">*</span>
+                </label>
+                <p className="text-[11px] text-slate-500 mb-2">Select the Shirka first — only that Shirka's pilgrims will appear below.</p>
+                <select
+                  value={`${voucherVendorId}::${voucherShirkaId}`}
+                  onChange={(e) => {
+                    const [vid, sid] = e.target.value.split('::');
+                    setVoucherVendorId(vid || '');
+                    setVoucherShirkaId(sid || '');
+                    // Prune selected pax that don't belong to the newly selected Shirka
+                    if (vid) {
+                      setSelectedVisaIds((prev) => prev.filter((id) => {
+                        const vv = availableVisas.find((x) => x.id === id);
+                        if (!vv || !vv.vendorId) return true;
+                        return vv.vendorId === vid && (vv.shirkaId || '') === (sid || '');
+                      }));
+                    }
+                  }}
+                  className="w-full sm:w-96 p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                >
+                  <option value="::">-- Select Shirka (mandatory) --</option>
+                  {vendorsMaster.filter((v: any) => v.isActive !== false).map((v: any) => {
+                    const shirkas = (v.shirkas || []).filter((s: any) => s.isActive !== false);
+                    if (shirkas.length === 0) {
+                      return <option key={v.id} value={`${v.id}::`}>{v.name}{v.vendorCode ? ` (${v.vendorCode})` : ''}</option>;
+                    }
+                    return (
+                      <optgroup key={v.id} label={`${v.name}${v.vendorCode ? ` (${v.vendorCode})` : ''}`}>
+                        {shirkas.map((s: any) => (
+                          <option key={s.id} value={`${v.id}::${s.id}`}>{s.name} — run by {s.operatorName}</option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                </select>
               </div>
-              {shirkaGuardMixed && (
-                <div className="p-3 bg-red-50 border border-red-300 rounded-xl text-xs text-red-800 font-semibold">
-                  ⚠️ Pilgrims from different Shirkas selected ({shirkaGuardMixedNames.join(', ')}). One voucher = one Shirka — A's visa can never go in B's voucher. Please select pilgrims from a single Shirka.
-                </div>
-              )}
               {editingVoucherId && role !== 'owner' && (
                 <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl">
                   <label className="block text-xs font-bold text-amber-800 uppercase tracking-wider mb-1.5">
@@ -1185,9 +1160,16 @@ export const VouchersPage: React.FC = () => {
                   <p className="text-[11px] text-amber-700 mt-1">The owner will review and approve this edit before it applies.</p>
                 </div>
               )}
+              {(!editingVoucherId && !voucherVendorId) ? (
+                <div className="p-8 text-center bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl">
+                  <div className="text-sm font-bold text-slate-700">↑ Pehle upar se Shirka select karein</div>
+                  <div className="text-[11px] text-slate-500 mt-1">Uske baad sirf usi Shirka ke pilgrims ki list yahan ayegi.</div>
+                </div>
+              ) : (
+              <div className="space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
-                  <h4 className="font-bold text-slate-900 text-sm">Select Pilgrims</h4>
+                  <h4 className="font-bold text-slate-900 text-sm">Step 2: Select Pilgrims{voucherVendorId ? ` — ${resolveShirkaName(voucherVendorId, voucherShirkaId)}` : ''}</h4>
                   <p className="text-[11px] text-slate-500">
                     {remainingVisas.length} pax available (distributed visas without a voucher yet). Pick agent-wise, search by name or passport, select multiple.
                   </p>
@@ -1293,6 +1275,8 @@ export const VouchersPage: React.FC = () => {
                   })
                 )}
               </div>
+              </div>
+              )}
             </div>
           )}
 

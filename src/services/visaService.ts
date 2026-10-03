@@ -103,6 +103,9 @@ export interface VisaImportBatchDoc {
   totalRows: number;
   importedRows: number;
   skippedDuplicates: number;
+  vendorId?: string;
+  shirkaId?: string;
+  shirkaName?: string;
 }
 
 const INITIAL_VISAS: VisaDoc[] = [
