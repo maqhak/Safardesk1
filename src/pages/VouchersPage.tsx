@@ -501,6 +501,25 @@ export const VouchersPage: React.FC = () => {
       return null;
     }
 
+    // Date logic: departure can never be before arrival, and no hotel
+    // checkout may run past the departure (return) date.
+    const departureDates = [
+      ...sectors.filter(s => s.type === 'Departure' && s.date).map(s => s.date),
+      ...(depDate ? [depDate] : []),
+    ];
+    const tripDeparture = departureDates.sort().pop() || '';
+    if (tripDeparture && arrivalDate && tripDeparture < arrivalDate) {
+      showError(`Departure date (${tripDeparture}) cannot be before the arrival date (${arrivalDate}).`);
+      return null;
+    }
+    if (tripDeparture) {
+      const lateStay = hotelStays.find(h => h.checkOutDate && h.checkOutDate > tripDeparture);
+      if (lateStay) {
+        showError(`Hotel checkout (${lateStay.checkOutDate}, ${lateStay.hotelName || lateStay.city}) cannot be after the departure date (${tripDeparture}).`);
+        return null;
+      }
+    }
+
     // Fix #32: commission contact number is required when commission is enabled
     if (commissionEnabled) {
       if (!commissionName.trim()) {
@@ -1425,6 +1444,7 @@ export const VouchersPage: React.FC = () => {
                         <input
                           type="date"
                           value={depDate}
+                          min={arrivalDate}
                           onChange={(e) => setDepDate(e.target.value)}
                           className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
                         />
@@ -1495,6 +1515,7 @@ export const VouchersPage: React.FC = () => {
                         <input
                           type="date"
                           value={retDate}
+                          min={arrivalDate}
                           onChange={(e) => setRetDate(e.target.value)}
                           className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
                         />
@@ -1567,6 +1588,7 @@ export const VouchersPage: React.FC = () => {
                         <input
                           type="date"
                           value={sec.date}
+                          min={sec.type === 'Departure' ? arrivalDate : undefined}
                           onChange={(e) => {
                             const updated = [...sectors];
                             updated[idx].date = e.target.value;
