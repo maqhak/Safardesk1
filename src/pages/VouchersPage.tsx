@@ -37,10 +37,17 @@ import { useCan } from '../hooks/useCan';
 import { useDeepOpen } from '../hooks/useDeepOpen';
 import * as XLSX from 'xlsx';
 import { fetchLedgerEntries } from '../services/accountingService';
-import { VoucherDoc, SectorItem, HotelStayItem, VoucherChargeItem } from '../types/voucher';
+import { VoucherDoc, SectorItem, HotelStayItem, VoucherChargeItem, VoucherEditPayload, VoucherEditRequest } from '../types/voucher';
 import { fetchVouchers, createVoucher, cancelVoucher, markCommissionPaid } from '../services/voucherService';
 import { fetchVisas } from '../services/visaService';
 import { fetchHotels, fetchVehicles, fetchVendors } from '../services/masterService';
+import {
+  fetchEditRequests,
+  requestVoucherEdit,
+  approveVoucherEdit,
+  rejectVoucherEdit,
+  applyVoucherEditDirect,
+} from '../services/voucherService';
 import { fetchCustomers } from '../services/customerService';
 import { fetchAgents } from '../services/agentService';
 import { HotelDoc, VehicleDoc } from '../types/master';
@@ -220,6 +227,13 @@ export const VouchersPage: React.FC = () => {
 
   // Voucher Detail Review Modal
   const [detailModalOpen, setDetailModalOpen] = useState<boolean>(false);
+  // Voucher edit + approval states
+  const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null);
+  const [editReason, setEditReason] = useState<string>('');
+  const [editRequests, setEditRequests] = useState<VoucherEditRequest[]>([]);
+  const [reviewModalOpen, setReviewModalOpen] = useState<boolean>(false);
+  const [reviewingRequest, setReviewingRequest] = useState<VoucherEditRequest | null>(null);
+  const [reviewNote, setReviewNote] = useState<string>('');
   const [voucherPrintTheme, setVoucherPrintTheme] = useState<VoucherPrintTheme>('bw');
   const [selectedVoucher, setSelectedVoucher] = useState<VoucherDoc | null>(null);
 
@@ -268,6 +282,7 @@ export const VouchersPage: React.FC = () => {
       setAgentsList(aList);
       setLedgerEntries(ledgerList);
       setVendorsMaster(vndList || []);
+      setEditRequests(await fetchEditRequests());
     } catch {
       showError('Failed to load vouchers directory.');
     } finally {
@@ -301,6 +316,12 @@ export const VouchersPage: React.FC = () => {
   };
   const pickerVisas = useMemo(() => {
     let list = remainingVisas;
+    if (editingVoucherId) {
+      const editing = vouchers.find((x) => x.id === editingVoucherId);
+      const ownIds = new Set(editing?.visaIds || []);
+      const own = availableVisas.filter((v) => ownIds.has(v.id) && !list.some((r) => r.id === v.id));
+      list = [...own, ...list];
+    }
     if (isAgent && userProfile?.agentId) list = list.filter((v) => v.agentId === userProfile.agentId);
     if (paxAgentFilter !== 'all') list = list.filter((v) => (v.agentId || '') === paxAgentFilter);
     const q = paxSearch.trim().toLowerCase();
@@ -311,7 +332,7 @@ export const VouchersPage: React.FC = () => {
       );
     }
     return list;
-  }, [remainingVisas, isAgent, userProfile, paxAgentFilter, paxSearch]);
+  }, [remainingVisas, isAgent, userProfile, paxAgentFilter, paxSearch, editingVoucherId, vouchers, availableVisas]);
   const pickerAgentIds = useMemo(() => {
     const ids: string[] = [];
     remainingVisas.forEach((v) => {
@@ -342,6 +363,8 @@ export const VouchersPage: React.FC = () => {
 
   const openBuilder = () => {
     setBuilderStep(1);
+    setEditingVoucherId(null);
+    setEditReason('');
     setVoucherShirkaId('');
     setSelectedVisaIds([]);
     setPaxSearch('');
@@ -363,6 +386,46 @@ export const VouchersPage: React.FC = () => {
     setCommissionName('');
     setCommissionContact('');
     setCommissionAmount('');
+    setBuilderOpen(true);
+  };
+
+  /** Open the builder in EDIT mode, pre-filled from the voucher. */
+  const openEditVoucher = (v: VoucherDoc) => {
+    if (v.status === 'Cancelled') {
+      showError('Cancelled vouchers cannot be edited.');
+      return;
+    }
+    const fd = v.flightDetails as any;
+    setEditingVoucherId(v.id);
+    setEditReason('');
+    setSelectedVisaIds([...(v.visaIds || [])]);
+    setPaxSearch('');
+    setPaxAgentFilter('all');
+    setVoucherShirkaId((v as any).shirkaVendorId || '');
+    setArrivalDate(v.sectors?.[0]?.date || new Date().toISOString().split('T')[0]);
+    setSectors(JSON.parse(JSON.stringify(v.sectors || [])));
+    setHotelStays(JSON.parse(JSON.stringify(v.hotelStays || [])));
+    setAllowFlightInfo(!!fd?.allowFlightInfo);
+    setDepAirline(fd?.departureFlight?.airline || null);
+    setDepFlightNo(fd?.departureFlight?.flightNo || '');
+    setDepFrom(fd?.departureFlight?.fromAirport || null);
+    setDepTo(fd?.departureFlight?.toAirport || null);
+    setDepDate(fd?.departureFlight?.date || new Date().toISOString().split('T')[0]);
+    setDepEtd(fd?.departureFlight?.etd || '12:00');
+    setDepEta(fd?.departureFlight?.eta || '15:00');
+    setRetAirline(fd?.returnFlight?.airline || null);
+    setRetFlightNo(fd?.returnFlight?.flightNo || '');
+    setRetFrom(fd?.returnFlight?.fromAirport || null);
+    setRetTo(fd?.returnFlight?.toAirport || null);
+    setRetDate(fd?.returnFlight?.date || new Date().toISOString().split('T')[0]);
+    setRetEtd(fd?.returnFlight?.etd || '14:00');
+    setRetEta(fd?.returnFlight?.eta || '18:00');
+    setLateIntimationSAR(fd?.lateIntimationChargesSAR ? String(fd.lateIntimationChargesSAR) : '');
+    setCommissionEnabled(!!v.commission?.enabled);
+    setCommissionName(v.commission?.recipientName || '');
+    setCommissionContact(v.commission?.contact || '');
+    setCommissionAmount(v.commission?.amountSAR ? String(v.commission.amountSAR) : '');
+    setBuilderStep(1);
     setBuilderOpen(true);
   };
 
@@ -389,40 +452,39 @@ export const VouchersPage: React.FC = () => {
   const lateIntimation = parseFloat(lateIntimationSAR) || 0;
   const totalSAR = hotelsSAR + transportSAR + lateIntimation;
 
-  const handleSaveVoucher = async () => {
-    if (!userProfile) return;
-
+  /** Validate builder state and construct the voucher payload (used by create + edit). */
+  const buildVoucherPayload = (): VoucherEditPayload | null => {
     // Pilgrim selection required
     if (selectedVisaIds.length === 0) {
       showError('Please select at least one pilgrim for this voucher.');
-      return;
+      return null;
     }
 
     const missingVehicle = sectors.filter(s => !s.vehicleType && !s.isSelfGari);
     if (missingVehicle.length > 0) {
       showError('Transport rule: every sector needs a vehicle selected, or mark Self Gari.');
-      return;
+      return null;
     }
 
     // Fix #32: commission contact number is required when commission is enabled
     if (commissionEnabled) {
       if (!commissionName.trim()) {
         showError('Commission: please enter the recipient name.');
-        return;
+        return null;
       }
       if (!commissionContact.trim()) {
         showError('Commission: please enter the recipient contact number.');
-        return;
+        return null;
       }
       if (!(parseFloat(commissionAmount) > 0)) {
         showError('Commission: please enter a valid commission amount.');
-        return;
+        return null;
       }
     }
 
     if (namedHotelStays.length === 0 && sectorsWithTransport.length === 0) {
       showError('Please add at least one hotel stay (with a name) or transport sector.');
-      return;
+      return null;
     }
 
     const selectedVisasData = availableVisas.filter((v) => selectedVisaIds.includes(v.id));
@@ -438,19 +500,14 @@ export const VouchersPage: React.FC = () => {
 
     const totalPKR = convert(totalSAR, getCurrentRate('SAR-PKR'));
 
-    setSaving(true);
-    try {
-      await createVoucher(userProfile, {
-        linkType: 'visa',
-        visaIds: selectedVisaIds,
-        customerId: undefined,
-        agentId: voucherAgentId,
-        shirkaVendorId: voucherShirkaId || undefined,
-        status: 'Confirmed',
-        passengers,
-        sectors: sectorsWithTransport,
-        hotelStays: namedHotelStays,
-        flightDetails: {
+    return {
+      visaIds: selectedVisaIds,
+      agentId: voucherAgentId,
+      shirkaVendorId: voucherShirkaId || undefined,
+      passengers,
+      sectors: sectorsWithTransport,
+      hotelStays: namedHotelStays,
+      flightDetails: {
           allowFlightInfo,
           departureFlight: {
             airline: depAirline,
@@ -491,6 +548,71 @@ export const VouchersPage: React.FC = () => {
           amountSAR: parseFloat(commissionAmount) || 0,
           isPaid: false,
         },
+      };
+  };
+
+  const handleSaveVoucher = async () => {
+    if (!userProfile) return;
+    const payload = buildVoucherPayload();
+    if (!payload) return;
+
+    // ---- EDIT MODE ----
+    if (editingVoucherId) {
+      const target = vouchers.find((v) => v.id === editingVoucherId);
+      if (!target) {
+        showError('Voucher not found.');
+        return;
+      }
+      if (role !== 'owner' && !editReason.trim()) {
+        showError('Please write a reason for this edit request.');
+        return;
+      }
+      setSaving(true);
+      try {
+        if (role === 'owner') {
+          await applyVoucherEditDirect(userProfile, editingVoucherId, payload);
+          success(`Voucher ${target.voucherNo} updated — old charges reversed, new charges posted to ledger.`);
+        } else {
+          await requestVoucherEdit(userProfile, target, payload, editReason);
+          success(`Edit request for ${target.voucherNo} sent to owner for approval.`);
+        }
+        setBuilderOpen(false);
+        setEditingVoucherId(null);
+        setEditReason('');
+        setDetailModalOpen(false);
+        setSelectedVoucher(null);
+        await loadData();
+      } catch (err: any) {
+        showError(err?.message || 'Failed to save voucher edit.');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    // ---- CREATE MODE ----
+    setSaving(true);
+    try {
+      await createVoucher(userProfile, {
+        linkType: 'visa',
+        visaIds: payload.visaIds,
+        customerId: undefined,
+        agentId: payload.agentId,
+        shirkaVendorId: payload.shirkaVendorId,
+        status: 'Confirmed',
+        passengers: payload.passengers,
+        sectors: payload.sectors,
+        hotelStays: payload.hotelStays,
+        flightDetails: payload.flightDetails,
+        charges: payload.charges,
+        totals: {
+          hotelsSAR: payload.totals.hotelsSAR,
+          transportSAR: payload.totals.transportSAR,
+          otherSAR: payload.totals.otherSAR,
+          totalSAR: payload.totals.totalSAR,
+          totalPKR: payload.totals.totalPKR,
+        },
+        commission: payload.commission,
       });
 
       success('Unified trip voucher created successfully and posted to ledger.');
@@ -749,6 +871,92 @@ export const VouchersPage: React.FC = () => {
         }
       />
 
+      {/* Pending edit approvals (owner) */}
+      {role === 'owner' && editRequests.filter((r) => r.status === 'pending').length > 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-bold text-amber-900 text-sm flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              Voucher Edit Approvals ({editRequests.filter((r) => r.status === 'pending').length} pending)
+            </h4>
+          </div>
+          <div className="space-y-2">
+            {editRequests.filter((r) => r.status === 'pending').map((r) => {
+              const v = vouchers.find((x) => x.id === r.voucherId);
+              return (
+                <div key={r.id} className="bg-white border border-amber-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center gap-3 text-xs">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-slate-900">
+                      {r.voucherNo}
+                      {v && (
+                        <span className="ml-2 font-mono font-semibold text-slate-500">
+                          SAR {v.totals.totalSAR.toLocaleString()} → SAR {r.newData.totals.totalSAR.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-slate-600 mt-0.5">
+                      Requested by <strong>{r.requestedByName}</strong> ({r.requestedByRole}) • {r.requestedAt.split('T')[0]}
+                    </div>
+                    <div className="text-slate-500 italic mt-0.5 truncate" title={r.reason}>
+                      "{r.reason}"
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setReviewingRequest(r);
+                        setReviewNote('');
+                        setReviewModalOpen(true);
+                      }}
+                    >
+                      Review
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      onClick={async () => {
+                        if (!userProfile) return;
+                        if (!window.confirm(`Approve edit for ${r.voucherNo}? Old charges will be reversed and new charges posted.`)) return;
+                        try {
+                          await approveVoucherEdit(userProfile, r.id);
+                          success(`Edit approved for ${r.voucherNo}.`);
+                          await loadData();
+                        } catch (err: any) {
+                          showError(err?.message || 'Approval failed.');
+                        }
+                      }}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-rose-600 border-rose-300 hover:bg-rose-50"
+                      onClick={async () => {
+                        if (!userProfile) return;
+                        const note = window.prompt(`Reject edit request for ${r.voucherNo}? Optional note:`) || '';
+                        try {
+                          await rejectVoucherEdit(userProfile, r.id, note);
+                          success(`Edit request for ${r.voucherNo} rejected.`);
+                          await loadData();
+                        } catch (err: any) {
+                          showError(err?.message || 'Rejection failed.');
+                        }
+                      }}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Filter Bar */}
       <Card padding="md" className="border-slate-200 shadow-xs">
         <div className="grid grid-cols-1 sm:grid-cols-6 gap-3">
@@ -838,8 +1046,8 @@ export const VouchersPage: React.FC = () => {
       <Modal
         isOpen={builderOpen}
         onClose={() => setBuilderOpen(false)}
-        title="Unified Trip Voucher Builder"
-        subtitle={`Step ${builderStep} of 4 • Configure linking rules, flight details, hotel stays, and charges.`}
+        title={editingVoucherId ? `Edit Voucher ${vouchers.find((v) => v.id === editingVoucherId)?.voucherNo || ''}` : 'Unified Trip Voucher Builder'}
+        subtitle={editingVoucherId ? `Step ${builderStep} of 4 • ${role === 'owner' ? 'Changes apply directly with ledger reversal + reposting.' : 'Your changes will be sent to the owner for approval.'}` : `Step ${builderStep} of 4 • Configure linking rules, flight details, hotel stays, and charges.`}
         size="lg"
         footer={
           <div className="flex items-center justify-between w-full">
@@ -855,6 +1063,10 @@ export const VouchersPage: React.FC = () => {
               {builderStep < 4 ? (
                 <Button variant="primary" size="sm" onClick={() => setBuilderStep((builderStep + 1) as any)} className="bg-[#0e2c4c]">
                   Next Step
+                </Button>
+              ) : editingVoucherId ? (
+                <Button variant="primary" size="sm" onClick={handleSaveVoucher} loading={saving} className="bg-amber-600 hover:bg-amber-700 text-white font-bold">
+                  {role === 'owner' ? 'Save Changes' : 'Request Edit Approval'}
                 </Button>
               ) : (
                 <Button variant="primary" size="sm" onClick={handleSaveVoucher} loading={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
@@ -886,6 +1098,21 @@ export const VouchersPage: React.FC = () => {
                   </select>
                 </div>
               </div>
+              {editingVoucherId && role !== 'owner' && (
+                <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl">
+                  <label className="block text-xs font-bold text-amber-800 uppercase tracking-wider mb-1.5">
+                    Reason for edit request *
+                  </label>
+                  <textarea
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                    rows={2}
+                    placeholder="e.g. Hotel changed from X to Y, 2 extra nights added..."
+                    className="w-full p-2 bg-white border border-amber-300 rounded-lg text-xs resize-none"
+                  />
+                  <p className="text-[11px] text-amber-700 mt-1">The owner will review and approve this edit before it applies.</p>
+                </div>
+              )}
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <h4 className="font-bold text-slate-900 text-sm">Select Pilgrims</h4>
@@ -1556,6 +1783,117 @@ export const VouchersPage: React.FC = () => {
 
       </div>
 
+      {/* Edit Request Review Modal (owner) */}
+      {reviewingRequest && (
+        <Modal
+          isOpen={reviewModalOpen}
+          onClose={() => setReviewModalOpen(false)}
+          title={`Review Edit — ${reviewingRequest.voucherNo}`}
+          subtitle={`Requested by ${reviewingRequest.requestedByName} (${reviewingRequest.requestedByRole}) on ${reviewingRequest.requestedAt.split('T')[0]}`}
+          size="lg"
+          footer={
+            <div className="flex items-center justify-end gap-2 w-full">
+              <input
+                type="text"
+                value={reviewNote}
+                onChange={(e) => setReviewNote(e.target.value)}
+                placeholder="Review note (optional)"
+                className="flex-1 p-2 bg-white border border-slate-300 rounded-lg text-xs"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-rose-600 border-rose-300 hover:bg-rose-50"
+                onClick={async () => {
+                  if (!userProfile) return;
+                  try {
+                    await rejectVoucherEdit(userProfile, reviewingRequest.id, reviewNote);
+                    success('Edit request rejected.');
+                    setReviewModalOpen(false);
+                    await loadData();
+                  } catch (err: any) {
+                    showError(err?.message || 'Rejection failed.');
+                  }
+                }}
+              >
+                Reject
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={async () => {
+                  if (!userProfile) return;
+                  try {
+                    await approveVoucherEdit(userProfile, reviewingRequest.id, reviewNote);
+                    success(`Edit approved for ${reviewingRequest.voucherNo}.`);
+                    setReviewModalOpen(false);
+                    await loadData();
+                  } catch (err: any) {
+                    showError(err?.message || 'Approval failed.');
+                  }
+                }}
+              >
+                Approve & Apply
+              </Button>
+            </div>
+          }
+        >
+          {(() => {
+            const v = vouchers.find((x) => x.id === reviewingRequest.voucherId);
+            const nd = reviewingRequest.newData;
+            if (!v) return <div className="text-xs text-slate-500">Original voucher not found.</div>;
+            const row = (label: string, oldV: string, newV: string, changed: boolean) => (
+              <div className={`flex items-center justify-between py-1.5 border-b border-slate-100 text-xs ${changed ? 'bg-amber-50/60' : ''}`}>
+                <span className="font-semibold text-slate-600">{label}</span>
+                <span className="font-mono text-right">
+                  <span className={changed ? 'line-through text-slate-400' : 'text-slate-700'}>{oldV}</span>
+                  {changed && <span className="ml-2 font-bold text-[#0e2c4c]">{newV}</span>}
+                </span>
+              </div>
+            );
+            const ch = (a: any, b: any) => JSON.stringify(a) !== JSON.stringify(b);
+            return (
+              <div className="space-y-3 text-xs">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="font-bold text-slate-700 mb-1">Reason</div>
+                  <div className="italic text-slate-600">"{reviewingRequest.reason}"</div>
+                </div>
+                <div className="border border-slate-200 rounded-xl px-3 py-1">
+                  {row('Pilgrims', String(v.passengers.length), String(nd.passengers.length), v.passengers.length !== nd.passengers.length)}
+                  {row('Total (SAR)', v.totals.totalSAR.toLocaleString(), nd.totals.totalSAR.toLocaleString(), v.totals.totalSAR !== nd.totals.totalSAR)}
+                  {row('Hotels (SAR)', v.totals.hotelsSAR.toLocaleString(), nd.totals.hotelsSAR.toLocaleString(), v.totals.hotelsSAR !== nd.totals.hotelsSAR)}
+                  {row('Transport (SAR)', v.totals.transportSAR.toLocaleString(), nd.totals.transportSAR.toLocaleString(), v.totals.transportSAR !== nd.totals.transportSAR)}
+                  {row('Hotel stays', String(v.hotelStays.length), String(nd.hotelStays.length), ch(v.hotelStays, nd.hotelStays))}
+                  {row('Sectors', String(v.sectors.length), String(nd.sectors.length), ch(v.sectors, nd.sectors))}
+                  {row('Shirka', (vendorsMaster.find((x: any) => x.id === (v as any).shirkaVendorId)?.name || '—'), (vendorsMaster.find((x: any) => x.id === nd.shirkaVendorId)?.name || '—'), (v as any).shirkaVendorId !== nd.shirkaVendorId)}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="border border-slate-200 rounded-xl p-3">
+                    <div className="font-bold text-slate-700 mb-1.5">Current stays</div>
+                    {v.hotelStays.map((s, i) => (
+                      <div key={i} className="py-1 border-b border-slate-100 last:border-0">
+                        <div className="font-semibold">{s.hotelName} ({s.city})</div>
+                        <div className="text-slate-500">{s.nights}n • {s.bedType} • SAR {(s.totalSAR || 0).toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border border-amber-300 rounded-xl p-3 bg-amber-50/40">
+                    <div className="font-bold text-slate-700 mb-1.5">Requested stays</div>
+                    {nd.hotelStays.map((s, i) => (
+                      <div key={i} className="py-1 border-b border-slate-100 last:border-0">
+                        <div className="font-semibold">{s.hotelName} ({s.city})</div>
+                        <div className="text-slate-500">{s.nights}n • {s.bedType} • SAR {(s.totalSAR || 0).toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </Modal>
+      )}
+
       {/* Voucher Itinerary Detail Modal — the print document (stays visible in print) */}
       {selectedVoucher && (
         <Modal
@@ -1570,6 +1908,22 @@ export const VouchersPage: React.FC = () => {
                 <Button variant="primary" onClick={() => window.print()} rightIcon={<Printer className="w-3.5 h-3.5" />}>
                   Print Voucher
                 </Button>
+                {selectedVoucher.status !== 'Cancelled' && !editRequests.some((r) => r.voucherId === selectedVoucher.id && r.status === 'pending') && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setDetailModalOpen(false);
+                      openEditVoucher(selectedVoucher);
+                    }}
+                  >
+                    Edit Voucher
+                  </Button>
+                )}
+                {editRequests.some((r) => r.voucherId === selectedVoucher.id && r.status === 'pending') && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-800 text-[11px] font-bold border border-amber-300">
+                    Edit Pending Approval
+                  </span>
+                )}
                 <Button
                   variant="outline"
                   onClick={() => {

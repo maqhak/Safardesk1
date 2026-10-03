@@ -7,7 +7,7 @@ import {
   getDoc 
 } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
-import { VoucherDoc } from '../types/voucher';
+import { VoucherDoc, VoucherEditPayload, VoucherEditRequest } from '../types/voucher';
 import { UserProfile } from '../types/auth';
 import { LedgerAccountDoc, LedgerEntryDoc } from '../types/agent';
 import { logAuditEvent } from './userService';
@@ -21,6 +21,8 @@ const LEDGER_ACCOUNTS_COLLECTION = 'ledgerAccounts';
 const LEDGER_ENTRIES_COLLECTION = 'ledgerEntries';
 const SETTINGS_COUNTERS_COLLECTION = 'settings';
 const LOCAL_STORAGE_VOUCHERS_KEY = 'safardesk_vouchers_directory';
+const EDIT_REQUESTS_COLLECTION = 'voucherEditRequests';
+const LOCAL_STORAGE_EDIT_REQUESTS_KEY = 'safardesk_voucher_edit_requests';
 
 const INITIAL_VOUCHERS: VoucherDoc[] = [
   {
@@ -161,7 +163,7 @@ export async function createVoucher(
   return newVoucher;
 }
 
-async function postVoucherToLedger(actor: UserProfile, voucher: VoucherDoc): Promise<void> {
+export async function postVoucherToLedger(actor: UserProfile, voucher: VoucherDoc): Promise<void> {
   // Fix #18: post SEPARATE balanced charge lines, each tagged with the Voucher No.
   // Fix #15b: empty/zero charge rows never post — skip ledger posting for zero-total vouchers.
   if ((voucher.totals.totalSAR || 0) <= 0) return;
@@ -371,5 +373,277 @@ export async function markCommissionPaid(actor: UserProfile, voucherId: string):
     targetUserId: voucherId,
     targetUserName: voucher.voucherNo,
     details: { commissionSAR: voucher.commission.amountSAR },
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Voucher edit requests — staff/agent edits need owner approval       */
+/* ------------------------------------------------------------------ */
+
+export async function fetchEditRequests(): Promise<VoucherEditRequest[]> {
+  try {
+    if (!isConfigPlaceholder) {
+      const snap = await getDocs(collection(db, EDIT_REQUESTS_COLLECTION));
+      if (!snap.empty) {
+        return snap.docs.map((d) => d.data() as VoucherEditRequest);
+      }
+    }
+  } catch (err) {
+    console.warn('Could not read voucher edit requests from Firestore:', err);
+  }
+  const stored = localStorage.getItem(LOCAL_STORAGE_EDIT_REQUESTS_KEY);
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch {
+      // fallback
+    }
+  }
+  return [];
+}
+
+async function persistEditRequests(list: VoucherEditRequest[]): Promise<void> {
+  localStorage.setItem(LOCAL_STORAGE_EDIT_REQUESTS_KEY, JSON.stringify(list));
+}
+
+export async function requestVoucherEdit(
+  actor: UserProfile,
+  voucher: VoucherDoc,
+  payload: VoucherEditPayload,
+  reason: string
+): Promise<VoucherEditRequest> {
+  if (!reason.trim()) throw new Error('Please write a reason for this edit request.');
+  const requests = await fetchEditRequests();
+  const req: VoucherEditRequest = {
+    id: `ver-${Date.now()}`,
+    voucherId: voucher.id,
+    voucherNo: voucher.voucherNo,
+    requestedBy: actor.uid,
+    requestedByName: actor.name || actor.email,
+    requestedByRole: actor.role,
+    requestedAt: new Date().toISOString(),
+    reason: reason.trim(),
+    status: 'pending',
+    newData: payload,
+  };
+  const next = [req, ...requests];
+  await persistEditRequests(next);
+  try {
+    if (!isConfigPlaceholder) {
+      await setDoc(doc(db, EDIT_REQUESTS_COLLECTION, req.id), req as any);
+    }
+  } catch (err) {
+    console.warn('Could not save edit request to Firestore:', err);
+  }
+  await logAuditEvent({
+    action: 'VOUCHER_EDIT_REQUESTED',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: voucher.id,
+    targetUserName: voucher.voucherNo,
+    details: { reason: req.reason },
+  });
+  return req;
+}
+
+/** Post REVERSAL entries for a voucher's current charges (edit flow). History is kept. */
+async function reverseVoucherCharges(actor: UserProfile, voucher: VoucherDoc): Promise<void> {
+  if ((voucher.totals.totalSAR || 0) <= 0) return;
+  const [accounts, hotels] = await Promise.all([fetchLedgerAccounts(), fetchHotels()]);
+  const findAccount = (linkId?: string | null) =>
+    accounts.find((a: any) => a.linkedId === linkId || (a as any).linkedAgentId === linkId);
+  const linked = voucher.agentId || voucher.customerId;
+  const receivable = findAccount(linked);
+  const rate = voucher.totals.exchangeRate || getCurrentRate('SAR-PKR');
+  const date = new Date().toISOString().split('T')[0];
+  const transportIncome = accounts.find((a: any) => a.id === 'acc-sys-004');
+
+  const postReversal = async (particulars: string, amt: number, creditAccountId: string) => {
+    if (amt <= 0 || !receivable) return;
+    await postBalancedTransaction({
+      date,
+      entryType: 'Voucher Charge',
+      transNo: voucher.voucherNo,
+      particulars: `REVERSAL (edit ${voucher.voucherNo}): ${particulars}`,
+      voucherNo: voucher.voucherNo,
+      rate,
+      debitAccountId: creditAccountId,
+      creditAccountId: (receivable as any).id,
+      amountSAR: amt,
+      createdBy: actor.uid,
+    });
+  };
+
+  for (const stay of voucher.hotelStays || []) {
+    const amt = stay.totalSAR || 0;
+    if (amt <= 0) continue;
+    const hotel = hotels.find((h: any) => h.name === stay.hotelName);
+    const vendorAcc = hotel ? findAccount(hotel.vendorId) : undefined;
+    if (vendorAcc) {
+      await postReversal(
+        `Hotel: ${stay.city} - ${stay.hotelName} (${stay.nights}n, ${stay.bedType} bed)`,
+        amt,
+        (vendorAcc as any).id
+      );
+    }
+  }
+  for (const s of voucher.sectors || []) {
+    if (transportIncome) {
+      await postReversal(
+        `Transport: ${s.type} sector (${s.vehicleType || 'Transport'})`,
+        s.transportRateSAR || 0,
+        (transportIncome as any).id
+      );
+    }
+  }
+  const otherSAR = voucher.totals.otherSAR || 0;
+  if (otherSAR > 0 && transportIncome) {
+    await postReversal('Other voucher charges', otherSAR, (transportIncome as any).id);
+  }
+}
+
+async function applyEditPayload(
+  actor: UserProfile,
+  voucher: VoucherDoc,
+  payload: VoucherEditPayload
+): Promise<VoucherDoc> {
+  // 1) Reverse old charge postings (history kept in ledger)
+  await reverseVoucherCharges(actor, voucher);
+
+  // 2) Update the voucher document
+  const exchangeRate = getCurrentRate('SAR-PKR');
+  const updated: VoucherDoc = {
+    ...voucher,
+    visaIds: payload.visaIds,
+    agentId: payload.agentId,
+    shirkaVendorId: payload.shirkaVendorId,
+    passengers: payload.passengers,
+    sectors: payload.sectors,
+    hotelStays: payload.hotelStays,
+    flightDetails: payload.flightDetails,
+    charges: payload.charges,
+    totals: { ...payload.totals, exchangeRate },
+    commission: payload.commission,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const vouchers = await fetchVouchers();
+  const index = vouchers.findIndex((v) => v.id === voucher.id);
+  if (index !== -1) vouchers[index] = updated;
+  localStorage.setItem(LOCAL_STORAGE_VOUCHERS_KEY, JSON.stringify(vouchers));
+  try {
+    if (!isConfigPlaceholder) {
+      await setDoc(doc(db, VOUCHERS_COLLECTION, voucher.id), updated as any);
+    }
+  } catch (err) {
+    console.warn('Could not update edited voucher in Firestore:', err);
+  }
+
+  // 3) Post the new charge lines
+  await postVoucherToLedger(actor, updated);
+  return updated;
+}
+
+/** Owner applies an edit directly (no approval needed). */
+export async function applyVoucherEditDirect(
+  actor: UserProfile,
+  voucherId: string,
+  payload: VoucherEditPayload
+): Promise<VoucherDoc> {
+  const vouchers = await fetchVouchers();
+  const voucher = vouchers.find((v) => v.id === voucherId);
+  if (!voucher) throw new Error('Voucher not found.');
+  if (voucher.status === 'Cancelled') throw new Error('Cannot edit a cancelled voucher.');
+  const updated = await applyEditPayload(actor, voucher, payload);
+  await logAuditEvent({
+    action: 'VOUCHER_EDITED',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: voucher.id,
+    targetUserName: voucher.voucherNo,
+    details: { totalSAR: updated.totals.totalSAR },
+  });
+  return updated;
+}
+
+/** Owner approves a pending edit request — reversals + new postings. */
+export async function approveVoucherEdit(
+  actor: UserProfile,
+  requestId: string,
+  note?: string
+): Promise<VoucherDoc> {
+  const requests = await fetchEditRequests();
+  const req = requests.find((r) => r.id === requestId);
+  if (!req) throw new Error('Edit request not found.');
+  if (req.status !== 'pending') throw new Error('This request is already reviewed.');
+  const vouchers = await fetchVouchers();
+  const voucher = vouchers.find((v) => v.id === req.voucherId);
+  if (!voucher) throw new Error('Voucher not found.');
+  if (voucher.status === 'Cancelled') throw new Error('Cannot edit a cancelled voucher.');
+
+  const updated = await applyEditPayload(actor, voucher, req.newData);
+
+  const next = requests.map((r) =>
+    r.id === requestId
+      ? { ...r, status: 'approved' as const, reviewedBy: actor.uid, reviewedByName: actor.name || actor.email, reviewedAt: new Date().toISOString(), reviewNote: note?.trim() || '' }
+      : r
+  );
+  await persistEditRequests(next);
+  try {
+    if (!isConfigPlaceholder) {
+      await setDoc(doc(db, EDIT_REQUESTS_COLLECTION, requestId), next.find((r) => r.id === requestId) as any);
+    }
+  } catch (err) {
+    console.warn('Could not update edit request in Firestore:', err);
+  }
+  await logAuditEvent({
+    action: 'VOUCHER_EDIT_APPROVED',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: voucher.id,
+    targetUserName: voucher.voucherNo,
+    details: { requestedBy: req.requestedByName, note: note?.trim() || '' },
+  });
+  return updated;
+}
+
+/** Owner rejects a pending edit request — voucher stays unchanged. */
+export async function rejectVoucherEdit(
+  actor: UserProfile,
+  requestId: string,
+  note?: string
+): Promise<void> {
+  const requests = await fetchEditRequests();
+  const req = requests.find((r) => r.id === requestId);
+  if (!req) throw new Error('Edit request not found.');
+  if (req.status !== 'pending') throw new Error('This request is already reviewed.');
+  const next = requests.map((r) =>
+    r.id === requestId
+      ? { ...r, status: 'rejected' as const, reviewedBy: actor.uid, reviewedByName: actor.name || actor.email, reviewedAt: new Date().toISOString(), reviewNote: note?.trim() || '' }
+      : r
+  );
+  await persistEditRequests(next);
+  try {
+    if (!isConfigPlaceholder) {
+      await setDoc(doc(db, EDIT_REQUESTS_COLLECTION, requestId), next.find((r) => r.id === requestId) as any);
+    }
+  } catch (err) {
+    console.warn('Could not update edit request in Firestore:', err);
+  }
+  await logAuditEvent({
+    action: 'VOUCHER_EDIT_REJECTED',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: req.voucherId,
+    targetUserName: req.voucherNo,
+    details: { requestedBy: req.requestedByName, note: note?.trim() || '' },
   });
 }

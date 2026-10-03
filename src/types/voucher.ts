@@ -96,3 +96,35 @@ export interface VoucherDoc {
   cancelledBy?: string;
   updatedAt?: string;
 }
+
+/** Payload snapshot for a voucher edit (create or approval). */
+export interface VoucherEditPayload {
+  visaIds: string[];
+  agentId?: string;
+  shirkaVendorId?: string;
+  passengers: PassengerSnapshot[];
+  sectors: SectorItem[];
+  hotelStays: HotelStayItem[];
+  flightDetails?: VoucherDoc['flightDetails'];
+  charges: VoucherChargeItem[];
+  totals: VoucherDoc['totals'];
+  commission: VoucherCommission;
+}
+
+/** An edit request on a voucher — staff/agent edits need owner approval. */
+export interface VoucherEditRequest {
+  id: string;
+  voucherId: string;
+  voucherNo: string;
+  requestedBy: string;
+  requestedByName: string;
+  requestedByRole: string;
+  requestedAt: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  newData: VoucherEditPayload;
+  reviewedBy?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
+}
