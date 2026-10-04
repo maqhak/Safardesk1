@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { useAuth } from '../../contexts/AuthContext';
-import { fetchVouchers } from '../../services/voucherService';
+import { fetchVouchers, fetchVouchersForAgent } from '../../services/voucherService';
 import { fetchVendors } from '../../services/masterService';
 import { fetchVisas } from '../../services/visaService';
 import { fetchVisaDistributions } from '../../services/visaDistributionService';
@@ -35,7 +35,12 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
     if (isOpen) {
       setQuery('');
       setLoading(true);
-      Promise.all([fetchVouchers(), fetchVendors(), fetchVisas(), fetchVisaDistributions()])
+      // Agents get a server-side filtered query (unfiltered collection reads are
+      // rejected by Firestore rules for the agent role)
+      const vouchersPromise = role === 'agent' && userProfile?.agentId
+        ? fetchVouchersForAgent(userProfile.agentId)
+        : fetchVouchers();
+      Promise.all([vouchersPromise, fetchVendors(), fetchVisas(), fetchVisaDistributions()])
         .then(([vList, vndList, visaList, distList]) => {
           setVouchers(vList);
           setVendors(vndList);

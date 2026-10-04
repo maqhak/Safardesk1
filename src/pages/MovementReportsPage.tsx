@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { 
   Compass, 
   Search, 
@@ -60,6 +61,22 @@ export const MovementReportsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showDetailedSummaries, setShowDetailedSummaries] = useState<boolean>(false);
 
+  // Deep link from Dashboard KSA Status cards: { reportType, date }
+  const location = useLocation() as any;
+  useEffect(() => {
+    const dl = location?.state as { reportType?: MovementReportType; date?: string } | undefined;
+    if (dl?.reportType && (MOVEMENT_REPORT_TYPES as string[]).includes(dl.reportType)) {
+      setSelectedReportType(dl.reportType);
+    }
+    if (dl?.date) {
+      setDateMode('single');
+      setSingleDate(dl.date);
+    }
+    if (dl?.reportType || dl?.date) {
+      window.history.replaceState({}, document.title);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const loadData = async () => {
     setLoading(true);
     try {

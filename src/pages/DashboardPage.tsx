@@ -422,7 +422,7 @@ export const DashboardPage: React.FC = () => {
                     <span className="font-mono font-bold text-[#0e2c4c]">{v.voucherNo}</span>
                     <span className="text-xs text-slate-500 ml-3">{v.passengers?.length || 1} Pax • {v.status}</span>
                   </div>
-                  <span className="text-xs font-bold text-slate-800">{formatConvertedMoney(v.totals?.totalSAR || 4500, exchangeRate)}</span>
+                  <span className="text-xs font-bold text-slate-800">{formatConvertedMoney(v.totals?.totalSAR || 0, exchangeRate)}</span>
                 </div>
               ))
             )}
@@ -687,42 +687,42 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 text-center">
-          <div onClick={() => info(`Viewing arrival movement for ${ksaDate}`)} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
+          <div onClick={() => navigate('/tickets/movement-reports', { state: { reportType: 'Arrival to Kingdom', date: ksaDate } })} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Arrival</span>
             <span className="text-lg font-mono font-bold text-emerald-600">{ksaStatusCounts.arrival}</span>
             <span className="text-[10px] text-slate-500 block">Pax</span>
           </div>
-          <div onClick={() => info(`Viewing departure movement for ${ksaDate}`)} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
+          <div onClick={() => navigate('/tickets/movement-reports', { state: { reportType: 'Departure from Kingdom', date: ksaDate } })} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Departure</span>
             <span className="text-lg font-mono font-bold text-rose-600">{ksaStatusCounts.departure}</span>
             <span className="text-[10px] text-slate-500 block">Pax</span>
           </div>
-          <div onClick={() => info(`Viewing Makkah Check-In for ${ksaDate}`)} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
+          <div onClick={() => navigate('/vouchers')} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Makkah In</span>
             <span className="text-lg font-mono font-bold text-[#0e2c4c]">{ksaStatusCounts.makkahIn}</span>
             <span className="text-[10px] text-slate-500 block">Pax</span>
           </div>
-          <div onClick={() => info(`Viewing Makkah Check-Out for ${ksaDate}`)} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
+          <div onClick={() => navigate('/vouchers')} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Makkah Out</span>
             <span className="text-lg font-mono font-bold text-amber-600">{ksaStatusCounts.makkahOut}</span>
             <span className="text-[10px] text-slate-500 block">Pax</span>
           </div>
-          <div onClick={() => info(`Viewing Madina Check-In for ${ksaDate}`)} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
+          <div onClick={() => navigate('/vouchers')} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Madina In</span>
             <span className="text-lg font-mono font-bold text-[#0e2c4c]">{ksaStatusCounts.madinaIn}</span>
             <span className="text-[10px] text-slate-500 block">Pax</span>
           </div>
-          <div onClick={() => info(`Viewing Madina Check-Out for ${ksaDate}`)} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
+          <div onClick={() => navigate('/vouchers')} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Madina Out</span>
             <span className="text-lg font-mono font-bold text-amber-600">{ksaStatusCounts.madinaOut}</span>
             <span className="text-[10px] text-slate-500 block">Pax</span>
           </div>
-          <div onClick={() => info(`Viewing Inside KSA for ${ksaDate}`)} className="bg-navy-50 p-3 rounded-xl border border-navy-100 cursor-pointer hover:bg-navy-100/50 transition">
+          <div onClick={() => navigate('/vouchers')} className="bg-navy-50 p-3 rounded-xl border border-navy-100 cursor-pointer hover:bg-navy-100/50 transition">
             <span className="text-[10px] text-[#0e2c4c] uppercase font-bold block">Inside KSA</span>
             <span className="text-lg font-mono font-bold text-[#0e2c4c]">{ksaStatusCounts.insideKsa}</span>
             <span className="text-[10px] text-[#0e2c4c] block">Total Pax</span>
           </div>
-          <div onClick={() => info(`Viewing In Makkah & In Madinah split for ${ksaDate}`)} className="bg-gold-50 p-3 rounded-xl border border-amber-200 cursor-pointer hover:bg-amber-100/50 transition">
+          <div onClick={() => navigate('/vouchers')} className="bg-gold-50 p-3 rounded-xl border border-amber-200 cursor-pointer hover:bg-amber-100/50 transition">
             <span className="text-[10px] text-amber-800 uppercase font-bold block">Makkah / Madinah</span>
             <span className="text-sm font-mono font-bold text-amber-800">{ksaStatusCounts.inMakkah} / {ksaStatusCounts.inMadinah}</span>
             <span className="text-[10px] text-amber-700 block">Split Pax</span>
@@ -739,7 +739,7 @@ export const DashboardPage: React.FC = () => {
               <FileCheck className="w-5 h-5 text-[#0e2c4c]" />
               <h3 className="text-sm font-bold text-slate-900">Bookings Overview</h3>
             </div>
-            <span className="text-xs font-mono font-bold bg-navy-50 text-[#0e2c4c] px-2.5 py-1 rounded-lg">Total: {visas.length || 142} Bookings</span>
+            <span className="text-xs font-mono font-bold bg-navy-50 text-[#0e2c4c] px-2.5 py-1 rounded-lg">Total: {visas.length} Bookings</span>
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs bg-slate-50 p-3 rounded-xl">
@@ -801,7 +801,7 @@ export const DashboardPage: React.FC = () => {
               <Hotel className="w-5 h-5 text-[#0e2c4c]" />
               <h3 className="text-sm font-bold text-slate-900">Vouchers Overview</h3>
             </div>
-            <span className="text-xs font-mono font-bold bg-navy-50 text-[#0e2c4c] px-2.5 py-1 rounded-lg">Total: {vouchers.length || 54} Vouchers</span>
+            <span className="text-xs font-mono font-bold bg-navy-50 text-[#0e2c4c] px-2.5 py-1 rounded-lg">Total: {vouchers.length} Vouchers</span>
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs bg-slate-50 p-3 rounded-xl">
@@ -901,7 +901,11 @@ export const DashboardPage: React.FC = () => {
 
           {/* Over Due Limit */}
           <div 
-            onClick={() => navigate('/accounts')}
+            onClick={() => {
+              const target = overdueAccounts[0];
+              if (target) navigate(`/accounts?accountId=${target.id}`);
+              else navigate('/accounts');
+            }}
             className="p-4 bg-rose-50/60 border border-rose-200 rounded-xl cursor-pointer hover:bg-rose-100/60 transition space-y-2"
           >
             <div className="flex items-center justify-between">
