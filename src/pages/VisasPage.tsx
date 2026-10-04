@@ -427,6 +427,7 @@ export const VisasPage: React.FC = () => {
           { label: 'Visas' }
         ]}
         actions={
+          canCreate ? (
           <div className="flex items-center gap-2">
             <Button
               variant="primary"
@@ -465,6 +466,7 @@ export const VisasPage: React.FC = () => {
               )}
             </Button>
           </div>
+          ) : undefined
         }
       />
 

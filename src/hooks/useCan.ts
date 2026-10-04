@@ -23,9 +23,13 @@ export function checkCan(
     if (['Settings', 'Accounts', 'Banks', 'Masters', 'Reports'].includes(module)) {
       return false;
     }
-    // Agents can view their bookings/visas and create applications
+    // Agents can view their own visas/vouchers; they cannot add/import visas
+    // (visa import & distribution is owner/staff work). Voucher creation stays.
     if (action === 'delete') return false;
-    if (['Visas', 'Vouchers', 'Tickets', 'Dashboard'].includes(module)) {
+    if (module === 'Visas') {
+      return action === 'view';
+    }
+    if (['Vouchers', 'Tickets', 'Dashboard'].includes(module)) {
       return action === 'view' || action === 'create';
     }
     return false;

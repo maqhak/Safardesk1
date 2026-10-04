@@ -4,7 +4,9 @@ import {
   getDocs, 
   setDoc, 
   updateDoc, 
-  getDoc 
+  getDoc,
+  query,
+  where
 } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { VoucherDoc, VoucherEditPayload, VoucherEditRequest } from '../types/voucher';
@@ -76,6 +78,27 @@ export async function fetchVouchers(): Promise<VoucherDoc[]> {
 
   localStorage.setItem(LOCAL_STORAGE_VOUCHERS_KEY, JSON.stringify(INITIAL_VOUCHERS));
   return INITIAL_VOUCHERS;
+}
+
+/**
+ * Agent-scoped voucher fetch: server-side where('agentId', '==', agentId).
+ * The Firestore rules allow agents per-doc reads only when agentId matches,
+ * so an unfiltered collection query is rejected — this filtered query is permitted.
+ */
+export async function fetchVouchersForAgent(agentId: string): Promise<VoucherDoc[]> {
+  try {
+    if (!isConfigPlaceholder && agentId) {
+      const q = query(collection(db, VOUCHERS_COLLECTION), where('agentId', '==', agentId));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        return snap.docs.map((d) => d.data() as VoucherDoc);
+      }
+      return [];
+    }
+  } catch (err) {
+    console.warn('Could not read agent vouchers from Firestore:', err);
+  }
+  return [];
 }
 
 export async function nextVoucherNumber(): Promise<string> {

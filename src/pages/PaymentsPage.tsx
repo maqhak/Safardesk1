@@ -90,6 +90,8 @@ export const PaymentsPage: React.FC = () => {
   // Deep link: ?q=<term> presets the search filter (from profile timelines)
   usePresetSearch(setSearch);
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  // Entry-type tabs: All Entries | Cash Payments | Bank Transfers
+  const [entryTab, setEntryTab] = useState<'all' | 'cash' | 'bank'>('all');
   const [accountFilter, setAccountFilter] = useState<string>('all');
   const [reviewFilter, setReviewFilter] = useState<string>('all');
   const [startDate, setStartDate] = useState<string>('');
@@ -514,6 +516,8 @@ export const PaymentsPage: React.FC = () => {
   // Filtered payments list
   const filteredPayments = useMemo(() => {
     return payments.filter((p) => {
+      if (entryTab === 'cash' && !p.entryType?.startsWith('cash-')) return false;
+      if (entryTab === 'bank' && !p.entryType?.startsWith('bank-')) return false;
       if (typeFilter !== 'all' && p.entryType !== typeFilter) {
         return false;
       }
@@ -546,7 +550,7 @@ export const PaymentsPage: React.FC = () => {
 
       return true;
     });
-  }, [payments, typeFilter, accountFilter, reviewFilter, startDate, endDate, search, accounts]);
+  }, [payments, entryTab, typeFilter, accountFilter, reviewFilter, startDate, endDate, search, accounts]);
 
   const totalReceivedSAR = useMemo(() => {
     return filteredPayments
@@ -764,6 +768,36 @@ export const PaymentsPage: React.FC = () => {
             Reconciled across {filteredPayments.filter(p => !p.isVoid).length} active transactions
           </div>
         </Card>
+      </div>
+
+      {/* Entry Type Tabs: separate Cash / Bank entries instead of one mixed list */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {([
+          { key: 'all', label: 'All Entries' },
+          { key: 'cash', label: 'Cash Payments' },
+          { key: 'bank', label: 'Bank Transfers' },
+        ] as const).map((t) => {
+          const count = t.key === 'all'
+            ? payments.filter(p => !p.isVoid).length
+            : payments.filter(p => !p.isVoid && p.entryType?.startsWith(t.key === 'cash' ? 'cash-' : 'bank-')).length;
+          const active = entryTab === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => { setEntryTab(t.key); setTypeFilter('all'); }}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition border ${
+                active
+                  ? 'bg-[#0e2c4c] text-white border-[#0e2c4c] shadow-xs'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {t.label}
+              <span className={`ml-2 px-1.5 py-0.5 rounded-full font-mono ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Filters Bar */}
