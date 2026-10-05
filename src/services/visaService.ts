@@ -141,24 +141,38 @@ const INITIAL_VISAS: VisaDoc[] = [
 ];
 
 export async function fetchVisas(): Promise<VisaDoc[]> {
+  let firestoreVisas: VisaDoc[] = [];
+  let firestoreOk = false;
+
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, VISAS_COLLECTION));
-      return snap.docs.map((d) => d.data() as VisaDoc);
+      firestoreVisas = snap.docs.map((d) => d.data() as VisaDoc);
+      firestoreOk = true;
     }
   } catch (err) {
     console.warn('Could not read visas from Firestore:', err);
   }
 
+  // Merge with localStorage (in case Firestore writes failed silently)
+  let localVisas: VisaDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_VISAS_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      localVisas = JSON.parse(stored);
     } catch {
       // fallback
     }
   }
-  return [];
+
+  if (!firestoreOk) {
+    return localVisas;
+  }
+
+  // Dedupe: Firestore wins, local-only records appended
+  const seen = new Set(firestoreVisas.map((v) => v.id));
+  const localOnly = localVisas.filter((v) => !seen.has(v.id));
+  return [...firestoreVisas, ...localOnly];
 }
 
 export async function saveVisasBatch(newVisas: VisaDoc[]): Promise<void> {
@@ -169,8 +183,10 @@ export async function saveVisasBatch(newVisas: VisaDoc[]): Promise<void> {
   if (!isConfigPlaceholder) {
     try {
       await Promise.all(newVisas.map((v) => setDoc(doc(db, VISAS_COLLECTION, v.id), v)));
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Could not save visa batch to Firestore:', err);
+      // Surface Firestore errors so the user knows data may not be synced
+      throw new Error(`Saved locally, but Firestore sync failed: ${err?.message || err}. Check your connection and Firestore rules.`);
     }
   }
 }
