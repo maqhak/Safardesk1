@@ -447,3 +447,101 @@ export async function resetUserPasswordByOwner(
 
   return tempPassword;
 }
+
+/**
+ * Upload a profile picture via the SAME Google Apps Script as company logos,
+ * saved in the SAME central Drive folder (with profile_ filename prefix).
+ * Falls back to resized base64 data URL if the script is not configured.
+ */
+export async function uploadProfilePicture(uid: string, file: File): Promise<string> {
+  const scriptUrl = import.meta.env.VITE_LOGO_UPLOAD_URL as string | undefined;
+
+  // Resize to max 300px (profile pics don't need to be large)
+  const dataUrl = await resizeImageToDataUrl(file, 300);
+
+  if (scriptUrl) {
+    try {
+      const response = await fetch(scriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          image: dataUrl,
+          mimeType: file.type || 'image/png',
+          filename: `profile_${uid}_${Date.now()}.${(file.name.split('.').pop() || 'png').toLowerCase()}`,
+        }),
+      });
+      const result = await response.json();
+      if (result.success && result.url) {
+        return result.url;
+      }
+      console.warn('Profile upload script returned error:', result.error);
+    } catch (err) {
+      console.warn('Profile upload via Apps Script failed, using local data URL:', err);
+    }
+  }
+
+  // Fallback: resized base64 data URL (stored in users/{uid})
+  return dataUrl;
+}
+
+/**
+ * Save the profile picture URL to the user's Firestore document.
+ */
+export async function saveProfilePictureUrl(uid: string, photoURL: string): Promise<void> {
+  const { updateDoc: _updateDoc, doc: _doc } = await import('firebase/firestore');
+  const { db: _db } = await import('./firebase');
+  await _updateDoc(_doc(_db, 'users', uid), {
+    photoURL,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * Remove the profile picture (revert to initials).
+ */
+export async function removeProfilePicture(uid: string): Promise<void> {
+  const { updateDoc: _updateDoc, doc: _doc } = await import('firebase/firestore');
+  const { db: _db } = await import('./firebase');
+  await _updateDoc(_doc(_db, 'users', uid), {
+    photoURL: '',
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * Resize an image file to max dimension and return as data URL.
+ */
+function resizeImageToDataUrl(file: File, maxDim: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const ratio = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas not supported'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL(file.type || 'image/jpeg', 0.85));
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Could not load image'));
+    };
+
+    img.src = url;
+  });
+}
