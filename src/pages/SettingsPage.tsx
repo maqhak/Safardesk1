@@ -25,13 +25,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { isConfigPlaceholder, db } from '../services/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { 
-  getDriveIntegration, 
-  connectGoogleDrive, 
+import {
+  getDriveIntegration,
+  connectGoogleDrive,
   disconnectGoogleDrive,
   saveGeminiApiKey,
   clearGeminiApiKey
 } from '../services/driveService';
+import { updateExchangeRate } from '../services/exchangeRateService';
 import { DriveIntegrationDoc } from '../types/payment';
 
 export const SettingsPage: React.FC = () => {
@@ -155,9 +156,18 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    success('Tenant configuration updated. To persist permanently across builds, commit changes to src/config.ts.', 'Settings Saved');
+    try {
+      // Save exchange rate (persists to localStorage + audit log)
+      const rate = parseFloat(exchangeRate);
+      if (!isNaN(rate) && rate > 0 && userProfile) {
+        await updateExchangeRate(userProfile, 'SAR-PKR', rate);
+      }
+      success('Settings saved successfully.', 'Settings Saved');
+    } catch (err: any) {
+      showError(err?.message || 'Failed to save settings.');
+    }
   };
 
   return (
