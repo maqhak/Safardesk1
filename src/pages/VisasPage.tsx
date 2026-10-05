@@ -635,6 +635,7 @@ export const VisasPage: React.FC = () => {
                   }
                   return (
                     <optgroup key={v.id} label={`${v.name}${v.vendorCode ? ` (${v.vendorCode})` : ''}`}>
+                      <option value={`${v.id}::`}>{v.name} — Company itself (no sub-shirka)</option>
                       {shirkas.map((s: any) => (
                         <option key={s.id} value={`${v.id}::${s.id}`}>{s.name} — run by {s.operatorName}</option>
                       ))}
