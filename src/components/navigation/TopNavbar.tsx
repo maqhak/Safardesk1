@@ -289,16 +289,11 @@ export const TopNavbar: React.FC = () => {
                   </div>
                 )}
                 <div className="flex flex-col">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-extrabold text-lg tracking-tight text-white group-hover:text-gold-300 transition-colors">
-                      {TENANT.shortName}
-                    </span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#c9a227] text-[#0e2c4c] uppercase tracking-wider">
-                      {role === 'agent' ? 'B2B' : 'CRM'}
-                    </span>
-                  </div>
-                  <span className="text-[11px] text-slate-300 font-normal truncate max-w-[170px] sm:max-w-none">
+                  <span className="font-extrabold text-lg tracking-tight text-white group-hover:text-gold-300 transition-colors truncate max-w-[200px] sm:max-w-none">
                     {TENANT.companyName}
+                  </span>
+                  <span className="text-[11px] text-slate-300 font-normal">
+                    SafarDesk
                   </span>
                 </div>
               </NavLink>
