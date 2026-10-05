@@ -33,10 +33,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-60 disabled:cursor-not-allowed select-none active:scale-[0.99] cursor-pointer';
 
     const variantStyles: Record<ButtonVariant, string> = {
-      primary:
-        'bg-[#0e2c4c] text-white hover:bg-[#163b63] active:bg-[#08192b] focus:ring-[#0e2c4c]/40 shadow-sm border border-[#0e2c4c]',
-      gold:
-        'bg-[#c9a227] text-white hover:bg-[#b38e1e] active:bg-[#9c7b18] focus:ring-[#c9a227]/40 shadow-sm border border-[#c9a227]',
+      primary: 'text-white shadow-sm border',
+      gold: 'text-white shadow-sm border',
       outline:
         'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:ring-slate-300 shadow-xs',
       ghost:
@@ -51,12 +49,28 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       lg: 'text-base px-5 py-2.5 gap-2.5 h-11',
     };
 
+    // Dynamic theme colors via CSS variables
+    const variantInlineStyles: Record<ButtonVariant, React.CSSProperties> = {
+      primary: {
+        backgroundColor: 'var(--theme-primary)',
+        borderColor: 'var(--theme-primary)',
+      },
+      gold: {
+        backgroundColor: 'var(--theme-accent)',
+        borderColor: 'var(--theme-accent)',
+      },
+      outline: {},
+      ghost: {},
+      danger: {},
+    };
+
     return (
       <button
         ref={ref}
         type={type}
         disabled={disabled || loading}
         className={cn(baseStyles, variantStyles[variant], sizeStyles[size], className)}
+        style={{ ...variantInlineStyles[variant], ...props.style }}
         {...props}
       >
         {loading ? (
