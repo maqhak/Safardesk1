@@ -1,8 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Compass, Loader2, ShieldAlert, ArrowLeft, Home } from 'lucide-react';
-import { TENANT } from '../../config';
+import { Loader2, ShieldAlert, ArrowLeft, Home, RefreshCw } from 'lucide-react';
 import { AppModule, PermissionAction } from '../../types/auth';
 import { checkCan } from '../../hooks/useCan';
 import { Button } from '../ui/Button';
@@ -22,18 +21,35 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const { user, userProfile, role, loading } = useAuth();
   const location = useLocation();
+  // If auth takes too long (network/Firestore hiccup), offer a retry instead of hanging forever
+  const [slowAuth, setSlowAuth] = useState(false);
+  useEffect(() => {
+    if (!loading) {
+      setSlowAuth(false);
+      return;
+    }
+    const t = setTimeout(() => setSlowAuth(true), 10000);
+    return () => clearTimeout(t);
+  }, [loading]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <div className="w-14 h-14 rounded-2xl bg-[#0e2c4c] flex items-center justify-center text-[#c9a227] shadow-lg mb-4 animate-pulse">
-          <Compass className="w-8 h-8" />
-        </div>
-        <div className="flex items-center gap-2 text-slate-700 font-semibold text-sm">
-          <Loader2 className="w-4 h-4 animate-spin text-[#0e2c4c]" />
-          <span>Authenticating with {TENANT.shortName}...</span>
-        </div>
-        <p className="text-xs text-slate-400 mt-1">Verifying credentials and security permissions</p>
+        <Loader2 className="w-8 h-8 animate-spin text-[#0e2c4c]" />
+        <p className="text-xs text-slate-500 mt-3 font-medium">Loading...</p>
+        {slowAuth && (
+          <div className="mt-4 text-center space-y-2">
+            <p className="text-[11px] text-slate-500">Taking longer than usual.</p>
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
