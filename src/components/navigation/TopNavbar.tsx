@@ -26,11 +26,13 @@ import {
   Eye,
   EyeOff,
   Moon,
-  Sun
+  Sun,
+  Camera
 } from 'lucide-react';
 import { TENANT } from '../../config';
 import { getCurrentRate } from '../../services/exchangeRateService';
 import { fetchCompanyProfile } from '../../services/companyService';
+import { uploadProfilePicture, saveProfilePictureUrl } from '../../services/userService';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { LicensePill } from '../auth/LicensePill';
@@ -181,6 +183,31 @@ export const TopNavbar: React.FC = () => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const handleProfilePictureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userProfile?.uid) return;
+
+    if (!file.type.startsWith('image/')) {
+      showError('Please select an image file.');
+      return;
+    }
+
+    setUploadingPhoto(true);
+    try {
+      const url = await uploadProfilePicture(userProfile.uid, file);
+      await saveProfilePictureUrl(userProfile.uid, url);
+      success('Profile picture updated!');
+      // Refresh the page to show the new picture (or update context)
+      window.location.reload();
+    } catch (err: any) {
+      showError(err.message || 'Failed to upload profile picture.');
+    } finally {
+      setUploadingPhoto(false);
+      setUserMenuOpen(false);
+    }
+  };
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string>('');
 
@@ -396,8 +423,16 @@ export const TopNavbar: React.FC = () => {
                   className="flex items-center gap-2.5 p-1 rounded-lg hover:bg-white/10 transition cursor-pointer focus:outline-none"
                   aria-expanded={userMenuOpen}
                 >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#163b63] to-[#c9a227] text-white flex items-center justify-center font-bold text-xs shadow-xs border border-white/20">
-                    {initials}
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#163b63] to-[#c9a227] text-white flex items-center justify-center font-bold text-xs shadow-xs border border-white/20 overflow-hidden">
+                    {userProfile?.photoURL ? (
+                      <img
+                        src={userProfile.photoURL}
+                        alt={userProfile?.name || 'User'}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      initials
+                    )}
                   </div>
                   <div className="hidden md:flex flex-col text-left leading-none">
                     <span className="text-xs font-semibold text-white truncate max-w-[120px]">
@@ -454,6 +489,18 @@ export const TopNavbar: React.FC = () => {
                         <User className="w-4 h-4 text-slate-400" />
                         <span>My Profile</span>
                       </button>
+
+                      <label className="w-full px-4 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer">
+                        <Camera className="w-4 h-4 text-slate-400" />
+                        <span>{uploadingPhoto ? 'Uploading...' : 'Upload Profile Picture'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="sr-only"
+                          disabled={uploadingPhoto}
+                          onChange={handleProfilePictureUpload}
+                        />
+                      </label>
 
                       <button
                         onClick={() => {

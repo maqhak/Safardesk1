@@ -41,6 +41,7 @@ export interface UserDoc {
   createdBy: string;
   lastLoginAt?: string;
   phone?: string;
+  photoURL?: string; // profile picture (data URL or https URL)
 }
 
 // Backwards-compatible alias for AuthContext
