@@ -164,6 +164,16 @@ export const SettingsPage: React.FC = () => {
       if (!isNaN(rate) && rate > 0 && userProfile) {
         await updateExchangeRate(userProfile, 'SAR-PKR', rate);
       }
+      // Save tenant branding to Firestore (applies immediately, no redeploy)
+      if (userProfile && role === 'owner') {
+        const { saveTenantBranding } = await import('../services/tenantService');
+        await saveTenantBranding(userProfile.uid, {
+          companyName,
+          appTitle,
+          email: supportEmail,
+          phone: supportPhone,
+        });
+      }
       success('Settings saved successfully.', 'Settings Saved');
     } catch (err: any) {
       showError(err?.message || 'Failed to save settings.');
@@ -224,25 +234,24 @@ export const SettingsPage: React.FC = () => {
             />
 
             <div className="space-y-4">
-              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
-                <p className="text-xs text-amber-800">
-                  <strong>Build-time settings:</strong> These values come from the <code className="font-mono bg-amber-100 px-1 rounded">.env</code> file
-                  (<code className="font-mono">VITE_TENANT_COMPANY_NAME</code>, <code className="font-mono">VITE_TENANT_APP_TITLE</code>, <code className="font-mono">VITE_TENANT_EMAIL</code>, <code className="font-mono">VITE_TENANT_PHONE</code>).
-                  To change them, update <code className="font-mono">.env</code> and redeploy.
+              <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+                <p className="text-xs text-emerald-800">
+                  <strong>Runtime settings:</strong> Changes save to Firestore and apply immediately —
+                  no rebuild or redeploy needed. Each agency manages their own branding.
                 </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="Company Name"
                   value={companyName}
-                  disabled
-                  helperText="From VITE_TENANT_COMPANY_NAME"
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  required
                 />
                 <Input
                   label="Display App Title"
                   value={appTitle}
-                  disabled
-                  helperText="From VITE_TENANT_APP_TITLE"
+                  onChange={(e) => setAppTitle(e.target.value)}
+                  required
                 />
               </div>
 
@@ -251,21 +260,15 @@ export const SettingsPage: React.FC = () => {
                   label="Support / Operations Email"
                   type="email"
                   value={supportEmail}
-                  disabled
-                  helperText="From VITE_TENANT_EMAIL"
+                  onChange={(e) => setSupportEmail(e.target.value)}
+                  required
                 />
                 <Input
                   label="Phone / WhatsApp Hotline"
                   value={supportPhone}
-                  disabled
-                  helperText="From VITE_TENANT_PHONE"
+                  onChange={(e) => setSupportPhone(e.target.value)}
+                  required
                 />
-              </div>
-
-              <div className="pt-2">
-                <p className="text-xs text-slate-500">
-                  White-label architecture note: modifying <code className="font-mono bg-slate-100 px-1 py-0.5 rounded border border-slate-200">.env</code> and redeploying updates the CRM branding for this client.
-                </p>
               </div>
             </div>
           </Card>
