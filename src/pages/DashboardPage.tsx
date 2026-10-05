@@ -378,7 +378,7 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* My Flight Summary */}
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden p-4 space-y-3">
+        <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden p-3 space-y-2">
           <div className="flex items-center justify-center gap-2 border-b border-slate-100 pb-2">
             <Plane className="w-4 h-4 text-[#0e2c4c]" />
             <h3 className="text-sm font-bold text-slate-900">My Flight Summary</h3>
@@ -408,7 +408,7 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* My Vouchers */}
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden p-4 space-y-3">
+        <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden p-3 space-y-2">
           <div className="flex items-center justify-center gap-3">
             <h3 className="text-sm font-bold text-slate-900">My Vouchers</h3>
             <Button variant="outline" size="sm" onClick={() => navigate('/vouchers')}>View All Vouchers</Button>
@@ -434,7 +434,7 @@ export const DashboardPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <PageHeader
         title="Executive Operations & Control Dashboard"
         subtitle="Live Umrah package calculator, account summaries, KSA movement tracking, and smart operational alerts."
@@ -442,7 +442,7 @@ export const DashboardPage: React.FC = () => {
       />
 
       {/* 1. Package Calculator — compact banner; full calculator opens in modal */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-[#0e2c4c]/10 rounded-xl flex items-center justify-center">
@@ -593,10 +593,10 @@ export const DashboardPage: React.FC = () => {
       </Modal>
 
       {/* Main sections — compact responsive grid: 1 col on mobile, 2 on lg, 3 on xl */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3 items-start text-center max-w-7xl mx-auto [grid-auto-flow:dense]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 items-start text-center max-w-7xl mx-auto [grid-auto-flow:dense]">
 
       {/* 2. Account Summary (SAR) Panel */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3 lg:col-span-2 xl:col-span-2">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2 lg:col-span-2 xl:col-span-2">
         <div className="flex flex-col items-center justify-center gap-2 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-[#0e2c4c]" />
@@ -673,7 +673,7 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* 3. KSA Status Panel for Any Selected Date */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3 lg:col-span-2 xl:col-span-3">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2 lg:col-span-2 xl:col-span-3">
         <div className="flex flex-col items-center justify-center gap-2 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-[#0e2c4c]" />
@@ -741,7 +741,7 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* 4. Bookings Panel */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2">
         <div className="flex flex-col items-center justify-center gap-1 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
             <FileCheck className="w-4 h-4 text-[#0e2c4c]" />
@@ -772,7 +772,7 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* 4b. Voucher Completion Report — numbers */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2">
         <div className="flex flex-col items-center justify-center gap-1 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
             <FileCheck className="w-4 h-4 text-[#0e2c4c]" />
@@ -803,7 +803,7 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* 5. Vouchers Panel */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2">
         <div className="flex flex-col items-center justify-center gap-1 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
             <Hotel className="w-4 h-4 text-[#0e2c4c]" />
@@ -834,7 +834,7 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* 6. Latest Umrah Group Packages Panel */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3 lg:col-span-2 xl:col-span-2">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2 lg:col-span-2 xl:col-span-2">
         <div className="flex flex-col items-center justify-center gap-2 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
             <Plane className="w-4 h-4 text-[#0e2c4c]" />
@@ -861,7 +861,7 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* 7. Smart Alerts Section */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3 lg:col-span-2 xl:col-span-3">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2 lg:col-span-2 xl:col-span-3">
         <div className="flex items-center justify-center gap-2 border-b border-slate-100 pb-2">
           <ShieldAlert className="w-4 h-4 text-amber-600" />
           <h3 className="text-sm font-bold text-slate-900">Smart Operational Alerts</h3>
