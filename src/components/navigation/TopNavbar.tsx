@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { TENANT } from '../../config';
 import { getCurrentRate } from '../../services/exchangeRateService';
+import { fetchCompanyProfile } from '../../services/companyService';
 import { useAuth } from '../../contexts/AuthContext';
 import { LicensePill } from '../auth/LicensePill';
 import { useToast } from '../../contexts/ToastContext';
@@ -140,6 +141,14 @@ export const TopNavbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [companyLogoUrl, setCompanyLogoUrl] = useState<string>('');
+
+  // Load company logo for navbar branding
+  useEffect(() => {
+    fetchCompanyProfile().then((p) => {
+      if (p.logoUrl) setCompanyLogoUrl(p.logoUrl);
+    }).catch(() => {});
+  }, []);
 
   // Change password form state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -268,9 +277,17 @@ export const TopNavbar: React.FC = () => {
             {/* LEFT: Logo & Company Name */}
             <div className="flex items-center gap-3 shrink-0">
               <NavLink to={role === 'agent' ? '/agent-portal' : '/'} className="flex items-center gap-3 group focus:outline-none">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#c9a227] to-[#dfba3f] flex items-center justify-center text-[#0e2c4c] shadow-sm group-hover:scale-105 transition-transform duration-150">
-                  <Compass className="w-6 h-6 stroke-[2.2]" />
-                </div>
+                {companyLogoUrl ? (
+                  <img
+                    src={companyLogoUrl}
+                    alt={TENANT.companyName}
+                    className="w-10 h-10 rounded-xl object-contain bg-white/10 p-1 shadow-sm group-hover:scale-105 transition-transform duration-150"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#c9a227] to-[#dfba3f] flex items-center justify-center text-[#0e2c4c] shadow-sm group-hover:scale-105 transition-transform duration-150">
+                    <Compass className="w-6 h-6 stroke-[2.2]" />
+                  </div>
+                )}
                 <div className="flex flex-col">
                   <div className="flex items-center gap-1.5">
                     <span className="font-extrabold text-lg tracking-tight text-white group-hover:text-gold-300 transition-colors">
