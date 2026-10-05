@@ -260,7 +260,7 @@ export const DayBookPage: React.FC = () => {
               leftIcon={<Download className="w-3.5 h-3.5 text-emerald-600" />}
               onClick={handleExport}
             >
-              Export Excel/CSV
+              Export CSV
             </Button>
           </div>
         }

@@ -16,7 +16,6 @@ import {
   X,
   AlertCircle
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatCard } from '../components/ui/StatCard';
 import { DataTable, Column } from '../components/ui/DataTable';
@@ -113,8 +112,10 @@ export const VisasPage: React.FC = () => {
 
     setImportFileName(file.name);
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
+        // Lazy-load xlsx only when actually importing (keeps initial bundle small)
+        const XLSX = await import('xlsx');
         const bstr = evt.target?.result;
         const workbook = XLSX.read(bstr, { type: 'binary' });
         const wsname = workbook.SheetNames[0];

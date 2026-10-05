@@ -40,7 +40,7 @@ import { ReceiptViewerModal } from '../components/accounting/ReceiptViewerModal'
 import { fetchVisas, fetchVisaRequests, VisaDoc, VisaRequestDoc } from '../services/visaService';
 import { fetchVouchers } from '../services/voucherService';
 import { VoucherDoc } from '../types/voucher';
-import * as XLSX from 'xlsx';
+import { downloadCSV } from '../utils/csv';
 
 interface AgentVisaRow {
   id: string;
@@ -205,10 +205,8 @@ export const AgentPortalPage: React.FC = () => {
       'Source': r.source,
       'Status': r.status,
     }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Visa Manifest');
-    XLSX.writeFile(wb, `agent-visa-manifest-${new Date().toISOString().split('T')[0]}.xlsx`);
-    success('Visa manifest exported to Excel.');
+    downloadCSV(rows, 'agent-visa-manifest');
+    success('Visa manifest exported to CSV.');
   };
 
   return (

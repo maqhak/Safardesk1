@@ -35,7 +35,7 @@ import { VoucherPrintDocument, VoucherPrintTheme } from '../components/voucher/V
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { useDeepOpen } from '../hooks/useDeepOpen';
-import * as XLSX from 'xlsx';
+import { downloadCSV } from '../utils/csv';
 import { fetchLedgerEntries } from '../services/accountingService';
 import { VoucherDoc, SectorItem, HotelStayItem, VoucherChargeItem, VoucherEditPayload, VoucherEditRequest } from '../types/voucher';
 import { fetchVouchers, createVoucher, cancelVoucher, markCommissionPaid, approveVoucher, disapproveVoucher } from '../services/voucherService';
@@ -764,9 +764,7 @@ export const VouchersPage: React.FC = () => {
         'Created': (v.createdAt || '').split('T')[0],
       };
     });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Vouchers');
-    XLSX.writeFile(wb, `vouchers-list-${new Date().toISOString().split('T')[0]}.xlsx`);
+    downloadCSV(rows, 'vouchers-list');
   };
 
   const downloadVerificationList = (kind: 'created' | 'pending') => {
@@ -784,9 +782,7 @@ export const VouchersPage: React.FC = () => {
         });
       });
     });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), kind === 'created' ? 'Vouchers Created' : 'Vouchers Pending');
-    XLSX.writeFile(wb, `vouchers-${kind}-${new Date().toISOString().split('T')[0]}.xlsx`);
+    downloadCSV(rows, `vouchers-${kind}`);
   };
 
   const columns: Column<VoucherDoc>[] = [
@@ -1125,7 +1121,7 @@ export const VouchersPage: React.FC = () => {
             {filteredVouchers.length} of {vouchers.length} vouchers • SAR {filteredVouchers.reduce((s, v) => s + v.totals.totalSAR, 0).toLocaleString()}
           </div>
           <Button variant="outline" onClick={exportFilteredExcel} disabled={filteredVouchers.length === 0}>
-            Export Excel (.xlsx)
+            Export CSV
           </Button>
         </div>
       </Card>
@@ -2362,12 +2358,12 @@ export const VouchersPage: React.FC = () => {
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                 <div className="font-bold text-slate-900 text-sm">Vouchers Created</div>
                 <div className="text-slate-500">Confirmed vouchers, passenger-wise rows (Name, Passport, Group Code, Agent, Voucher No).</div>
-                <Button variant="primary" className="w-full" onClick={() => downloadVerificationList('created')}>Download Excel</Button>
+                <Button variant="primary" className="w-full" onClick={() => downloadVerificationList('created')}>Download CSV</Button>
               </div>
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                 <div className="font-bold text-slate-900 text-sm">Vouchers Pending</div>
                 <div className="text-slate-500">Draft vouchers awaiting confirmation, same columns for office verification.</div>
-                <Button variant="outline" className="w-full" onClick={() => downloadVerificationList('pending')}>Download Excel</Button>
+                <Button variant="outline" className="w-full" onClick={() => downloadVerificationList('pending')}>Download CSV</Button>
               </div>
             </div>
             {isAgent && (

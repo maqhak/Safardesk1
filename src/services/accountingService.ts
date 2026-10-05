@@ -8,6 +8,7 @@ import {
 } from '../types/accounting';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
+import { aoaToCSV, downloadCSVText } from '../utils/csv';
 
 const ACCOUNTS_COLLECTION = 'ledger_accounts';
 const ENTRIES_COLLECTION = 'ledger_entries';
@@ -991,26 +992,20 @@ function statementTableRows(statement: LedgerStatementSummary): Array<Array<stri
   return rows;
 }
 
-/** Real Excel (.xlsx) download of the ledger statement. */
-export function exportLedgerToExcel(statement: LedgerStatementSummary, companyName: string): void {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const XLSX = require('xlsx');
+/** Real CSV download of the ledger statement (detailed sample-style columns). */
+export function exportLedgerDetailedCSV(statement: LedgerStatementSummary, companyName: string): void {
   const c = statement.currency;
-  const wb = XLSX.utils.book_new();
-  const title = `STATEMENT OF ACCOUNT: ${statement.account.title.toUpperCase()} (${statement.account.accountCode})`;
-  const header: Array<Array<string | number>> = [
-    [title],
+  const aoa: Array<Array<string | number>> = [
+    [`STATEMENT OF ACCOUNT: ${statement.account.title.toUpperCase()} (${statement.account.accountCode})`],
     [`Agency: ${companyName}`],
     [`Account Type: ${statement.account.accountType.toUpperCase()}`, `Currency: ${c}`],
     [`Statement Period: ${statement.periodLabel}`, `Generated: ${new Date().toLocaleString()}`],
     [],
   ];
   const tableRows = statementTableRows(statement);
-  const ws = XLSX.utils.aoa_to_sheet([...header, ...tableRows]);
-  const colCount = (tableRows[0] || []).length;
-  ws['!cols'] = [{ wch: 5 }, { wch: 12 }, { wch: 12 }, { wch: 55 }, { wch: 14 }, { wch: 26 }, { wch: 14 }, { wch: 10 }, { wch: 13 }, { wch: 13 }, { wch: 16 }].slice(0, colCount);
-  const footerRow = header.length + statementTableRows(statement).length + 2;
-  const footer = [
+  aoa.push(...tableRows);
+  aoa.push([], []);
+  aoa.push(
     [`SUMMARY & TOTALS (${c})`],
     ['Previous Balance (B/F)', Number(statement.previousBalance.toFixed(2))],
     ['Total Period Debit', Number(statement.totalDebit.toFixed(2))],
@@ -1018,10 +1013,8 @@ export function exportLedgerToExcel(statement: LedgerStatementSummary, companyNa
     ['Closing Balance', Number(statement.closingBalance.toFixed(2))],
     ['Total Mofa PAX', statement.totalMofaPax],
     ['Total Hotel PAX', statement.totalHotelPax],
-  ];
-  XLSX.utils.sheet_add_aoa(ws, footer, { origin: `A${footerRow}` });
-  XLSX.utils.book_append_sheet(wb, ws, 'Statement');
-  XLSX.writeFile(wb, ledgerDownloadName(statement, 'xlsx'));
+  );
+  downloadCSVText(aoaToCSV(aoa), ledgerDownloadName(statement, 'csv'));
 }
 
 /**

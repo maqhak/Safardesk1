@@ -52,7 +52,7 @@ import {
   voidLedgerEntry, 
   postBalancedTransaction, 
   exportLedgerToCSV,
-  exportLedgerToExcel,
+  exportLedgerDetailedCSV,
   exportLedgerToPDF 
 } from '../services/accountingService';
 import { VoucherQuickModal } from '../components/accounting/VoucherQuickModal';
@@ -330,11 +330,11 @@ export const AccountsPage: React.FC = () => {
     success(`Statement for ${statement.account.accountCode} exported to CSV.`);
   };
 
-  // Download Excel (.xlsx)
+  // Download detailed CSV
   const handleExportExcel = () => {
     if (!statement) return;
-    exportLedgerToExcel(statement, company.companyName);
-    success(`Statement for ${statement.account.accountCode} downloaded as Excel.`);
+    exportLedgerDetailedCSV(statement, company.companyName);
+    success(`Statement for ${statement.account.accountCode} downloaded as CSV.`);
   };
 
   // Download PDF
@@ -445,9 +445,9 @@ export const AccountsPage: React.FC = () => {
                 size="sm"
                 leftIcon={<Download className="w-4 h-4 text-emerald-600" />}
                 onClick={handleExportExcel}
-                title="Download as Excel (.xlsx)"
+                title="Download detailed statement as CSV"
               >
-                Excel
+                CSV (Detailed)
               </Button>
 
               <Button

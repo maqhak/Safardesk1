@@ -1,8 +1,9 @@
 /**
- * Fix #26 — Reports library: real Excel report generators from live data.
+ * Fix #26 — Reports library: real CSV report generators from live data.
  * Every report builds from the same services the screens use (no demo numbers).
+ * CSV only (xlsx library removed from exports for performance).
  */
-import * as XLSX from 'xlsx';
+import { downloadCSV } from '../utils/csv';
 import { fetchVouchers } from './voucherService';
 import { fetchVisas } from './visaService';
 import { fetchTickets } from './ticketService';
@@ -28,19 +29,14 @@ function inRange(date: string | undefined, range: ReportRange): boolean {
   return true;
 }
 
-function downloadWorkbook(wb: XLSX.WorkBook, fileName: string): void {
-  XLSX.writeFile(wb, `${fileName}-${new Date().toISOString().split('T')[0]}.xlsx`);
+function downloadReport(rows: Record<string, any>[], fileName: string): void {
+  downloadCSV(rows, fileName);
 }
 
-function sheetFromRows(rows: Record<string, any>[], name: string): XLSX.WorkSheet {
-  return XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{ Note: 'No records in the selected period.' }]);
-}
-
-/** 1. Agent Ledger Statements (SAR/PKR) — one sheet per agent with running balances. */
+/** 1. Agent Ledger Statements (SAR/PKR) — one CSV per agent with running balances. */
 export async function generateAgentLedgerStatements(range: ReportRange): Promise<void> {
   const [accounts, entries] = await Promise.all([fetchLedgerAccounts(), fetchLedgerEntries()]);
   const agents = accounts.filter((a) => a.accountType === 'agent');
-  const wb = XLSX.utils.book_new();
   for (const acc of agents) {
     const accEntries = entries.filter(
       (e) => e.accountId === (acc as any).id && inRange(e.date, { from: range.from || '1900-01-01', to: range.to || '2100-01-01' })
@@ -58,9 +54,8 @@ export async function generateAgentLedgerStatements(range: ReportRange): Promise
       'Debit PKR': r.entry.debitPKR,
       'Credit PKR': r.entry.creditPKR,
     }));
-    XLSX.utils.book_append_sheet(wb, sheetFromRows(rows, 'stmt'), (acc.accountCode || acc.title || 'agent').substring(0, 28));
+    downloadReport(rows, `agent-ledger-statement-${acc.accountCode || acc.title || 'agent'}`);
   }
-  downloadWorkbook(wb, 'agent-ledger-statements');
 }
 
 /** 2. Monthly Visa Issuance & Profitability — from distributions (buying/selling/margin). */
@@ -87,9 +82,7 @@ export async function generateVisaProfitability(range: ReportRange): Promise<voi
       });
     });
   });
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, sheetFromRows(rows, 'visa-profit'), 'Visa Profitability');
-  downloadWorkbook(wb, 'visa-issuance-profitability');
+  downloadReport(rows, 'visa-issuance-profitability');
 }
 
 /** 3. Hotel Voucher Occupancy & Allotment — property-wise room nights from vouchers. */
@@ -118,9 +111,7 @@ export async function generateHotelOccupancy(range: ReportRange): Promise<void> 
     'Vouchers': r.vouchers,
     'Amount SAR': Math.round(r.amountSAR * 100) / 100,
   }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, sheetFromRows(rows, 'occupancy'), 'Hotel Occupancy');
-  downloadWorkbook(wb, 'hotel-occupancy-allotment');
+  downloadReport(rows, 'hotel-occupancy-allotment');
 }
 
 /** 4. Airline Ticketing Sales & BSP Reconciliation — from the ticketing desk. */
@@ -141,9 +132,7 @@ export async function generateTicketingSales(range: ReportRange): Promise<void> 
       'Margin SAR': t.marginSAR,
       'Status': t.status,
     }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, sheetFromRows(rows, 'tickets'), 'Ticketing Sales');
-  downloadWorkbook(wb, 'ticketing-sales-bsp');
+  downloadReport(rows, 'ticketing-sales-bsp');
 }
 
 /** 5. Forex Fluctuations & SAR/PKR Gain/Loss — entry rate vs current master rate. */
@@ -168,9 +157,7 @@ export async function generateForexReport(range: ReportRange): Promise<void> {
         'Gain/Loss PKR': Math.round((atMasterPKR - postedPKR) * 100) / 100,
       };
     });
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, sheetFromRows(rows, 'forex'), 'Forex Gain Loss');
-  downloadWorkbook(wb, 'forex-gain-loss');
+  downloadReport(rows, 'forex-gain-loss');
 }
 
 /** 6. Sub-Agent Performance League — ranked by revenue, volume, settlement. */
@@ -203,7 +190,5 @@ export async function generateAgentPerformance(range: ReportRange): Promise<void
       'Settlement %': revenue > 0 ? Math.round((paid / revenue) * 1000) / 10 : 0,
     };
   }).sort((x, y) => y['Revenue SAR'] - x['Revenue SAR']);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, sheetFromRows(rows, 'agents'), 'Agent Performance');
-  downloadWorkbook(wb, 'sub-agent-performance-league');
+  downloadReport(rows, 'sub-agent-performance-league');
 }
