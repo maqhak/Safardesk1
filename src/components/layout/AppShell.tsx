@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { TopNavbar } from '../navigation/TopNavbar';
 import { TENANT } from '../../config';
+import { getCurrentRate } from '../../services/exchangeRateService';
 
 export const AppShell: React.FC = () => {
   return (
@@ -26,7 +27,7 @@ export const AppShell: React.FC = () => {
           </div>
           <div className="flex items-center gap-4 text-slate-400">
             <span>Primary Currency: <strong className="text-slate-600 font-mono">{TENANT.currency.primary}</strong></span>
-            <span>Forex: <strong className="text-slate-600 font-mono">1 SAR = {TENANT.currency.defaultExchangeRate.toFixed(2)} PKR</strong></span>
+            <span>Forex: <strong className="text-slate-600 font-mono">1 SAR = {getCurrentRate('SAR-PKR').toFixed(2)} PKR</strong></span>
             <span>v1.0 (Phase 0 Scaffold)</span>
           </div>
         </div>

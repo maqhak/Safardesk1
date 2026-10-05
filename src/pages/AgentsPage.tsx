@@ -60,6 +60,7 @@ import {
   generateNextAgentCode
 } from '../services/agentService';
 import { TENANT } from '../config';
+import { getCurrentRate } from '../services/exchangeRateService';
 import { formatMoney, formatDate } from '../utils/formatters';
 
 export const AgentsPage: React.FC = () => {
@@ -88,7 +89,7 @@ export const AgentsPage: React.FC = () => {
   const [city, setCity] = useState('');
   const [email, setEmail] = useState('');
   const [dueLimitSAR, setDueLimitSAR] = useState<number>(50000);
-  const [exchangeRatePKRRate, setExchangeRatePKRRate] = useState<number>(TENANT.currency.defaultExchangeRate);
+  const [exchangeRatePKRRate, setExchangeRatePKRRate] = useState<number>(getCurrentRate('SAR-PKR'));
   const [loginPassword, setLoginPassword] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -214,7 +215,7 @@ export const AgentsPage: React.FC = () => {
       setCity('');
       setEmail('');
       setDueLimitSAR(50000);
-      setExchangeRatePKRRate(TENANT.currency.defaultExchangeRate);
+      setExchangeRatePKRRate(getCurrentRate('SAR-PKR'));
       setLoginPassword('');
       setNotes('');
 
@@ -450,7 +451,7 @@ Please keep these credentials safe and change password after first login.`;
             {formatMoney(totalReceivableSAR, 'SAR')}
           </span>
           <span className="text-[11px] text-slate-500 font-mono">
-            ≈ {formatMoney(totalReceivableSAR * TENANT.currency.defaultExchangeRate, 'PKR')}
+            ≈ {formatMoney(totalReceivableSAR * getCurrentRate('SAR-PKR'), 'PKR')}
           </span>
         </div>
 
@@ -535,7 +536,7 @@ Please keep these credentials safe and change password after first login.`;
                   filteredAgents.map((agent) => {
                     const balanceSAR = getBalanceSAR(agent.id);
                     const isOverLimit = balanceSAR > agent.dueLimitSAR;
-                    const balancePKR = balanceSAR * (agent.exchangeRatePKRRate || TENANT.currency.defaultExchangeRate);
+                    const balancePKR = balanceSAR * (agent.exchangeRatePKRRate || getCurrentRate('SAR-PKR'));
 
                     return (
                       <tr key={agent.id} className="hover:bg-slate-50/70 transition">

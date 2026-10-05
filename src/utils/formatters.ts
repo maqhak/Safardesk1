@@ -1,4 +1,5 @@
 import { TENANT } from '../config';
+import { getCurrentRate } from '../services/exchangeRateService';
 
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -63,7 +64,7 @@ export function formatMoney(
  */
 export function formatDualCurrency(
   amountSar: number | null | undefined,
-  exchangeRate: number = TENANT.currency.defaultExchangeRate
+  exchangeRate: number = getCurrentRate('SAR-PKR')
 ): { sar: string; pkr: string; rawSar: number; rawPkr: number } {
   const sar = Number(amountSar) || 0;
   const pkr = sar * exchangeRate;
