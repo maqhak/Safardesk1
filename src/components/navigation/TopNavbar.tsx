@@ -139,7 +139,7 @@ const MobileNavGroup: React.FC<{ item: NavItem; onNavigate: () => void }> = ({ i
                   cActive ? 'bg-white/15 text-white font-semibold' : 'text-slate-400 hover:text-white hover:bg-white/10'
                 }`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${cActive ? 'bg-[#c9a227]' : 'bg-slate-500'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${cActive ? 'bg-[var(--theme-accent)]' : 'bg-slate-500'}`} />
                 {child.name}
               </NavLink>
             );
@@ -320,7 +320,7 @@ export const TopNavbar: React.FC = () => {
   };
 
   const roleBadgeConfig = {
-    owner: { label: 'Owner', bg: 'bg-[#c9a227] text-white' },
+    owner: { label: 'Owner', bg: 'bg-[var(--theme-accent)] text-white' },
     staff: { label: 'Staff', bg: 'bg-white/20 text-white' },
     agent: { label: 'Agent', bg: 'bg-emerald-500 text-white' },
   };
@@ -338,7 +338,7 @@ export const TopNavbar: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full bg-[#0e2c4c] text-white shadow-md border-b border-[#163b63]">
+      <header className="sticky top-0 z-40 w-full text-white shadow-md border-b" style={{ backgroundColor: 'var(--theme-primary)', borderColor: 'color-mix(in srgb, var(--theme-primary) 70%, black)' }}>
         <div className="w-full px-4 sm:px-6 lg:px-10">
           <div className="flex items-center justify-between h-16 gap-3">
             
@@ -361,7 +361,7 @@ export const TopNavbar: React.FC = () => {
                     className="w-10 h-10 rounded-xl object-contain bg-white/10 p-1 shadow-sm group-hover:scale-105 transition-transform duration-150"
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#c9a227] to-[#dfba3f] flex items-center justify-center text-[#0e2c4c] shadow-sm group-hover:scale-105 transition-transform duration-150">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--theme-accent)] to-[var(--theme-accent)] flex items-center justify-center text-[var(--theme-primary)] shadow-sm group-hover:scale-105 transition-transform duration-150">
                     <Compass className="w-6 h-6 stroke-[2.2]" />
                   </div>
                 )}
@@ -407,7 +407,7 @@ export const TopNavbar: React.FC = () => {
                 className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/5 border border-white/10 text-xs font-mono text-slate-300"
                 title="Current foreign exchange benchmark"
               >
-                <span className="text-[#dfba3f] font-semibold">1 SAR</span>
+                <span className="text-[var(--theme-accent)] font-semibold">1 SAR</span>
                 <span>=</span>
                 <span>{getCurrentRate('SAR-PKR').toFixed(2)} PKR</span>
               </div>
@@ -423,7 +423,7 @@ export const TopNavbar: React.FC = () => {
                   className="flex items-center gap-2.5 p-1 rounded-lg hover:bg-white/10 transition cursor-pointer focus:outline-none"
                   aria-expanded={userMenuOpen}
                 >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#163b63] to-[#c9a227] text-white flex items-center justify-center font-bold text-xs shadow-xs border border-white/20 overflow-hidden">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[var(--theme-primary)] to-[var(--theme-accent)] text-white flex items-center justify-center font-bold text-xs shadow-xs border border-white/20 overflow-hidden">
                     {userProfile?.photoURL ? (
                       <img
                         src={userProfile.photoURL}
@@ -472,9 +472,9 @@ export const TopNavbar: React.FC = () => {
                             setUserMenuOpen(false);
                             navigate('/settings/users');
                           }}
-                          className="w-full px-4 py-2 text-left text-xs font-semibold text-[#0e2c4c] bg-navy-50/40 hover:bg-navy-50 flex items-center gap-2.5 transition"
+                          className="w-full px-4 py-2 text-left text-xs font-semibold text-[var(--theme-primary)] bg-navy-50/40 hover:bg-navy-50 flex items-center gap-2.5 transition"
                         >
-                          <UsersIcon className="w-4 h-4 text-[#0e2c4c]" />
+                          <UsersIcon className="w-4 h-4 text-[var(--theme-primary)]" />
                           <span>Users & Permissions</span>
                         </button>
                       )}
@@ -557,9 +557,10 @@ export const TopNavbar: React.FC = () => {
           />
         )}
         <div
-          className={`fixed top-0 left-0 z-50 h-full w-[300px] max-w-[85vw] bg-[#0a223c] border-r border-white/10 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${
+          className={`fixed top-0 left-0 z-50 h-full w-[300px] max-w-[85vw] border-r border-white/10 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${
             mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
+          style={{ backgroundColor: 'color-mix(in srgb, var(--theme-primary) 85%, black)' }}
           aria-hidden={!mobileMenuOpen}
         >
           {/* Company branding header */}
@@ -571,7 +572,7 @@ export const TopNavbar: React.FC = () => {
                 className="w-10 h-10 rounded-xl object-contain bg-white/10 p-1"
               />
             ) : (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#c9a227] to-[#dfba3f] flex items-center justify-center text-[#0e2c4c]">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--theme-accent)] to-[var(--theme-accent)] flex items-center justify-center text-[var(--theme-primary)]">
                 <Compass className="w-6 h-6 stroke-[2.2]" />
               </div>
             )}
