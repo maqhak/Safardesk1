@@ -13,7 +13,8 @@ import {
   Search, 
   ArrowRight,
   TrendingUp,
-  Receipt
+  Receipt,
+  Trash2
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -23,7 +24,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
-import { fetchVisas, VisaDoc } from '../services/visaService';
+import { fetchVisas, VisaDoc, deleteVisasBatch } from '../services/visaService';
 import { fetchVendors } from '../services/masterService';
 import { fetchLedgerAccounts } from '../services/accountingService';
 import { createVisaDistributionBatch } from '../services/visaDistributionService';
@@ -350,6 +351,31 @@ export const VisaDistributionPage: React.FC = () => {
     }
   };
 
+  const [clearing, setClearing] = useState<boolean>(false);
+
+  const handleClearUndistributed = async () => {
+    const idsToClear = undistributedVisas.map((v) => v.id);
+    if (idsToClear.length === 0) {
+      info('No undistributed visas to clear.');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete ${idsToClear.length} undistributed visa(s)? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setClearing(true);
+    try {
+      await deleteVisasBatch(idsToClear);
+      success(`${idsToClear.length} undistributed visa(s) cleared.`);
+      await loadData();
+    } catch (err: any) {
+      showError(err.message || 'Failed to clear undistributed visas.');
+    } finally {
+      setClearing(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -361,13 +387,25 @@ export const VisaDistributionPage: React.FC = () => {
           { label: 'Distribution' }
         ]}
         actions={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => useNavigateInstance('/visas/invoices')}
-          >
-            View Generated Invoices →
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearUndistributed}
+              disabled={clearing || undistributedVisas.length === 0}
+              className="text-red-600 border-red-200 hover:bg-red-50"
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              {clearing ? 'Clearing...' : `Clear Undistributed (${undistributedVisas.length})`}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => useNavigateInstance('/visas/invoices')}
+            >
+              View Generated Invoices →
+            </Button>
+          </div>
         }
       />
 
