@@ -6,7 +6,7 @@ import {
   AccountBalanceRow,
   BalancesSummaryData
 } from '../types/accounting';
-import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, query, where, or } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 
 const ACCOUNTS_COLLECTION = 'ledger_accounts';
@@ -579,6 +579,45 @@ export async function fetchLedgerAccounts(): Promise<LedgerAccountDoc[]> {
     } catch {
       // fallback
     }
+  }
+  return [];
+}
+
+/**
+ * Agent-scoped ledger account fetch: server-side query constrained to this
+ * agent's own linked account. Firestore rules only permit agents per-doc reads
+ * on their own account, so an unfiltered collection query is rejected — this
+ * filtered query is permitted. Never falls back to shared localStorage data.
+ */
+export async function fetchLedgerAccountsForAgent(agentId: string): Promise<LedgerAccountDoc[]> {
+  try {
+    if (!isConfigPlaceholder && agentId) {
+      const q = query(
+        collection(db, ACCOUNTS_COLLECTION),
+        or(where('linkedId', '==', agentId), where('linkedAgentId', '==', agentId))
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => d.data() as LedgerAccountDoc);
+    }
+  } catch (err) {
+    console.warn('Could not read agent ledger account from Firestore:', err);
+  }
+  return [];
+}
+
+/**
+ * Agent-scoped ledger entries fetch: entries posted to one specific account.
+ * Call with the agent's own account id (from fetchLedgerAccountsForAgent).
+ */
+export async function fetchLedgerEntriesForAgent(accountId: string): Promise<LedgerEntryDoc[]> {
+  try {
+    if (!isConfigPlaceholder && accountId) {
+      const q = query(collection(db, ENTRIES_COLLECTION), where('accountId', '==', accountId));
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => d.data() as LedgerEntryDoc);
+    }
+  } catch (err) {
+    console.warn('Could not read agent ledger entries from Firestore:', err);
   }
   return [];
 }

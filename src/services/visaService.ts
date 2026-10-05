@@ -1,4 +1,4 @@
-import { collection, getDocs, setDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, setDoc, doc, query, where } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { logAuditEvent } from './userService';
 import { UserProfile } from '../types/auth';
@@ -157,6 +157,39 @@ export async function fetchVisas(): Promise<VisaDoc[]> {
     } catch {
       // fallback
     }
+  }
+  return [];
+}
+
+/**
+ * Agent-scoped visa fetch: server-side where('agentId', '==', agentId).
+ * Firestore rules only permit agents per-doc reads on their own visas.
+ */
+export async function fetchVisasForAgent(agentId: string): Promise<VisaDoc[]> {
+  try {
+    if (!isConfigPlaceholder && agentId) {
+      const q = query(collection(db, VISAS_COLLECTION), where('agentId', '==', agentId));
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => d.data() as VisaDoc);
+    }
+  } catch (err) {
+    console.warn('Could not read agent visas from Firestore:', err);
+  }
+  return [];
+}
+
+/**
+ * Agent-scoped visa-request fetch: server-side where('agentId', '==', agentId).
+ */
+export async function fetchVisaRequestsForAgent(agentId: string): Promise<VisaRequestDoc[]> {
+  try {
+    if (!isConfigPlaceholder && agentId) {
+      const q = query(collection(db, VISA_REQUESTS_COLLECTION), where('agentId', '==', agentId));
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => d.data() as VisaRequestDoc);
+    }
+  } catch (err) {
+    console.warn('Could not read agent visa requests from Firestore:', err);
   }
   return [];
 }

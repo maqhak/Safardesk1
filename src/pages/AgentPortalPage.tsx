@@ -31,14 +31,16 @@ import { formatDate } from '../utils/formatters';
 import { 
   fetchLedgerAccounts, 
   fetchLedgerEntries, 
+  fetchLedgerAccountsForAgent,
+  fetchLedgerEntriesForAgent,
   computeLedgerStatement, 
   exportLedgerToCSV 
 } from '../services/accountingService';
 import { LedgerAccountDoc, LedgerEntryDoc } from '../types/accounting';
 import { VoucherQuickModal } from '../components/accounting/VoucherQuickModal';
 import { ReceiptViewerModal } from '../components/accounting/ReceiptViewerModal';
-import { fetchVisas, fetchVisaRequests, VisaDoc, VisaRequestDoc } from '../services/visaService';
-import { fetchVouchers } from '../services/voucherService';
+import { fetchVisas, fetchVisaRequests, fetchVisasForAgent, fetchVisaRequestsForAgent, VisaDoc, VisaRequestDoc } from '../services/visaService';
+import { fetchVouchers, fetchVouchersForAgent } from '../services/voucherService';
 import { VoucherDoc } from '../types/voucher';
 import * as XLSX from 'xlsx';
 
@@ -94,16 +96,26 @@ export const AgentPortalPage: React.FC = () => {
   };
 
   const reloadAgentData = () => {
-    Promise.all([fetchLedgerAccounts(), fetchLedgerEntries(), fetchVisas(), fetchVisaRequests(), fetchVouchers().catch(() => [])]).then(([accs, ents, visaList, reqList, vList]) => {
+    const myAgentId = userProfile?.agentId;
+    // Data isolation: every fetch is server-side scoped to this agent's own
+    // records. Unfiltered collection queries are rejected by Firestore rules
+    // for the agent role, so we never rely on client-side filtering of full data.
+    const accountsPromise = myAgentId ? fetchLedgerAccountsForAgent(myAgentId) : fetchLedgerAccounts();
+    Promise.all([
+      accountsPromise,
+      fetchVisasForAgent(myAgentId || ''),
+      fetchVisaRequestsForAgent(myAgentId || ''),
+      fetchVouchersForAgent(myAgentId || ''),
+    ]).then(async ([accs, visaList, reqList, vList]) => {
       // Find matching agent account — never fall back to another account
-      const found = accs.find((a) => a.linkedId === userProfile?.agentId || a.linkedId === userProfile?.uid) || null;
+      const found = accs.find((a) => a.linkedId === myAgentId || (a as any).linkedAgentId === myAgentId || a.linkedId === userProfile?.uid) || null;
       setAgentAccount(found);
       if (found) {
-        setAgentEntries(ents.filter((e) => e.accountId === found.id));
+        const ents = await fetchLedgerEntriesForAgent(found.id);
+        setAgentEntries(ents);
       } else {
         setAgentEntries([]);
       }
-      const myAgentId = userProfile?.agentId;
       setAgentVisas(visaList.filter((v) => v.agentId && v.agentId === myAgentId));
       setAgentRequests(reqList.filter((r) => r.agentId === myAgentId));
       setAgentVouchers((vList as VoucherDoc[]).filter((v) => v.agentId === myAgentId && v.status !== 'Cancelled'));
