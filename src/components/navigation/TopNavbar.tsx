@@ -24,11 +24,14 @@ import {
   Check,
   Users as UsersIcon,
   Eye,
-  EyeOff
+  EyeOff,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { TENANT } from '../../config';
 import { getCurrentRate } from '../../services/exchangeRateService';
 import { fetchCompanyProfile } from '../../services/companyService';
+import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { LicensePill } from '../auth/LicensePill';
 import { useToast } from '../../contexts/ToastContext';
@@ -145,8 +148,31 @@ const MobileNavGroup: React.FC<{ item: NavItem; onNavigate: () => void }> = ({ i
   );
 };
 
+/**
+ * Theme toggle button — switches between light and soft-dark mode.
+ * Only visible to Owner/Staff (theme is per-tenant, managed by Owner).
+ */
+const ThemeToggleButton: React.FC = () => {
+  const { theme, toggleDarkMode } = useTheme();
+  const { role } = useAuth();
+  if (role !== 'owner' && role !== 'staff') return null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => toggleDarkMode()}
+      className="p-2 rounded-lg text-slate-200 hover:text-white hover:bg-white/10 transition"
+      title={theme.darkMode ? 'Switch to Light Mode' : 'Switch to Night Mode'}
+      aria-label="Toggle theme"
+    >
+      {theme.darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+    </button>
+  );
+};
+
 export const TopNavbar: React.FC = () => {
   const { userProfile, role, signOutUser, changePassword } = useAuth();
+  const { theme } = useTheme();
   const { success, error: showError } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -316,9 +342,11 @@ export const TopNavbar: React.FC = () => {
                   <span className="font-extrabold text-lg tracking-tight text-white group-hover:text-gold-300 transition-colors truncate max-w-[200px] sm:max-w-none">
                     {TENANT.companyName}
                   </span>
-                  <span className="text-[11px] text-slate-300 font-normal">
-                    SafarDesk
-                  </span>
+                  {!theme.hidePoweredBy && (
+                    <span className="text-[11px] text-slate-300 font-normal">
+                      SafarDesk
+                    </span>
+                  )}
                 </div>
               </NavLink>
             </div>
@@ -356,6 +384,9 @@ export const TopNavbar: React.FC = () => {
                 <span>=</span>
                 <span>{getCurrentRate('SAR-PKR').toFixed(2)} PKR</span>
               </div>
+
+              {/* Theme Toggle (Dark/Light) */}
+              <ThemeToggleButton />
 
               {/* User Avatar Menu Dropdown */}
               <div className="relative" ref={menuRef}>
@@ -499,7 +530,9 @@ export const TopNavbar: React.FC = () => {
             )}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-extrabold text-white truncate">{TENANT.companyName}</p>
-              <p className="text-[11px] text-slate-400">SafarDesk</p>
+              {!theme.hidePoweredBy && (
+                <p className="text-[11px] text-slate-400">SafarDesk</p>
+              )}
             </div>
             <button
               type="button"

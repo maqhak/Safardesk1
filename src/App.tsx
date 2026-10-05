@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { CompanyProvider } from './contexts/CompanyContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
@@ -69,6 +70,7 @@ export default function App() {
     <BrowserRouter>
       <GlobalNumberInputBehavior />
       <ToastProvider>
+        <ThemeProvider>
         <AuthProvider>
           <CompanyProvider>
             <LicenseGate>
@@ -330,6 +332,7 @@ export default function App() {
             </LicenseGate>
           </CompanyProvider>
         </AuthProvider>
+        </ThemeProvider>
       </ToastProvider>
     </BrowserRouter>
   );

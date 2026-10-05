@@ -20,6 +20,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { TENANT, DEMO_MODE } from '../config';
 import { fetchCompanyProfile } from '../services/companyService';
+import { useTheme } from '../contexts/ThemeContext';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
@@ -39,6 +40,7 @@ export const LoginPage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string>('');
+  const { theme } = useTheme();
 
   useEffect(() => {
     fetchCompanyProfile().then((p) => {
@@ -143,9 +145,11 @@ export const LoginPage: React.FC = () => {
         <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
           {TENANT.companyName}
         </h2>
-        <p className="mt-1 text-sm font-medium text-slate-600">
-          Powered by SafarDesk
-        </p>
+        {!theme.hidePoweredBy && (
+          <p className="mt-1 text-sm font-medium text-slate-600">
+            Powered by SafarDesk
+          </p>
+        )}
         <p className="mt-0.5 text-xs text-slate-400">
           {TENANT.tagline}
         </p>
