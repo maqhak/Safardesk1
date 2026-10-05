@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { CompanyProfile } from '../types/company';
 import { fetchCompanyProfile, DEFAULT_COMPANY_PROFILE } from '../services/companyService';
+import { applyFavicon } from '../utils/favicon';
 
 interface CompanyContextType {
   profile: CompanyProfile;
@@ -34,6 +35,12 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     reloadProfile();
   }, [reloadProfile]);
+
+  // Apply the agency's uploaded favicon (browser tab icon) whenever the
+  // company profile loads or is updated — no redeploy needed.
+  useEffect(() => {
+    applyFavicon(profile.faviconUrl);
+  }, [profile.faviconUrl]);
 
   const updateCachedProfile = (newProfile: CompanyProfile) => {
     setProfile(newProfile);

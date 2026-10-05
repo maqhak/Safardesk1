@@ -48,6 +48,7 @@ export const CompanyProfilePage: React.FC = () => {
     legalName: '',
     logoUrl: '',
     stampUrl: '',
+    faviconUrl: '',
     address: '',
     city: '',
     country: '',
@@ -73,6 +74,7 @@ export const CompanyProfilePage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [uploadingLogo, setUploadingLogo] = useState<boolean>(false);
+  const [uploadingFavicon, setUploadingFavicon] = useState<boolean>(false);
 
   // Counter preview strings
   const [counterPreviews, setCounterPreviews] = useState<Record<NumberSequenceType, string>>({
@@ -163,6 +165,32 @@ export const CompanyProfilePage: React.FC = () => {
       showError(err?.message || 'Failed to upload logo.');
     } finally {
       setUploadingLogo(false);
+    }
+  };
+
+  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showError('Please upload a valid image file (PNG, JPG).');
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      showError('Favicon image size must be less than 2MB.');
+      return;
+    }
+
+    setUploadingFavicon(true);
+    try {
+      const downloadUrl = await uploadCompanyLogo(file, { prefix: 'favicon', maxDim: 128 });
+      setFormData((prev) => ({ ...prev, faviconUrl: downloadUrl }));
+      success('Favicon uploaded successfully — it will show on the browser tab after you save.');
+    } catch (err: any) {
+      showError(err?.message || 'Failed to upload favicon.');
+    } finally {
+      setUploadingFavicon(false);
     }
   };
 
@@ -354,6 +382,59 @@ export const CompanyProfilePage: React.FC = () => {
                       </div>
                       <p className="text-[11px] text-slate-500">
                         Supported formats: PNG, JPG, WebP, SVG. Recommended height: 80px transparent background.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Favicon Upload Box — browser tab icon */}
+                <div className="mt-4">
+                  <label className="text-xs font-semibold text-slate-700 tracking-wide block mb-1.5">
+                    Browser Tab Icon (Favicon)
+                  </label>
+                  <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/50">
+                    <div className="flex items-center gap-3 shrink-0">
+                      {/* Tab mock preview */}
+                      <div className="rounded-t-lg border border-b-0 border-slate-200 bg-white px-3 py-1.5 flex items-center gap-1.5 shadow-xs">
+                        {formData.faviconUrl ? (
+                          <img src={formData.faviconUrl} alt="Favicon" className="w-4 h-4 object-contain" />
+                        ) : (
+                          <span className="w-4 h-4 rounded-sm bg-slate-200 inline-block" />
+                        )}
+                        <span className="text-[10px] text-slate-500 font-medium max-w-[90px] truncate">
+                          {formData.companyName || 'Your Site'}
+                        </span>
+                        <span className="text-slate-300 text-[10px]">×</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 flex-1 text-center sm:text-left">
+                      <div className="flex items-center gap-2 justify-center sm:justify-start">
+                        <label className="cursor-pointer">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFaviconUpload}
+                            className="hidden"
+                          />
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0e2c4c] text-white text-xs font-semibold hover:bg-[#163b63] transition shadow-xs">
+                            <UploadCloud className="w-3.5 h-3.5" />
+                            <span>{uploadingFavicon ? 'Uploading...' : 'Upload Favicon'}</span>
+                          </span>
+                        </label>
+                        {formData.faviconUrl && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleInputChange('faviconUrl', '')}
+                            className="text-xs text-rose-600 hover:text-rose-700"
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        Square PNG/JPG works best (64×64 or larger). Shows on the browser tab — no more empty icon.
                       </p>
                     </div>
                   </div>

@@ -3,6 +3,7 @@ export interface CompanyProfile {
   legalName: string;
   logoUrl: string;
   stampUrl: string; // company rubber stamp/seal image for vouchers
+  faviconUrl: string; // browser tab icon (per-agency, uploaded by Owner)
   address: string;
   city: string;
   country: string;

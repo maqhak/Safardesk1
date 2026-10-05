@@ -23,6 +23,7 @@ export const DEFAULT_COMPANY_PROFILE: CompanyProfile = {
   legalName: 'SafarDesk Tourism & Travel Management Pvt. Ltd.',
   logoUrl: '',
   stampUrl: '',
+  faviconUrl: '',
   address: 'Suite 402, Al-Mansoor Executive Towers, Ibrahim Al-Khalil Road',
   city: 'Makkah Mukarramah',
   country: 'Kingdom of Saudi Arabia',
@@ -147,11 +148,13 @@ export async function saveCompanyProfile(
  * The script URL comes from VITE_LOGO_UPLOAD_URL env var (one-time setup by Moin).
  * Falls back to resized base64 data URL if the script is not configured.
  */
-export async function uploadCompanyLogo(file: File): Promise<string> {
+export async function uploadCompanyLogo(file: File, opts?: { prefix?: string; maxDim?: number }): Promise<string> {
   const scriptUrl = import.meta.env.VITE_LOGO_UPLOAD_URL as string | undefined;
+  const prefix = opts?.prefix || 'logo';
+  const maxDim = opts?.maxDim || 400;
 
-  // Resize image to max 400px before upload (keeps it fast)
-  const dataUrl = await resizeImageToDataUrl(file, 400);
+  // Resize image to max maxDim px before upload (keeps it fast)
+  const dataUrl = await resizeImageToDataUrl(file, maxDim);
 
   if (scriptUrl) {
     try {
@@ -161,7 +164,7 @@ export async function uploadCompanyLogo(file: File): Promise<string> {
         body: JSON.stringify({
           image: dataUrl,
           mimeType: file.type || 'image/png',
-          filename: `logo_${Date.now()}.${(file.name.split('.').pop() || 'png').toLowerCase()}`,
+          filename: `${prefix}_${Date.now()}.${(file.name.split('.').pop() || 'png').toLowerCase()}`,
         }),
       });
       const result = await response.json();
