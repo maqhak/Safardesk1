@@ -213,19 +213,26 @@ export const SettingsPage: React.FC = () => {
               subtitle="Branding displayed across top navbar, voucher headers, and invoices"
             />
 
-            <form onSubmit={handleSaveSettings} className="space-y-4">
+            <div className="space-y-4">
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                <p className="text-xs text-amber-800">
+                  <strong>Build-time settings:</strong> These values come from the <code className="font-mono bg-amber-100 px-1 rounded">.env</code> file
+                  (<code className="font-mono">VITE_TENANT_COMPANY_NAME</code>, <code className="font-mono">VITE_TENANT_APP_TITLE</code>, <code className="font-mono">VITE_TENANT_EMAIL</code>, <code className="font-mono">VITE_TENANT_PHONE</code>).
+                  To change them, update <code className="font-mono">.env</code> and redeploy.
+                </p>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="Company Name"
                   value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  required
+                  disabled
+                  helperText="From VITE_TENANT_COMPANY_NAME"
                 />
                 <Input
                   label="Display App Title"
                   value={appTitle}
-                  onChange={(e) => setAppTitle(e.target.value)}
-                  required
+                  disabled
+                  helperText="From VITE_TENANT_APP_TITLE"
                 />
               </div>
 
@@ -234,23 +241,23 @@ export const SettingsPage: React.FC = () => {
                   label="Support / Operations Email"
                   type="email"
                   value={supportEmail}
-                  onChange={(e) => setSupportEmail(e.target.value)}
-                  required
+                  disabled
+                  helperText="From VITE_TENANT_EMAIL"
                 />
                 <Input
                   label="Phone / WhatsApp Hotline"
                   value={supportPhone}
-                  onChange={(e) => setSupportPhone(e.target.value)}
-                  required
+                  disabled
+                  helperText="From VITE_TENANT_PHONE"
                 />
               </div>
 
               <div className="pt-2">
                 <p className="text-xs text-slate-500">
-                  White-label architecture note: modifying <code className="font-mono bg-slate-100 px-1 py-0.5 rounded border border-slate-200">src/config.ts</code> immediately redeploys the CRM for any new client.
+                  White-label architecture note: modifying <code className="font-mono bg-slate-100 px-1 py-0.5 rounded border border-slate-200">.env</code> and redeploying updates the CRM branding for this client.
                 </p>
               </div>
-            </form>
+            </div>
           </Card>
 
           <Card padding="lg">
