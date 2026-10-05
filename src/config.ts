@@ -54,9 +54,9 @@ export const TENANT: TenantConfig = {
     defaultExchangeRate: 74.50, // 1 SAR = 74.50 PKR
   },
   contact: {
-    email: 'operations@safardesk.com',
-    phone: '+966 12 558 7890',
-    address: 'Al Mansoor District, Makkah Mukarramah, KSA',
+    email: import.meta.env.VITE_TENANT_EMAIL || 'operations@safardesk.com',
+    phone: import.meta.env.VITE_TENANT_PHONE || '+966 12 558 7890',
+    address: import.meta.env.VITE_TENANT_ADDRESS || 'Al Mansoor District, Makkah Mukarramah, KSA',
   },
   brandColors: {
     navy: '#0e2c4c',
