@@ -48,7 +48,9 @@ service cloud.firestore {
     // --- Users Collection ---
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isOwner() || isStaff());
-      allow create: if isOwner();
+      // Bootstrap: a signed-in user may create their OWN doc (first user becomes Owner via app logic).
+      // Owners may create docs for others. Public signup stays disabled in Firebase Auth settings.
+      allow create: if isOwner() || (isSignedIn() && request.auth.uid == userId);
       allow update: if isOwner() || (request.auth.uid == userId && request.resource.data.role == resource.data.role);
       allow delete: if isOwner();
     }
