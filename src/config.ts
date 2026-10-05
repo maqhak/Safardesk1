@@ -7,6 +7,8 @@
  * simply modify the TENANT and firebaseConfig objects in this file (or supply them via environment variables).
  */
 
+import { resolveTenant } from './tenants';
+
 export interface TenantConfig {
   companyName: string;
   appTitle: string;
@@ -43,11 +45,14 @@ export interface FirebaseConfig {
 /**
  * Active Tenant Branding & Settings
  */
-export const TENANT: TenantConfig = {
-  companyName: import.meta.env.VITE_TENANT_COMPANY_NAME || 'SafarDesk Travel & Tours',
-  appTitle: import.meta.env.VITE_TENANT_APP_TITLE || 'SafarDesk — Travel Business Management System',
-  shortName: 'SafarDesk',
-  tagline: 'Enterprise Travel, Visa & Voucher Management CRM',
+export const TENANT: TenantConfig = (() => {
+  // One-build-many-tenants: prefer runtime-resolved tenant, fall back to legacy .env
+  const tenant = resolveTenant();
+  return {
+    companyName: tenant?.companyName || import.meta.env.VITE_TENANT_COMPANY_NAME || 'SafarDesk Travel & Tours',
+    appTitle: import.meta.env.VITE_TENANT_APP_TITLE || 'SafarDesk — Travel Business Management System',
+    shortName: 'SafarDesk',
+    tagline: 'Enterprise Travel, Visa & Voucher Management CRM',
   currency: {
     primary: 'SAR',
     secondary: 'PKR',
@@ -63,7 +68,8 @@ export const TENANT: TenantConfig = {
     gold: '#c9a227',
   },
   dateFormat: 'DD-MMM-YYYY',
-};
+  };
+})();
 
 /**
  * Apply runtime tenant branding from Firestore (settings/tenant).
@@ -108,15 +114,31 @@ export async function loadTenantBranding(): Promise<void> {
  * otherwise it activates a graceful demo/preview authentication mode so reviewers
  * can test every feature and role seamlessly.
  */
-const envFirebaseConfig: FirebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDemo-SafarDesk-TravelCRM-PlaceholderKey',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'safardesk-travel-crm.firebaseapp.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'safardesk-travel-crm',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'safardesk-travel-crm.appspot.com',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '109233182682',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:109233182682:web:7f6d2b89c301ae420',
-  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || '(default)',
-};
+const envFirebaseConfig: FirebaseConfig = (() => {
+  // One-build-many-tenants: resolve tenant from hostname at runtime.
+  // Falls back to legacy single-tenant .env vars (for localhost dev).
+  const tenant = resolveTenant();
+  if (tenant) {
+    return {
+      apiKey: tenant.apiKey,
+      authDomain: tenant.authDomain,
+      projectId: tenant.projectId,
+      storageBucket: tenant.storageBucket,
+      messagingSenderId: tenant.messagingSenderId,
+      appId: tenant.appId,
+      firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || '(default)',
+    };
+  }
+  return {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDemo-SafarDesk-TravelCRM-PlaceholderKey',
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'safardesk-travel-crm.firebaseapp.com',
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'safardesk-travel-crm',
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'safardesk-travel-crm.appspot.com',
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '109233182682',
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:109233182682:web:7f6d2b89c301ae420',
+    firestoreDatabaseId: import.meta.env.VITE_FIREBASE_DATABASE_ID || '(default)',
+  };
+})();
 
 
 /**
@@ -171,7 +193,10 @@ export function clearCustomFirebaseConfig(): void {
 
 export const firebaseConfig: FirebaseConfig = loadCustomFirebaseConfig() || envFirebaseConfig;
 
-export const TENANT_KEY = import.meta.env.VITE_TENANT_KEY || 'safardesk-default-tenant';
+export const TENANT_KEY = (() => {
+  const tenant = resolveTenant();
+  return tenant?.tenantKey || import.meta.env.VITE_TENANT_KEY || 'safardesk-default-tenant';
+})();
 // Fix #31: demo backdoor is gated behind VITE_DEMO_MODE (default off).
 // Set VITE_DEMO_MODE=true in .env only for local UI demos — never in production.
 export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
