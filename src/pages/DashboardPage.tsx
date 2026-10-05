@@ -593,7 +593,7 @@ export const DashboardPage: React.FC = () => {
       </Modal>
 
       {/* Main sections — compact responsive grid: 1 col on mobile, 2 on lg, 3 on xl */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3 items-start text-center max-w-7xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3 items-start text-center max-w-7xl mx-auto [grid-auto-flow:dense]">
 
       {/* 2. Account Summary (SAR) Panel */}
       <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3 lg:col-span-2 xl:col-span-2">
