@@ -12,23 +12,28 @@ service cloud.firestore {
     }
 
     function isOwner() {
-      return isSignedIn() && userDoc().role == 'owner';
+      let doc = userDoc();
+      return isSignedIn() && doc != null && doc.role == 'owner';
     }
 
     function isStaff() {
-      return isSignedIn() && userDoc().role == 'staff';
+      let doc = userDoc();
+      return isSignedIn() && doc != null && doc.role == 'staff';
     }
 
     function isAgent() {
-      return isSignedIn() && userDoc().role == 'agent';
+      let doc = userDoc();
+      return isSignedIn() && doc != null && doc.role == 'agent';
     }
 
     function myAgentId() {
-      return isSignedIn() ? userDoc().agentId : null;
+      let doc = userDoc();
+      return doc != null ? doc.agentId : null;
     }
 
     function hasPerm(module, action) {
-      return isOwner() || (isStaff() && userDoc().permissions[module][action] == true);
+      let doc = userDoc();
+      return isOwner() || (isStaff() && doc != null && doc.permissions[module][action] == true);
     }
 
     // Fix #27: resolve whether a ledger account belongs to the calling agent.
