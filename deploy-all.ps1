@@ -51,11 +51,9 @@ foreach ($agency in $agencies) {
     npm run build
     if ($LASTEXITCODE -ne 0) { throw "Build failed for $project" }
 
-    # Deploy hosting + firestore rules
+    # Deploy hosting + firestore rules (using --project flag to avoid 'firebase use' Windows bug)
     Write-Host "Deploying to $project..." -ForegroundColor Yellow
-    firebase use $project
-    if ($LASTEXITCODE -ne 0) { throw "firebase use failed for $project" }
-    firebase deploy --only hosting,firestore:rules
+    firebase deploy --only hosting,firestore:rules --project $project
     if ($LASTEXITCODE -ne 0) { throw "Deploy failed for $project" }
 
     Write-Host "✅ $project deployed!" -ForegroundColor Green
