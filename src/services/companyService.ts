@@ -117,7 +117,11 @@ export async function saveCompanyProfile(
       await setDoc(doc(db, SETTINGS_COLLECTION, COMPANY_DOC), updatedProfile);
     }
   } catch (err) {
-    console.warn('Could not write settings/company to Firestore:', err);
+    console.error('Could not write settings/company to Firestore:', err);
+    // Don't silently succeed — let the UI show the real error
+    throw new Error(
+      'Failed to save to Firestore. Check: (1) Firestore rules deployed, (2) you are Owner, (3) user document exists.'
+    );
   }
 
   localStorage.setItem(LOCAL_STORAGE_COMPANY_KEY, JSON.stringify(updatedProfile));

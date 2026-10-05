@@ -73,7 +73,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: firebaseUser.email || '',
           role: assignedRole,
           isActive: true,
-          permissions: assignedRole === 'staff' ? createDefaultPermissions('Semi Admin') : undefined,
+          // Only include permissions for staff (Firestore rejects undefined values)
+          ...(assignedRole === 'staff' ? { permissions: createDefaultPermissions('Semi Admin') } : {}),
           createdAt: new Date().toISOString(),
           createdBy: hasExistingOwner ? 'system_registered' : 'system_bootstrap',
           lastLoginAt: new Date().toISOString(),
