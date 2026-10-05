@@ -19,6 +19,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { TENANT, DEMO_MODE } from '../config';
+import { fetchCompanyProfile } from '../services/companyService';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
@@ -37,6 +38,13 @@ export const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [companyLogoUrl, setCompanyLogoUrl] = useState<string>('');
+
+  useEffect(() => {
+    fetchCompanyProfile().then((p) => {
+      if (p.logoUrl) setCompanyLogoUrl(p.logoUrl);
+    }).catch(() => {});
+  }, []);
 
   // Forgot Password modal state
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
@@ -121,14 +129,22 @@ export const LoginPage: React.FC = () => {
       
       {/* Brand Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#0e2c4c] text-[#c9a227] shadow-xl mb-4 border border-[#163b63]">
-          <Compass className="w-10 h-10 stroke-[2.2]" />
-        </div>
+        {companyLogoUrl ? (
+          <img
+            src={companyLogoUrl}
+            alt={TENANT.companyName}
+            className="inline-block w-16 h-16 rounded-2xl object-contain bg-white p-2 shadow-xl mb-4 border border-slate-200"
+          />
+        ) : (
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#0e2c4c] text-[#c9a227] shadow-xl mb-4 border border-[#163b63]">
+            <Compass className="w-10 h-10 stroke-[2.2]" />
+          </div>
+        )}
         <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-          {TENANT.shortName}
+          {TENANT.companyName}
         </h2>
         <p className="mt-1 text-sm font-medium text-slate-600">
-          {TENANT.appTitle}
+          Powered by SafarDesk
         </p>
         <p className="mt-0.5 text-xs text-slate-400">
           {TENANT.tagline}
@@ -222,7 +238,7 @@ export const LoginPage: React.FC = () => {
               className="w-full mt-2"
               rightIcon={<ArrowRight className="w-4 h-4" />}
             >
-              Sign In to SafarDesk
+              Sign In to {TENANT.companyName}
             </Button>
           </form>
 
@@ -335,7 +351,7 @@ export const LoginPage: React.FC = () => {
         ) : (
           <form onSubmit={handleForgotPassword} className="space-y-4">
             <p className="text-xs text-slate-600 leading-relaxed">
-              Enter your work email address associated with your SafarDesk profile:
+              Enter your work email address associated with your {TENANT.companyName} profile:
             </p>
             <Input
               label="Work Email"
