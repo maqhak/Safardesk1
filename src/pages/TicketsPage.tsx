@@ -35,7 +35,7 @@ import { fetchTickets, createTicket, refundTicket } from '../services/ticketServ
 import { getCurrentRate, useCurrentRate } from '../services/exchangeRateService';
 import { fetchCustomers } from '../services/customerService';
 import { fetchLedgerEntries } from '../services/accountingService';
-import * as XLSX from 'xlsx';
+import { downloadCSV } from '../utils/csv';
 import { fetchAgents } from '../services/agentService';
 
 export const TicketsPage: React.FC = () => {
@@ -211,9 +211,7 @@ export const TicketsPage: React.FC = () => {
       'Margin SAR': tk.marginSAR,
       'Status': tk.status,
     }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Tickets');
-    XLSX.writeFile(wb, `tickets-${new Date().toISOString().split('T')[0]}.xlsx`);
+    downloadCSV(rows, 'tickets');
   };
 
   const columns: Column<TicketDoc>[] = [
@@ -329,7 +327,7 @@ export const TicketsPage: React.FC = () => {
           <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" leftIcon={<Download className="w-3.5 h-3.5" />} onClick={exportTicketsExcel}>
-                Export Excel
+                Export CSV
               </Button>
             </div>
             <div className="relative w-full sm:w-80">

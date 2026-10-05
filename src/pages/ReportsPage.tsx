@@ -98,7 +98,7 @@ export const ReportsPage: React.FC = () => {
         case 'agent-league': await generateAgentPerformance(range); break;
         default: throw new Error('Unknown report.');
       }
-      success(`${reportTitle} downloaded as Excel.`);
+      success(`${reportTitle} downloaded as CSV.`);
     } catch (err: any) {
       showError(err?.message || `Failed to generate ${reportTitle}.`);
     } finally {
@@ -178,7 +178,7 @@ export const ReportsPage: React.FC = () => {
 
               <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-[11px] text-slate-400">
-                  Live data • Excel (.xlsx)
+                  Live data • CSV
                 </span>
                 <Button
                   variant="outline"

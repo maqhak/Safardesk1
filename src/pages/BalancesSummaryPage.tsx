@@ -215,7 +215,7 @@ export const BalancesSummaryPage: React.FC = () => {
               leftIcon={<Download className="w-3.5 h-3.5 text-emerald-600" />}
               onClick={handleExportSummary}
             >
-              Export Excel/CSV
+              Export CSV
             </Button>
           </div>
         }
