@@ -84,6 +84,21 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { name: 'Settings', path: '/settings', module: 'Settings', icon: SettingsIcon },
 ];
 
+// Minimal colourful icon tints per menu item
+const NAV_ICON_COLORS: Record<string, string> = {
+  Dashboard: 'text-sky-400',
+  Accounts: 'text-emerald-400',
+  Vendors: 'text-amber-400',
+  Inventory: 'text-violet-400',
+  Visas: 'text-rose-400',
+  Customers: 'text-cyan-400',
+  Vouchers: 'text-orange-400',
+  Tickets: 'text-indigo-400',
+  Masters: 'text-teal-400',
+  Reports: 'text-pink-400',
+  Settings: 'text-slate-400',
+};
+
 const MobileNavGroup: React.FC<{ item: NavItem; onNavigate: () => void }> = ({ item, onNavigate }) => {
   const [open, setOpen] = useState(false);
   const location = useLocation();
@@ -100,7 +115,7 @@ const MobileNavGroup: React.FC<{ item: NavItem; onNavigate: () => void }> = ({ i
           childActive ? 'bg-white/20 text-white font-semibold' : 'text-slate-300 hover:text-white hover:bg-white/10'
         }`}
       >
-        <Icon className="w-4 h-4 text-gold-400" />
+        <Icon className={`w-4 h-4 ${NAV_ICON_COLORS[item.name] || 'text-gold-400'}`} />
         <span className="flex-1 text-left">{item.name}</span>
         <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
@@ -274,8 +289,17 @@ export const TopNavbar: React.FC = () => {
         <div className="w-full px-4 sm:px-6 lg:px-10">
           <div className="flex items-center justify-between h-16 gap-3">
             
-            {/* LEFT: Logo & Company Name */}
+            {/* LEFT: Menu Button, Logo & Company Name */}
             <div className="flex items-center gap-3 shrink-0">
+              {/* Menu Drawer Toggle Button (left side) */}
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen((prev) => !prev)}
+                className="flex items-center gap-2 p-2 rounded-lg text-slate-200 hover:text-white hover:bg-white/10"
+                aria-label="Open Navigation Menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
               <NavLink to={role === 'agent' ? '/agent-portal' : '/'} className="flex items-center gap-3 group focus:outline-none">
                 {companyLogoUrl ? (
                   <img
@@ -442,21 +466,11 @@ export const TopNavbar: React.FC = () => {
                 )}
               </div>
 
-              {/* Menu Drawer Toggle Button (right side) */}
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen((prev) => !prev)}
-                className="flex items-center gap-2 p-2 rounded-lg text-slate-200 hover:text-white hover:bg-white/10"
-                aria-label="Open Navigation Menu"
-              >
-                <Menu className="w-5 h-5" />
-                <span className="hidden sm:inline text-sm font-medium">Menu</span>
-              </button>
             </div>
           </div>
         </div>
 
-        {/* Right-Side Navigation Drawer */}
+        {/* Left-Side Navigation Drawer */}
         {mobileMenuOpen && (
           <div
             className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[1px]"
@@ -465,13 +479,28 @@ export const TopNavbar: React.FC = () => {
           />
         )}
         <div
-          className={`fixed top-0 right-0 z-50 h-full w-[300px] max-w-[85vw] bg-[#0a223c] border-l border-white/10 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${
-            mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+          className={`fixed top-0 left-0 z-50 h-full w-[300px] max-w-[85vw] bg-[#0a223c] border-r border-white/10 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${
+            mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
           aria-hidden={!mobileMenuOpen}
         >
-          <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
-            <span className="text-sm font-bold text-white uppercase tracking-wider">Menu</span>
+          {/* Company branding header */}
+          <div className="flex items-center gap-3 px-4 py-4 border-b border-white/10">
+            {companyLogoUrl ? (
+              <img
+                src={companyLogoUrl}
+                alt={TENANT.companyName}
+                className="w-10 h-10 rounded-xl object-contain bg-white/10 p-1"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#c9a227] to-[#dfba3f] flex items-center justify-center text-[#0e2c4c]">
+                <Compass className="w-6 h-6 stroke-[2.2]" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-extrabold text-white truncate">{TENANT.companyName}</p>
+              <p className="text-[11px] text-slate-400">SafarDesk</p>
+            </div>
             <button
               type="button"
               onClick={() => setMobileMenuOpen(false)}
@@ -484,6 +513,7 @@ export const TopNavbar: React.FC = () => {
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1">
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
+              const iconColor = NAV_ICON_COLORS[item.name] || 'text-gold-400';
               if (!item.children) {
                 return (
                   <NavLink
@@ -498,7 +528,7 @@ export const TopNavbar: React.FC = () => {
                       }`
                     }
                   >
-                    <Icon className="w-4 h-4 text-gold-400" />
+                    <Icon className={`w-4 h-4 ${iconColor}`} />
                     <span>{item.name}</span>
                   </NavLink>
                 );
