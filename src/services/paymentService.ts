@@ -310,16 +310,17 @@ export async function fetchInvoices(): Promise<InvoiceRecord[]> {
 }
 
 export async function fetchPayments(): Promise<PaymentDoc[]> {
-  let list: PaymentDoc[] = [];
-
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, PAYMENTS_COLLECTION));
-      list = snap.docs.map((d) => d.data() as PaymentDoc);
+      return snap.docs.map((d) => d.data() as PaymentDoc);
     }
   } catch (err) {
     console.warn('Could not read payments from Firestore:', err);
   }
+
+  // localStorage fallback only when Firestore is unconfigured or unreachable
+  let list: PaymentDoc[] = [];
 
   const stored = localStorage.getItem(LOCAL_STORAGE_PAYMENTS_KEY);
   if (stored) {

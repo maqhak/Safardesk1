@@ -602,16 +602,21 @@ export async function saveLedgerAccount(account: LedgerAccountDoc): Promise<Ledg
  * Fetch all ledger entries (optionally filtered by accountId)
  */
 export async function fetchLedgerEntries(accountId?: string): Promise<LedgerEntryDoc[]> {
-  let list: LedgerEntryDoc[] = [];
-
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, ENTRIES_COLLECTION));
-      list = snap.docs.map((d) => d.data() as LedgerEntryDoc);
+      const list = snap.docs.map((d) => d.data() as LedgerEntryDoc);
+      if (accountId) {
+        return list.filter((e) => e.accountId === accountId);
+      }
+      return list;
     }
   } catch (err) {
     console.warn('Could not read ledger entries from Firestore:', err);
   }
+
+  // localStorage fallback only when Firestore is unconfigured or unreachable
+  let list: LedgerEntryDoc[] = [];
 
   const stored = localStorage.getItem(LOCAL_STORAGE_ENTRIES_KEY);
   if (stored) {
