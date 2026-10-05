@@ -338,7 +338,7 @@ export const TopNavbar: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full text-white shadow-md border-b" style={{ backgroundColor: 'var(--theme-primary)', borderColor: 'color-mix(in srgb, var(--theme-primary) 70%, black)' }}>
+      <header className="sticky top-0 z-40 w-full text-white shadow-md border-b" style={{ background: 'var(--theme-gradient)', borderColor: 'color-mix(in srgb, var(--theme-primary) 70%, black)' }}>
         <div className="w-full px-4 sm:px-6 lg:px-10">
           <div className="flex items-center justify-between h-16 gap-3">
             

@@ -58,3 +58,63 @@
   .ledger-print-compact tbody td { padding: 3px 6px !important; }
   .ledger-print-compact .badge, .ledger-print-compact [class*="Badge"] { font-size: 8px !important; }
 }
+
+/* ===== Soft Dark Mode (theme-dark) — applied when night mode is on ===== */
+.theme-dark {
+  color-scheme: dark;
+}
+
+.theme-dark body {
+  background-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+/* Main content backgrounds */
+.theme-dark .bg-white {
+  background-color: #273449 !important;
+}
+.theme-dark .bg-slate-50 {
+  background-color: #232f45 !important;
+}
+.theme-dark .bg-slate-100 {
+  background-color: #2b3a55 !important;
+}
+
+/* Text colors */
+.theme-dark .text-slate-900,
+.theme-dark .text-slate-800 {
+  color: #e2e8f0 !important;
+}
+.theme-dark .text-slate-700,
+.theme-dark .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+.theme-dark .text-slate-500,
+.theme-dark .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+/* Borders */
+.theme-dark .border-slate-200,
+.theme-dark .border-slate-100 {
+  border-color: #3b4d6b !important;
+}
+
+/* Cards */
+.theme-dark .shadow-xs,
+.theme-dark .shadow-sm {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Inputs */
+.theme-dark input,
+.theme-dark select,
+.theme-dark textarea {
+  background-color: #232f45 !important;
+  color: #e2e8f0 !important;
+  border-color: #3b4d6b !important;
+}
+.theme-dark input::placeholder,
+.theme-dark textarea::placeholder {
+  color: #64748b !important;
+}
