@@ -27,6 +27,7 @@ import {
   EyeOff
 } from 'lucide-react';
 import { TENANT } from '../../config';
+import { getCurrentRate } from '../../services/exchangeRateService';
 import { useAuth } from '../../contexts/AuthContext';
 import { LicensePill } from '../auth/LicensePill';
 import { useToast } from '../../contexts/ToastContext';
@@ -317,7 +318,7 @@ export const TopNavbar: React.FC = () => {
               >
                 <span className="text-[#dfba3f] font-semibold">1 SAR</span>
                 <span>=</span>
-                <span>{TENANT.currency.defaultExchangeRate.toFixed(2)} PKR</span>
+                <span>{getCurrentRate('SAR-PKR').toFixed(2)} PKR</span>
               </div>
 
               {/* User Avatar Menu Dropdown */}

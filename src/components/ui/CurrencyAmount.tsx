@@ -1,6 +1,7 @@
 import React from 'react';
 import { formatDualCurrency, cn } from '../../utils/formatters';
 import { TENANT } from '../../config';
+import { getCurrentRate } from '../../services/exchangeRateService';
 
 interface CurrencyAmountProps {
   amountSar: number | null | undefined;
@@ -14,7 +15,7 @@ interface CurrencyAmountProps {
 
 export const CurrencyAmount: React.FC<CurrencyAmountProps> = ({
   amountSar,
-  rate = TENANT.currency.defaultExchangeRate,
+  rate = getCurrentRate('SAR-PKR'),
   layout = 'stacked',
   size = 'md',
   align = 'right',

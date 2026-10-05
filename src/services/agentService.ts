@@ -12,6 +12,7 @@ import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut as secondarySignOut } from 'firebase/auth';
 import { db, isConfigPlaceholder } from './firebase';
 import { firebaseConfig, TENANT } from '../config';
+import { getCurrentRate } from '../services/exchangeRateService';
 import { AgentDoc, LedgerAccountDoc, AgentBalanceInfo } from '../types/agent';
 import { UserProfile, UserDoc } from '../types/auth';
 import { logAuditEvent, fetchAllUsers } from './userService';
@@ -193,7 +194,7 @@ export async function getAgentBalance(agentId: string): Promise<AgentBalanceInfo
   const ledger = ledgers.find((l) => l.linkedAgentId === agentId);
 
   const balanceSAR = ledger ? ledger.currentBalanceSAR : 0;
-  const rate = agent ? agent.exchangeRatePKRRate || TENANT.currency.defaultExchangeRate : TENANT.currency.defaultExchangeRate;
+  const rate = agent ? agent.exchangeRatePKRRate || getCurrentRate('SAR-PKR') : getCurrentRate('SAR-PKR');
   const dueLimitSAR = agent ? agent.dueLimitSAR : 0;
   const balancePKR = balanceSAR * rate;
 
@@ -305,7 +306,7 @@ export async function createAgentWithCredentials(
     city: data.city.trim(),
     email: normalizedEmail,
     dueLimitSAR: Number(data.dueLimitSAR) || 0,
-    exchangeRatePKRRate: Number(data.exchangeRatePKRRate) || TENANT.currency.defaultExchangeRate,
+    exchangeRatePKRRate: Number(data.exchangeRatePKRRate) || getCurrentRate('SAR-PKR'),
     notes: data.notes?.trim() || '',
     isActive: true,
     userId: userUid,
