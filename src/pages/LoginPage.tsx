@@ -127,18 +127,21 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex">
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-        <img
-          src="/images/umrah-login-bg.jpg"
-          alt="Kaaba in Makkah"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        <div
-          className="absolute inset-0"
-          style={{ background: 'linear-gradient(135deg, rgba(14,44,76,0.85) 0%, rgba(14,44,76,0.4) 50%, rgba(201,162,39,0.2) 100%)' }}
-        />
-        <div className="relative z-10 flex flex-col justify-end p-12 text-white">
+    <div className="min-h-screen flex relative">
+      {/* Full background image */}
+      <img
+        src="/images/umrah-login-bg.jpg"
+        alt="Kaaba in Makkah"
+        className="absolute inset-0 w-full h-full object-cover"
+      />
+      <div
+        className="absolute inset-0"
+        style={{ background: 'linear-gradient(135deg, rgba(14,44,76,0.75) 0%, rgba(14,44,76,0.45) 50%, rgba(201,162,39,0.25) 100%)' }}
+      />
+
+      {/* Left side — branding (hidden on mobile) */}
+      <div className="hidden lg:flex lg:w-1/2 relative z-10 overflow-hidden">
+        <div className="relative z-10 flex flex-col justify-end p-12 text-white animate-[fadeIn_1s_ease-out]">
           <div className="mb-6">
             {companyLogoUrl ? (
               <img
@@ -166,8 +169,8 @@ export const LoginPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-50">
-        <div className="lg:hidden sm:mx-auto sm:w-full sm:max-w-md text-center mb-8">
+      <div className="flex-1 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="lg:hidden sm:mx-auto sm:w-full sm:max-w-md text-center mb-8 animate-[fadeIn_0.8s_ease-out]">
           {companyLogoUrl ? (
             <img
               src={companyLogoUrl}
@@ -193,7 +196,7 @@ export const LoginPage: React.FC = () => {
         </div>
 
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <Card className="p-8 shadow-2xl border-slate-200/90 relative overflow-hidden">
+          <Card className="p-8 shadow-2xl border-white/40 relative overflow-hidden bg-white/75 backdrop-blur-xl animate-[slideUp_0.6s_ease-out]">
             <div
               className="absolute top-0 left-0 right-0 h-1.5"
               style={{ background: 'var(--theme-gradient)' }}
