@@ -57,9 +57,7 @@ export async function fetchCustomers(): Promise<CustomerDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, CUSTOMERS_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as CustomerDoc);
-      }
+      return snap.docs.map((d) => d.data() as CustomerDoc);
     }
   } catch (err) {
     console.warn('Could not read customers from Firestore:', err);
@@ -73,9 +71,7 @@ export async function fetchCustomers(): Promise<CustomerDoc[]> {
       // fallback
     }
   }
-
-  localStorage.setItem(LOCAL_STORAGE_CUSTOMERS_KEY, JSON.stringify(INITIAL_CUSTOMERS));
-  return INITIAL_CUSTOMERS;
+  return [];
 }
 
 export async function createCustomer(

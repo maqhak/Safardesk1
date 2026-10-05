@@ -160,14 +160,12 @@ export const INITIAL_JOURNAL_VOUCHERS: JournalVoucherDoc[] = [
 ];
 
 export async function fetchJournalVouchers(): Promise<JournalVoucherDoc[]> {
-  let list: JournalVoucherDoc[] = INITIAL_JOURNAL_VOUCHERS;
+  let list: JournalVoucherDoc[] = [];
 
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, JV_COLLECTION));
-      if (!snap.empty) {
-        list = snap.docs.map((d) => d.data() as JournalVoucherDoc);
-      }
+      list = snap.docs.map((d) => d.data() as JournalVoucherDoc);
     }
   } catch (err) {
     console.warn('Could not read journal vouchers from Firestore:', err);
@@ -178,10 +176,8 @@ export async function fetchJournalVouchers(): Promise<JournalVoucherDoc[]> {
     try {
       list = JSON.parse(stored);
     } catch {
-      list = INITIAL_JOURNAL_VOUCHERS;
+      list = [];
     }
-  } else {
-    localStorage.setItem(LOCAL_STORAGE_JV_KEY, JSON.stringify(INITIAL_JOURNAL_VOUCHERS));
   }
 
   return list;

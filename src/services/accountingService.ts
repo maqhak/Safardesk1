@@ -566,9 +566,7 @@ export async function fetchLedgerAccounts(): Promise<LedgerAccountDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, ACCOUNTS_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as LedgerAccountDoc);
-      }
+      return snap.docs.map((d) => d.data() as LedgerAccountDoc);
     }
   } catch (err) {
     console.warn('Could not read accounts from Firestore:', err);
@@ -582,9 +580,7 @@ export async function fetchLedgerAccounts(): Promise<LedgerAccountDoc[]> {
       // fallback
     }
   }
-
-  localStorage.setItem(LOCAL_STORAGE_ACCOUNTS_KEY, JSON.stringify(INITIAL_LEDGER_ACCOUNTS));
-  return INITIAL_LEDGER_ACCOUNTS;
+  return [];
 }
 
 /** Create or update a ledger account (Firestore + localStorage fallback). */
@@ -606,14 +602,12 @@ export async function saveLedgerAccount(account: LedgerAccountDoc): Promise<Ledg
  * Fetch all ledger entries (optionally filtered by accountId)
  */
 export async function fetchLedgerEntries(accountId?: string): Promise<LedgerEntryDoc[]> {
-  let list: LedgerEntryDoc[] = INITIAL_LEDGER_ENTRIES;
+  let list: LedgerEntryDoc[] = [];
 
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, ENTRIES_COLLECTION));
-      if (!snap.empty) {
-        list = snap.docs.map((d) => d.data() as LedgerEntryDoc);
-      }
+      list = snap.docs.map((d) => d.data() as LedgerEntryDoc);
     }
   } catch (err) {
     console.warn('Could not read ledger entries from Firestore:', err);
@@ -624,10 +618,8 @@ export async function fetchLedgerEntries(accountId?: string): Promise<LedgerEntr
     try {
       list = JSON.parse(stored);
     } catch {
-      list = INITIAL_LEDGER_ENTRIES;
+      list = [];
     }
-  } else {
-    localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(INITIAL_LEDGER_ENTRIES));
   }
 
   if (accountId) {

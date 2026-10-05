@@ -53,9 +53,7 @@ export async function fetchTickets(): Promise<TicketDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, TICKETS_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as TicketDoc);
-      }
+      return snap.docs.map((d) => d.data() as TicketDoc);
     }
   } catch (err) {
     console.warn('Could not read tickets from Firestore:', err);
@@ -69,9 +67,7 @@ export async function fetchTickets(): Promise<TicketDoc[]> {
       // fallback
     }
   }
-
-  localStorage.setItem(LOCAL_STORAGE_TICKETS_KEY, JSON.stringify(INITIAL_TICKETS));
-  return INITIAL_TICKETS;
+  return [];
 }
 
 function findBuyerAccount(accounts: any[], buyerId: string): any | undefined {

@@ -26,7 +26,7 @@ export async function fetchVisaRequests(): Promise<VisaRequestDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, VISA_REQUESTS_COLLECTION));
-      if (!snap.empty) return snap.docs.map((d) => d.data() as VisaRequestDoc);
+      return snap.docs.map((d) => d.data() as VisaRequestDoc);
     }
   } catch (err) {
     console.warn('Could not read visa requests from Firestore:', err);
@@ -144,9 +144,7 @@ export async function fetchVisas(): Promise<VisaDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, VISAS_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as VisaDoc);
-      }
+      return snap.docs.map((d) => d.data() as VisaDoc);
     }
   } catch (err) {
     console.warn('Could not read visas from Firestore:', err);
@@ -160,9 +158,7 @@ export async function fetchVisas(): Promise<VisaDoc[]> {
       // fallback
     }
   }
-
-  localStorage.setItem(LOCAL_STORAGE_VISAS_KEY, JSON.stringify(INITIAL_VISAS));
-  return INITIAL_VISAS;
+  return [];
 }
 
 export async function saveVisasBatch(newVisas: VisaDoc[]): Promise<void> {
