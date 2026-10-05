@@ -45,6 +45,26 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <!-- Copyright protection: deters casual code copying -->
+    <script>
+      (function() {
+        'use strict';
+        // Disable right-click
+        document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+        // Disable F12, Ctrl+Shift+I/J, Ctrl+U
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'F12' ||
+              (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J')) ||
+              (e.ctrlKey && e.key === 'U')) {
+            e.preventDefault();
+            return false;
+          }
+        });
+        // Copyright notice in console
+        console.log('%c© SafarDesk. All rights reserved. Unauthorized copying is prohibited.',
+          'color: #c9a227; font-size: 14px; font-weight: bold;');
+      })();
+    </script>
   </head>
   <body class="bg-slate-50 text-slate-900 font-sans antialiased min-h-screen">
     <div id="root"></div>

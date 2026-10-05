@@ -451,7 +451,7 @@ export const TopNavbar: React.FC = () => {
                     {/* User Info Header */}
                     <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/70">
                       <p className="text-xs font-semibold text-slate-900 truncate">
-                        {userProfile?.name || 'SafarDesk User'}
+                        {userProfile?.name || 'User'}
                       </p>
                       <p className="text-[11px] text-slate-500 truncate mt-0.5 font-mono">
                         {userProfile?.email || 'user@safardesk.com'}
@@ -721,7 +721,7 @@ export const TopNavbar: React.FC = () => {
         onClose={() => setLogoutConfirmOpen(false)}
         onConfirm={handleLogout}
         title="Sign Out"
-        message="Are you sure you want to log out of SafarDesk? Your session will be safely closed."
+        message={`Are you sure you want to log out of ${TENANT.companyName}? Your session will be safely closed.`}
         confirmLabel="Sign Out"
         variant="danger"
       />

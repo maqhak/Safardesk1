@@ -230,7 +230,7 @@ export const AgentsPage: React.FC = () => {
   // Copy created credentials text for WhatsApp/SMS
   const handleCopyCredentials = () => {
     if (!createdAgentInfo) return;
-    const text = `*SafarDesk B2B Agent Portal Login Credentials*
+    const text = `*${TENANT.companyName} B2B Agent Portal Login Credentials*
 ----------------------------------------
 Agency: ${createdAgentInfo.companyName}
 Contact: ${createdAgentInfo.contactPerson}
