@@ -1,7 +1,11 @@
 import { UserProfile } from '../types/auth';
 import { logAuditEvent } from './userService';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db, isConfigPlaceholder } from './firebase';
 
 const LOCAL_STORAGE_RATES_KEY = 'safardesk_exchange_rates_master_v2';
+const SETTINGS_COLLECTION = 'settings';
+const RATES_DOC = 'exchangeRates';
 
 export interface ExchangeRateDoc {
   pair: string; // e.g. "SAR-PKR"
@@ -16,7 +20,11 @@ const DEFAULT_RATES: Record<string, number> = {
   'USD-PKR': 278.50,
 };
 
+// In-memory cache (populated from Firestore at startup)
+let cachedRates: Record<string, number> | null = null;
+
 export function fetchExchangeRates(): Record<string, number> {
+  if (cachedRates) return { ...cachedRates };
   const stored = localStorage.getItem(LOCAL_STORAGE_RATES_KEY);
   if (stored) {
     try {
@@ -25,8 +33,39 @@ export function fetchExchangeRates(): Record<string, number> {
       // fallback
     }
   }
-  localStorage.setItem(LOCAL_STORAGE_RATES_KEY, JSON.stringify(DEFAULT_RATES));
-  return DEFAULT_RATES;
+  return { ...DEFAULT_RATES };
+}
+
+/**
+ * Load rates from Firestore into memory + localStorage cache.
+ * Call at app startup. Silently keeps defaults on failure.
+ */
+export async function loadExchangeRates(): Promise<void> {
+  try {
+    if (isConfigPlaceholder) return;
+    const snap = await getDoc(doc(db, SETTINGS_COLLECTION, RATES_DOC));
+    if (snap.exists()) {
+      const data = snap.data() as { rates?: Record<string, number> };
+      if (data.rates) {
+        cachedRates = { ...DEFAULT_RATES, ...data.rates };
+        localStorage.setItem(LOCAL_STORAGE_RATES_KEY, JSON.stringify(cachedRates));
+        return;
+      }
+    }
+  } catch {
+    // keep defaults
+  }
+  // Fallback to localStorage
+  const stored = localStorage.getItem(LOCAL_STORAGE_RATES_KEY);
+  if (stored) {
+    try {
+      cachedRates = { ...DEFAULT_RATES, ...JSON.parse(stored) };
+      return;
+    } catch {
+      // ignore
+    }
+  }
+  cachedRates = { ...DEFAULT_RATES };
 }
 
 export function getCurrentRate(pair: string = 'SAR-PKR'): number {
@@ -41,7 +80,22 @@ export async function updateExchangeRate(
 ): Promise<void> {
   const rates = fetchExchangeRates();
   rates[pair] = newRate;
+  cachedRates = { ...rates };
   localStorage.setItem(LOCAL_STORAGE_RATES_KEY, JSON.stringify(rates));
+
+  // Persist to Firestore so all devices/users share the same rate
+  try {
+    if (!isConfigPlaceholder) {
+      await setDoc(
+        doc(db, SETTINGS_COLLECTION, RATES_DOC),
+        { rates, updatedAt: new Date().toISOString(), updatedBy: actor.uid },
+        { merge: true }
+      );
+    }
+  } catch (err) {
+    console.error('Could not save exchange rate to Firestore:', err);
+    throw new Error('Failed to save rate to Firestore. Check rules and Owner role.');
+  }
 
   await logAuditEvent({
     action: 'UPDATE_EXCHANGE_RATE',
@@ -63,27 +117,14 @@ export function useCurrentRate(pair: string = 'SAR-PKR') {
   const [rate, setRate] = useState<number>(() => getCurrentRate(pair));
 
   useEffect(() => {
-    setRate(getCurrentRate(pair));
-    const handleStorage = () => {
-      setRate(getCurrentRate(pair));
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    loadExchangeRates().then(() => setRate(getCurrentRate(pair)));
   }, [pair]);
 
   return rate;
 }
 
-/**
- * Shared display helper rendering converted figures as "SAR 1,000 @ 74.50 = PKR 74,500"
- */
 export function formatConvertedMoney(amountSAR: number, rate?: number): string {
-  const currentRate = rate || getCurrentRate('SAR-PKR');
-  const amountPKR = amountSAR * currentRate;
-  
-  const formattedSAR = amountSAR.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  const formattedPKR = amountPKR.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  const formattedRate = currentRate.toFixed(2);
-
-  return `SAR ${formattedSAR} @ ${formattedRate} = PKR ${formattedPKR}`;
+  const r = rate || getCurrentRate('SAR-PKR');
+  const pkr = amountSAR * r;
+  return `SAR ${amountSAR.toLocaleString()} @ ${r.toFixed(2)} = PKR ${Math.round(pkr).toLocaleString()}`;
 }

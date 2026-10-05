@@ -240,9 +240,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(currentUser);
             setIsDemoMode(false);
             // Load runtime tenant branding (Firestore settings/tenant overrides .env defaults)
+            // and shared exchange rates (Firestore settings/exchangeRates)
             try {
               const { loadTenantBranding } = await import('../config');
               await loadTenantBranding();
+              const { loadExchangeRates } = await import('../services/exchangeRateService');
+              await loadExchangeRates();
             } catch {
               // Keep build-time defaults
             }

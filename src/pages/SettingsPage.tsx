@@ -32,7 +32,7 @@ import {
   saveGeminiApiKey,
   clearGeminiApiKey
 } from '../services/driveService';
-import { updateExchangeRate } from '../services/exchangeRateService';
+import { updateExchangeRate, getCurrentRate } from '../services/exchangeRateService';
 import { DriveIntegrationDoc } from '../types/payment';
 
 export const SettingsPage: React.FC = () => {
@@ -43,7 +43,7 @@ export const SettingsPage: React.FC = () => {
   const [appTitle, setAppTitle] = useState(TENANT.appTitle);
   const [primaryCurrency, setPrimaryCurrency] = useState(TENANT.currency.primary);
   const [secondaryCurrency, setSecondaryCurrency] = useState(TENANT.currency.secondary);
-  const [exchangeRate, setExchangeRate] = useState(String(TENANT.currency.defaultExchangeRate));
+  const [exchangeRate, setExchangeRate] = useState(String(getCurrentRate('SAR-PKR')));
   const [supportEmail, setSupportEmail] = useState(TENANT.contact.email);
   const [supportPhone, setSupportPhone] = useState(TENANT.contact.phone);
 
