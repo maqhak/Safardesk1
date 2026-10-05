@@ -206,6 +206,12 @@ service cloud.firestore {
       allow write: if isOwner();
     }
 
+    // Theme customization — read by all (applied at login), written by Owner only
+    match /settings/theme {
+      allow read: if isSignedIn();
+      allow write: if isOwner();
+    }
+
     match /settings/integrations {
       allow read, write: if isOwner();
     }

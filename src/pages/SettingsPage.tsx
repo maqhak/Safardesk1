@@ -33,6 +33,7 @@ import {
   clearGeminiApiKey
 } from '../services/driveService';
 import { updateExchangeRate, getCurrentRate } from '../services/exchangeRateService';
+import { ThemeSettings } from '../components/settings/ThemeSettings';
 import { DriveIntegrationDoc } from '../types/payment';
 
 export const SettingsPage: React.FC = () => {
@@ -225,8 +226,9 @@ export const SettingsPage: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Left 2 Cols: Tenant Branding & Currency Settings */}
+        {/* Left 2 Cols: Tenant Branding, Theme & Currency Settings */}
         <div className="lg:col-span-2 space-y-6">
+          <ThemeSettings />
           <Card padding="lg">
             <CardHeader
               title="Agency Tenant Profile"

@@ -9,9 +9,12 @@ import {
   FileCheck, 
   ArrowRight,
   Plane,
+  PlaneLanding,
+  PlaneTakeoff,
   ShieldAlert,
   Users
 } from 'lucide-react';
+import { KaabaIcon, MasjidNabawiIcon } from '../components/ui/HolySiteIcons';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatCard } from '../components/ui/StatCard';
 import { Button } from '../components/ui/Button';
@@ -688,31 +691,37 @@ export const DashboardPage: React.FC = () => {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 text-center">
           <div onClick={() => navigate('/tickets/movement-reports', { state: { reportType: 'Arrival to Kingdom', date: ksaDate } })} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
+            <PlaneLanding className="w-6 h-6 mx-auto mb-1 text-emerald-600" />
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Arrival</span>
             <span className="text-lg font-mono font-bold text-emerald-600">{ksaStatusCounts.arrival}</span>
             <span className="text-[10px] text-slate-500 block">Pax</span>
           </div>
           <div onClick={() => navigate('/tickets/movement-reports', { state: { reportType: 'Departure from Kingdom', date: ksaDate } })} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
+            <PlaneTakeoff className="w-6 h-6 mx-auto mb-1 text-rose-600" />
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Departure</span>
             <span className="text-lg font-mono font-bold text-rose-600">{ksaStatusCounts.departure}</span>
             <span className="text-[10px] text-slate-500 block">Pax</span>
           </div>
           <div onClick={() => navigate('/vouchers')} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
+            <KaabaIcon className="w-6 h-6 mx-auto mb-1 text-slate-800" />
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Makkah In</span>
             <span className="text-lg font-mono font-bold text-[#0e2c4c]">{ksaStatusCounts.makkahIn}</span>
             <span className="text-[10px] text-slate-500 block">Pax</span>
           </div>
           <div onClick={() => navigate('/vouchers')} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
+            <KaabaIcon className="w-6 h-6 mx-auto mb-1 text-amber-600" />
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Makkah Out</span>
             <span className="text-lg font-mono font-bold text-amber-600">{ksaStatusCounts.makkahOut}</span>
             <span className="text-[10px] text-slate-500 block">Pax</span>
           </div>
           <div onClick={() => navigate('/vouchers')} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
+            <MasjidNabawiIcon className="w-6 h-6 mx-auto mb-1 text-emerald-700" />
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Madina In</span>
             <span className="text-lg font-mono font-bold text-[#0e2c4c]">{ksaStatusCounts.madinaIn}</span>
             <span className="text-[10px] text-slate-500 block">Pax</span>
           </div>
           <div onClick={() => navigate('/vouchers')} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
+            <MasjidNabawiIcon className="w-6 h-6 mx-auto mb-1 text-amber-600" />
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Madina Out</span>
             <span className="text-lg font-mono font-bold text-amber-600">{ksaStatusCounts.madinaOut}</span>
             <span className="text-[10px] text-slate-500 block">Pax</span>
