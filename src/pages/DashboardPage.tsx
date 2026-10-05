@@ -434,7 +434,7 @@ export const DashboardPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <PageHeader
         title="Executive Operations & Control Dashboard"
         subtitle="Live Umrah package calculator, account summaries, KSA movement tracking, and smart operational alerts."
@@ -593,7 +593,7 @@ export const DashboardPage: React.FC = () => {
       </Modal>
 
       {/* Main sections — compact responsive grid: 1 col on mobile, 2 on lg, 3 on xl */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 items-start text-center">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3 items-start text-center max-w-7xl mx-auto">
 
       {/* 2. Account Summary (SAR) Panel */}
       <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3 lg:col-span-2 xl:col-span-2">

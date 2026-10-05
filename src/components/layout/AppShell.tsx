@@ -13,7 +13,7 @@ export const AppShell: React.FC = () => {
       </div>
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full px-4 sm:px-6 lg:px-10 py-6">
+      <main className="flex-1 w-full px-3 sm:px-4 lg:px-6 py-4">
         <Outlet />
       </main>
 
