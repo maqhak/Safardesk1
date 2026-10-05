@@ -439,25 +439,12 @@ export const DashboardPage: React.FC = () => {
         title="Executive Operations & Control Dashboard"
         subtitle="Live Umrah package calculator, account summaries, KSA movement tracking, and smart operational alerts."
         breadcrumbs={[{ label: 'Dashboard' }]}
-      />
-
-      {/* 1. Package Calculator — compact banner; full calculator opens in modal */}
-      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-[#0e2c4c]/10 rounded-xl flex items-center justify-center">
-              <Calculator className="w-4 h-4 text-[#0e2c4c]" />
-            </div>
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Umrah Package Cost Calculator</h3>
-              <p className="text-[11px] text-slate-500">Instant per-person and group costing in SAR and PKR</p>
-            </div>
-          </div>
+        actions={
           <Button variant="primary" size="sm" onClick={() => setCalcOpen(true)} leftIcon={<Calculator className="w-4 h-4" />}>
             Open Calculator
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       <Modal isOpen={calcOpen} onClose={() => setCalcOpen(false)} title="Umrah Package Cost Calculator" subtitle="Instant per-person and group costing in SAR and PKR" size="2xl">
       {/* 1. Package Calculator at the Very Top */}
@@ -596,7 +583,7 @@ export const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 items-start text-center max-w-7xl mx-auto [grid-auto-flow:dense]">
 
       {/* 2. Account Summary (SAR) Panel */}
-      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2 lg:col-span-2 xl:col-span-2">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2 lg:col-span-2 xl:col-span-3">
         <div className="flex flex-col items-center justify-center gap-2 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-[#0e2c4c]" />
