@@ -1,4 +1,4 @@
-import { collection, getDocs, setDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, setDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { logAuditEvent } from './userService';
 import { UserProfile } from '../types/auth';
@@ -185,6 +185,33 @@ export async function saveVisaImportBatch(batch: VisaImportBatchDoc): Promise<vo
       await setDoc(doc(db, VISA_IMPORTS_COLLECTION, batch.id), batch);
     } catch (err) {
       console.warn('Could not save visa import batch to Firestore:', err);
+    }
+  }
+}
+
+/** Delete undistributed visas by their IDs (e.g. leftover stock after distribution). */
+export async function deleteVisasBatch(visaIds: string[]): Promise<void> {
+  if (visaIds.length === 0) return;
+
+  // Update localStorage
+  const stored = localStorage.getItem(LOCAL_STORAGE_VISAS_KEY);
+  if (stored) {
+    try {
+      const existing: VisaDoc[] = JSON.parse(stored);
+      const remaining = existing.filter((v) => !visaIds.includes(v.id));
+      localStorage.setItem(LOCAL_STORAGE_VISAS_KEY, JSON.stringify(remaining));
+    } catch {
+      // fallback
+    }
+  }
+
+  // Delete from Firestore
+  if (!isConfigPlaceholder) {
+    try {
+      await Promise.all(visaIds.map((id) => deleteDoc(doc(db, VISAS_COLLECTION, id))));
+    } catch (err) {
+      console.warn('Could not delete visas from Firestore:', err);
+      throw err;
     }
   }
 }
