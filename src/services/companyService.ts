@@ -5,8 +5,7 @@ import {
   updateDoc, 
   runTransaction 
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage, isConfigPlaceholder } from './firebase';
+import { db, isConfigPlaceholder } from './firebase';
 import { CompanyProfile, NumberSequenceType, SequenceCounters } from '../types/company';
 import { UserProfile } from '../types/auth';
 import { logAuditEvent } from './userService';
@@ -140,27 +139,73 @@ export async function saveCompanyProfile(
 }
 
 /**
- * Upload company logo to Firebase Storage
+ * Upload company logo to central SafarDesk Drive via Google Apps Script.
+ * The script URL comes from VITE_LOGO_UPLOAD_URL env var (one-time setup by Moin).
+ * Falls back to resized base64 data URL if the script is not configured.
  */
 export async function uploadCompanyLogo(file: File): Promise<string> {
-  if (!isConfigPlaceholder && storage) {
+  const scriptUrl = import.meta.env.VITE_LOGO_UPLOAD_URL as string | undefined;
+
+  // Resize image to max 400px before upload (keeps it fast)
+  const dataUrl = await resizeImageToDataUrl(file, 400);
+
+  if (scriptUrl) {
     try {
-      const fileExt = file.name.split('.').pop() || 'png';
-      const storageRef = ref(storage, `company/logo_${Date.now()}.${fileExt}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      const downloadUrl = await getDownloadURL(snapshot.ref);
-      return downloadUrl;
+      const response = await fetch(scriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          image: dataUrl,
+          mimeType: file.type || 'image/png',
+          filename: `logo_${Date.now()}.${(file.name.split('.').pop() || 'png').toLowerCase()}`,
+        }),
+      });
+      const result = await response.json();
+      if (result.success && result.url) {
+        return result.url;
+      }
+      console.warn('Logo upload script returned error:', result.error);
     } catch (err) {
-      console.warn('Firebase Storage upload failed, falling back to local data URL:', err);
+      console.warn('Logo upload via Apps Script failed, using local data URL:', err);
     }
   }
 
-  // Fallback / instant preview via FileReader data URL
+  // Fallback: resized base64 data URL (stored in Firestore settings/company)
+  return dataUrl;
+}
+
+/**
+ * Resize an image file to max dimension and return as data URL.
+ */
+function resizeImageToDataUrl(file: File, maxDim: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (e) => reject(e);
-    reader.readAsDataURL(file);
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const ratio = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas not supported'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+      resolve(canvas.toDataURL(mimeType, 0.85));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Failed to load image'));
+    };
+    img.src = objectUrl;
   });
 }
 
