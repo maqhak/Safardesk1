@@ -139,17 +139,50 @@ export async function saveCompanyProfile(
 }
 
 /**
- * Upload company logo — resizes to max 400px and returns base64 data URL.
- * Stored directly in Firestore settings/company (no Firebase Storage/Blaze needed).
+ * Upload company logo to central SafarDesk Drive via Google Apps Script.
+ * The script URL comes from VITE_LOGO_UPLOAD_URL env var (one-time setup by Moin).
+ * Falls back to resized base64 data URL if the script is not configured.
  */
 export async function uploadCompanyLogo(file: File): Promise<string> {
-  // Resize image to max 400px width/height to keep Firestore document under 1MB
-  const dataUrl = await new Promise<string>((resolve, reject) => {
+  const scriptUrl = import.meta.env.VITE_LOGO_UPLOAD_URL as string | undefined;
+
+  // Resize image to max 400px before upload (keeps it fast)
+  const dataUrl = await resizeImageToDataUrl(file, 400);
+
+  if (scriptUrl) {
+    try {
+      const response = await fetch(scriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          image: dataUrl,
+          mimeType: file.type || 'image/png',
+          filename: `logo_${Date.now()}.${(file.name.split('.').pop() || 'png').toLowerCase()}`,
+        }),
+      });
+      const result = await response.json();
+      if (result.success && result.url) {
+        return result.url;
+      }
+      console.warn('Logo upload script returned error:', result.error);
+    } catch (err) {
+      console.warn('Logo upload via Apps Script failed, using local data URL:', err);
+    }
+  }
+
+  // Fallback: resized base64 data URL (stored in Firestore settings/company)
+  return dataUrl;
+}
+
+/**
+ * Resize an image file to max dimension and return as data URL.
+ */
+function resizeImageToDataUrl(file: File, maxDim: number): Promise<string> {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(objectUrl);
-      const maxDim = 400;
       let { width, height } = img;
       if (width > maxDim || height > maxDim) {
         const ratio = Math.min(maxDim / width, maxDim / height);
@@ -165,7 +198,6 @@ export async function uploadCompanyLogo(file: File): Promise<string> {
         return;
       }
       ctx.drawImage(img, 0, 0, width, height);
-      // Use PNG for transparency, JPEG fallback for photos
       const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
       resolve(canvas.toDataURL(mimeType, 0.85));
     };
@@ -175,7 +207,6 @@ export async function uploadCompanyLogo(file: File): Promise<string> {
     };
     img.src = objectUrl;
   });
-  return dataUrl;
 }
 
 /**
