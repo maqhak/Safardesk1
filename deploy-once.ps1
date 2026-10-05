@@ -22,7 +22,8 @@ $projects = @(
   'safardesk-adan-travels',
   'safardesk-leading-travels-01',
   'safardesk-6brothers',
-  'fs-travel-n-tours'
+  'fs-travel-n-tours',
+  'safardesk-ub-travels'
 )
 
 foreach ($p in $projects) {
