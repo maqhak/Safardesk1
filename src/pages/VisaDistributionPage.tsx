@@ -78,6 +78,9 @@ export const VisaDistributionPage: React.FC = () => {
   // Per group distribution mapping
   const [groupSelections, setGroupSelections] = useState<Map<string, GroupSelectionData>>(new Map());
 
+  // Per-pilgrim exclusion: unchecked pilgrims stay undistributed for a later batch
+  const [excludedVisaIds, setExcludedVisaIds] = useState<Set<string>>(new Set());
+
   // Expanded groups accordion state
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
@@ -174,6 +177,28 @@ export const VisaDistributionPage: React.FC = () => {
     setExpandedGroups(next);
   };
 
+  // Toggle a single pilgrim in/out of this distribution batch (default: all checked)
+  const toggleVisaExcluded = (visaId: string) => {
+    setExcludedVisaIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(visaId)) next.delete(visaId);
+      else next.add(visaId);
+      return next;
+    });
+  };
+
+  // Check/uncheck every pilgrim of one group at once
+  const setGroupPilgrimsExcluded = (group: GroupedVisaBatch, exclude: boolean) => {
+    setExcludedVisaIds((prev) => {
+      const next = new Set(prev);
+      group.visas.forEach((v) => {
+        if (exclude) next.add(v.id);
+        else next.delete(v.id);
+      });
+      return next;
+    });
+  };
+
   // Fix #29: effective SAR->PKR rate for an agent — manual entry wins, then the
   // agent master's own rate, then the global Exchange Rate Master as last resort.
   const rateForAgent = (agentLedgerAccountId: string): number => {
@@ -210,14 +235,17 @@ export const VisaDistributionPage: React.FC = () => {
       if (sel.agentId && sel.sellingPricePerVisa > 0 && (sel.buyingPricePerVisa || 0) > 0) {
         const groupObj = groupedVisas.find((g) => g.groupCode === groupCode);
         if (groupObj) {
+          // Only CHECKED pilgrims are distributed; unchecked ones stay for a later batch
+          const includedVisas = groupObj.visas.filter((v) => !excludedVisaIds.has(v.id));
+          if (includedVisas.length === 0) return;
           list.push({
             groupCode,
             groupName: groupObj.groupName,
             agentId: sel.agentId,
             sellingPricePerVisa: sel.sellingPricePerVisa,
             buyingPricePerVisa: sel.buyingPricePerVisa || 0,
-            visaIds: groupObj.visas.map(v => v.id),
-            visaCount: groupObj.visaCount,
+            visaIds: includedVisas.map(v => v.id),
+            visaCount: includedVisas.length,
             exchangeRateSARPKR: rateForAgent(sel.agentId),
             commission: sel.commissionEnabled ? {
               enabled: true,
@@ -230,7 +258,7 @@ export const VisaDistributionPage: React.FC = () => {
       }
     });
     return list;
-  }, [groupSelections, groupedVisas, agentRates, agentMasters, agents]);
+  }, [groupSelections, groupedVisas, agentRates, agentMasters, agents, excludedVisaIds]);
 
   const summary = useMemo(() => {
     let totalVisas = 0;
@@ -429,6 +457,8 @@ export const VisaDistributionPage: React.FC = () => {
             {groupedVisas.map((group) => {
               const selection = groupSelections.get(group.groupCode) || { agentId: '', sellingPricePerVisa: 0, buyingPricePerVisa: 0, commissionEnabled: false };
               const isExpanded = expandedGroups.has(group.groupCode);
+              // Pilgrims actually included in this batch (unchecked ones stay for later)
+              const includedCount = group.visas.filter((v) => !excludedVisaIds.has(v.id)).length;
 
               return (
                 <div key={group.groupCode} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 transition hover:bg-slate-100/50">
@@ -498,13 +528,13 @@ export const VisaDistributionPage: React.FC = () => {
                       </div>
 
                       <div className="text-right pt-4 sm:pt-0">
-                        <span className="text-[10px] text-slate-400 block uppercase">Group Total</span>
+                        <span className="text-[10px] text-slate-400 block uppercase">Group Total ({includedCount}/{group.visaCount} selected)</span>
                         <strong className="font-mono text-xs text-slate-900">
-                          SAR {(group.visaCount * selection.sellingPricePerVisa).toLocaleString()}
+                          SAR {(includedCount * selection.sellingPricePerVisa).toLocaleString()}
                         </strong>
                         {(selection.buyingPricePerVisa || 0) > 0 && (selection.sellingPricePerVisa || 0) > 0 && (
                           <span className="text-[10px] font-mono text-emerald-700 block">
-                            Margin SAR {((selection.sellingPricePerVisa - selection.buyingPricePerVisa) * group.visaCount).toLocaleString()}
+                            Margin SAR {((selection.sellingPricePerVisa - selection.buyingPricePerVisa) * includedCount).toLocaleString()}
                           </span>
                         )}
                       </div>
@@ -561,24 +591,57 @@ export const VisaDistributionPage: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Expanded Pilgrim Manifest */}
+                  {/* Expanded Pilgrim Manifest — check/uncheck who goes in THIS batch */}
                   {isExpanded && (
                     <div className="mt-3 pt-3 border-t border-slate-200 bg-slate-50 p-3 rounded-lg">
-                      <h4 className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">
-                        Pilgrim Manifest for {group.groupCode} ({group.visaCount} Applicants)
-                      </h4>
+                      <div className="flex items-center justify-between mb-1">
+                        <h4 className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                          Pilgrim Manifest for {group.groupCode} ({includedCount} of {group.visaCount} selected)
+                        </h4>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setGroupPilgrimsExcluded(group, false)}
+                            className="text-[10px] font-bold text-emerald-700 hover:underline"
+                          >
+                            Select all
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setGroupPilgrimsExcluded(group, true)}
+                            className="text-[10px] font-bold text-rose-700 hover:underline"
+                          >
+                            Unselect all
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-slate-500 mb-2">
+                        Unchecked pilgrims stay in inventory — distribute them later to a different agent.
+                      </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {group.visas.map((v) => (
-                          <div key={v.id} className="p-2 bg-white border border-slate-200 rounded text-xs flex items-center justify-between">
-                            <div>
-                              <div className="font-bold text-slate-900">{v.pilgrimName}</div>
-                              <div className="font-mono text-[10px] text-slate-500">{v.passportNumber} • {v.nationality}</div>
-                            </div>
-                            <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-semibold">
-                              Ready
-                            </span>
-                          </div>
-                        ))}
+                        {group.visas.map((v) => {
+                          const excluded = excludedVisaIds.has(v.id);
+                          return (
+                            <label
+                              key={v.id}
+                              className={`p-2 bg-white border rounded text-xs flex items-center gap-2 cursor-pointer transition ${excluded ? 'border-slate-200 opacity-60' : 'border-slate-300 hover:border-[#0e2c4c]'}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={!excluded}
+                                onChange={() => toggleVisaExcluded(v.id)}
+                                className="rounded text-[#0e2c4c] focus:ring-0 shrink-0"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="font-bold text-slate-900 truncate">{v.pilgrimName}</div>
+                                <div className="font-mono text-[10px] text-slate-500">{v.passportNumber} • {v.nationality}</div>
+                              </div>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0 ${excluded ? 'bg-slate-100 text-slate-500' : 'bg-emerald-50 text-emerald-700'}`}>
+                                {excluded ? 'Later' : 'Ready'}
+                              </span>
+                            </label>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
