@@ -194,6 +194,12 @@ service cloud.firestore {
       allow write: if isOwner();
     }
 
+    // Runtime tenant branding (agency name, app title, contact) — Owner manages via Settings UI
+    match /settings/tenant {
+      allow read: if isSignedIn();
+      allow write: if isOwner();
+    }
+
     match /settings/integrations {
       allow read, write: if isOwner();
     }

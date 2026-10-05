@@ -66,6 +66,42 @@ export const TENANT: TenantConfig = {
 };
 
 /**
+ * Apply runtime tenant branding from Firestore (settings/tenant).
+ * Overrides the build-time .env defaults. Called at app startup and
+ * after the Owner saves branding from Settings. Mutates the exported
+ * TENANT object so all importers see the update immediately.
+ */
+export function applyTenantBranding(branding: {
+  companyName?: string;
+  appTitle?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+}): void {
+  if (branding.companyName) TENANT.companyName = branding.companyName;
+  if (branding.appTitle) TENANT.appTitle = branding.appTitle;
+  if (branding.email) TENANT.contact.email = branding.email;
+  if (branding.phone) TENANT.contact.phone = branding.phone;
+  if (branding.address) TENANT.contact.address = branding.address;
+}
+
+/**
+ * Load tenant branding from Firestore and apply it.
+ * Safe to call at startup — silently keeps .env defaults on failure.
+ */
+export async function loadTenantBranding(): Promise<void> {
+  try {
+    const { fetchTenantBranding } = await import('./services/tenantService');
+    const branding = await fetchTenantBranding();
+    if (branding) {
+      applyTenantBranding(branding);
+    }
+  } catch {
+    // Keep build-time defaults
+  }
+}
+
+/**
  * Firebase Client Configuration
  * Reads from environment variables if provided, or default placeholder credentials.
  * The application automatically validates if live credentials are provided;

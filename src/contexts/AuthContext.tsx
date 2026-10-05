@@ -239,6 +239,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const profile = await fetchUserProfile(currentUser);
             setUser(currentUser);
             setIsDemoMode(false);
+            // Load runtime tenant branding (Firestore settings/tenant overrides .env defaults)
+            try {
+              const { loadTenantBranding } = await import('../config');
+              await loadTenantBranding();
+            } catch {
+              // Keep build-time defaults
+            }
           } catch (err: any) {
             if (err?.message === 'ACCOUNT_SUSPENDED') {
               await firebaseSignOut(auth);
