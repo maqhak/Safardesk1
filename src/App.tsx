@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -7,37 +7,49 @@ import { CompanyProvider } from './contexts/CompanyContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { AppShell } from './components/layout/AppShell';
 
-// Pages
-import { LoginPage } from './pages/LoginPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { VisasPage } from './pages/VisasPage';
-import { CustomersPage } from './pages/CustomersPage';
-import { VouchersPage } from './pages/VouchersPage';
-import { VoucherSharedView } from './pages/VoucherSharedView';
-import { TicketsPage } from './pages/TicketsPage';
-import { MovementReportsPage } from './pages/MovementReportsPage';
-import { AccountsPage } from './pages/AccountsPage';
-import { PaymentsPage } from './pages/PaymentsPage';
-import { BalancesSummaryPage } from './pages/BalancesSummaryPage';
-import { DayBookPage } from './pages/DayBookPage';
-import { JournalVouchersPage } from './pages/JournalVouchersPage';
-import { MastersPage } from './pages/MastersPage';
-import { VendorsPage } from './pages/VendorsPage';
-import { HotelsPage } from './pages/HotelsPage';
-import { VehiclesPage } from './pages/VehiclesPage';
-import { AgentsPage } from './pages/AgentsPage';
-import { AirlinesPage } from './pages/AirlinesPage';
-import { ExchangeRatesPage } from './pages/ExchangeRatesPage';
-import { ReportsPage } from './pages/ReportsPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { CompanyProfilePage } from './pages/CompanyProfilePage';
-import { UsersAndPermissionsPage } from './pages/UsersAndPermissionsPage';
-import { AgentPortalPage } from './pages/AgentPortalPage';
-import { ProfilePage } from './pages/ProfilePage';
-import { VisaDistributionPage } from './pages/VisaDistributionPage';
-import { VisaInvoicesPage } from './pages/VisaInvoicesPage';
-import { QaReportPage } from './pages/QaReportPage';
+// Pages — lazy loaded for faster initial load (code splitting)
+const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const VisasPage = lazy(() => import('./pages/VisasPage').then(m => ({ default: m.VisasPage })));
+const CustomersPage = lazy(() => import('./pages/CustomersPage').then(m => ({ default: m.CustomersPage })));
+const VouchersPage = lazy(() => import('./pages/VouchersPage').then(m => ({ default: m.VouchersPage })));
+const VoucherSharedView = lazy(() => import('./pages/VoucherSharedView').then(m => ({ default: m.VoucherSharedView })));
+const TicketsPage = lazy(() => import('./pages/TicketsPage').then(m => ({ default: m.TicketsPage })));
+const MovementReportsPage = lazy(() => import('./pages/MovementReportsPage').then(m => ({ default: m.MovementReportsPage })));
+const AccountsPage = lazy(() => import('./pages/AccountsPage').then(m => ({ default: m.AccountsPage })));
+const PaymentsPage = lazy(() => import('./pages/PaymentsPage').then(m => ({ default: m.PaymentsPage })));
+const BalancesSummaryPage = lazy(() => import('./pages/BalancesSummaryPage').then(m => ({ default: m.BalancesSummaryPage })));
+const DayBookPage = lazy(() => import('./pages/DayBookPage').then(m => ({ default: m.DayBookPage })));
+const JournalVouchersPage = lazy(() => import('./pages/JournalVouchersPage').then(m => ({ default: m.JournalVouchersPage })));
+const MastersPage = lazy(() => import('./pages/MastersPage').then(m => ({ default: m.MastersPage })));
+const VendorsPage = lazy(() => import('./pages/VendorsPage').then(m => ({ default: m.VendorsPage })));
+const HotelsPage = lazy(() => import('./pages/HotelsPage').then(m => ({ default: m.HotelsPage })));
+const VehiclesPage = lazy(() => import('./pages/VehiclesPage').then(m => ({ default: m.VehiclesPage })));
+const AgentsPage = lazy(() => import('./pages/AgentsPage').then(m => ({ default: m.AgentsPage })));
+const AirlinesPage = lazy(() => import('./pages/AirlinesPage').then(m => ({ default: m.AirlinesPage })));
+const ExchangeRatesPage = lazy(() => import('./pages/ExchangeRatesPage').then(m => ({ default: m.ExchangeRatesPage })));
+const ReportsPage = lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const CompanyProfilePage = lazy(() => import('./pages/CompanyProfilePage').then(m => ({ default: m.CompanyProfilePage })));
+const UsersAndPermissionsPage = lazy(() => import('./pages/UsersAndPermissionsPage').then(m => ({ default: m.UsersAndPermissionsPage })));
+const AgentPortalPage = lazy(() => import('./pages/AgentPortalPage').then(m => ({ default: m.AgentPortalPage })));
+const ProfilePage = lazy(() => import('./pages/ProfilePage').then(m => ({ default: m.ProfilePage })));
+const VisaDistributionPage = lazy(() => import('./pages/VisaDistributionPage').then(m => ({ default: m.VisaDistributionPage })));
+const VisaInvoicesPage = lazy(() => import('./pages/VisaInvoicesPage').then(m => ({ default: m.VisaInvoicesPage })));
+const QaReportPage = lazy(() => import('./pages/QaReportPage').then(m => ({ default: m.QaReportPage })));
 import { LicenseGate } from './components/auth/LicenseGate';
+
+/** Loading fallback shown while a lazy page chunk loads. */
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="text-center">
+        <div className="w-12 h-12 border-4 border-[#0e2c4c]/20 border-t-[#0e2c4c] rounded-full animate-spin mx-auto mb-4" />
+        <p className="text-sm font-semibold text-slate-600">Loading...</p>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Global number-input behavior: when ANY number field in the CRM is focused,
@@ -74,6 +86,7 @@ export default function App() {
         <AuthProvider>
           <CompanyProvider>
             <LicenseGate>
+              <Suspense fallback={<PageLoader />}>
               <Routes>
               {/* Public Auth Route (Strictly No Public Registration) */}
               <Route path="/login" element={<LoginPage />} />
@@ -329,6 +342,7 @@ export default function App() {
               {/* Catch-all redirect */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+              </Suspense>
             </LicenseGate>
           </CompanyProvider>
         </AuthProvider>
