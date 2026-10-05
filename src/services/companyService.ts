@@ -5,8 +5,7 @@ import {
   updateDoc, 
   runTransaction 
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage, isConfigPlaceholder } from './firebase';
+import { db, isConfigPlaceholder } from './firebase';
 import { CompanyProfile, NumberSequenceType, SequenceCounters } from '../types/company';
 import { UserProfile } from '../types/auth';
 import { logAuditEvent } from './userService';
@@ -140,28 +139,43 @@ export async function saveCompanyProfile(
 }
 
 /**
- * Upload company logo to Firebase Storage
+ * Upload company logo — resizes to max 400px and returns base64 data URL.
+ * Stored directly in Firestore settings/company (no Firebase Storage/Blaze needed).
  */
 export async function uploadCompanyLogo(file: File): Promise<string> {
-  if (!isConfigPlaceholder && storage) {
-    try {
-      const fileExt = file.name.split('.').pop() || 'png';
-      const storageRef = ref(storage, `company/logo_${Date.now()}.${fileExt}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      const downloadUrl = await getDownloadURL(snapshot.ref);
-      return downloadUrl;
-    } catch (err) {
-      console.warn('Firebase Storage upload failed, falling back to local data URL:', err);
-    }
-  }
-
-  // Fallback / instant preview via FileReader data URL
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (e) => reject(e);
-    reader.readAsDataURL(file);
+  // Resize image to max 400px width/height to keep Firestore document under 1MB
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const maxDim = 400;
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const ratio = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas not supported'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      // Use PNG for transparency, JPEG fallback for photos
+      const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+      resolve(canvas.toDataURL(mimeType, 0.85));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Failed to load image'));
+    };
+    img.src = objectUrl;
   });
+  return dataUrl;
 }
 
 /**
