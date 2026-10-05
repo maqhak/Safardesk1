@@ -43,6 +43,7 @@ import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { PremiumPattern } from '../ui/PremiumPattern';
 import { checkCan } from '../../hooks/useCan';
 
 interface NavChild {
@@ -339,7 +340,8 @@ export const TopNavbar: React.FC = () => {
   return (
     <>
       <header className="sticky top-0 z-40 w-full text-white shadow-md border-b" style={{ background: 'var(--theme-gradient)', borderColor: 'color-mix(in srgb, var(--theme-primary) 70%, black)' }}>
-        <div className="w-full px-4 sm:px-6 lg:px-10">
+        <PremiumPattern variant="navbar" />
+        <div className="w-full px-4 sm:px-6 lg:px-10 relative">
           <div className="flex items-center justify-between h-16 gap-3">
             
             {/* LEFT: Menu Button, Logo & Company Name */}
@@ -563,8 +565,9 @@ export const TopNavbar: React.FC = () => {
           style={{ backgroundColor: 'color-mix(in srgb, var(--theme-primary) 85%, black)' }}
           aria-hidden={!mobileMenuOpen}
         >
+          <PremiumPattern variant="drawer" />
           {/* Company branding header */}
-          <div className="flex items-center gap-3 px-4 py-4 border-b border-white/10">
+          <div className="flex items-center gap-3 px-4 py-4 border-b border-white/10 relative">
             {companyLogoUrl ? (
               <img
                 src={companyLogoUrl}
@@ -591,7 +594,7 @@ export const TopNavbar: React.FC = () => {
               <X className="w-5 h-5" />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1">
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1 relative">
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const iconColor = NAV_ICON_COLORS[item.name] || 'text-gold-400';

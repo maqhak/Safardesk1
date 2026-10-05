@@ -351,7 +351,7 @@ export const DashboardPage: React.FC = () => {
 
   if (userProfile?.role === 'agent') {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 text-center">
         <PageHeader
           title={`Welcome, ${userProfile?.name || 'Agent Portal'}`}
           subtitle="Your B2B Umrah Agency Portal, Live Balance, and Flight Summary"
@@ -378,12 +378,10 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* My Flight Summary */}
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2">
-              <Plane className="w-5 h-5 text-[#0e2c4c]" />
-              <h3 className="text-sm font-bold text-slate-900">My Flight Summary</h3>
-            </div>
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden p-4 space-y-3">
+          <div className="flex items-center justify-center gap-2 border-b border-slate-100 pb-2">
+            <Plane className="w-4 h-4 text-[#0e2c4c]" />
+            <h3 className="text-sm font-bold text-slate-900">My Flight Summary</h3>
             <span className="text-xs font-mono font-bold bg-navy-50 text-[#0e2c4c] px-2.5 py-1 rounded-lg">
               {agentFlightSummary.length} Scheduled Flights
             </span>
@@ -410,8 +408,8 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         {/* My Vouchers */}
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden p-5 space-y-4">
-          <div className="flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden p-4 space-y-3">
+          <div className="flex items-center justify-center gap-3">
             <h3 className="text-sm font-bold text-slate-900">My Vouchers</h3>
             <Button variant="outline" size="sm" onClick={() => navigate('/vouchers')}>View All Vouchers</Button>
           </div>
@@ -436,26 +434,26 @@ export const DashboardPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         title="Executive Operations & Control Dashboard"
         subtitle="Live Umrah package calculator, account summaries, KSA movement tracking, and smart operational alerts."
         breadcrumbs={[{ label: 'Dashboard' }]}
       />
 
-      {/* 1. Package Calculator — button opens the calculator */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5">
+      {/* 1. Package Calculator — compact banner; full calculator opens in modal */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-[#0e2c4c]/10 rounded-xl flex items-center justify-center">
-              <Calculator className="w-5 h-5 text-[#0e2c4c]" />
+            <div className="w-8 h-8 bg-[#0e2c4c]/10 rounded-xl flex items-center justify-center">
+              <Calculator className="w-4 h-4 text-[#0e2c4c]" />
             </div>
             <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">Umrah Package Cost Calculator</h3>
-              <p className="text-xs text-slate-500">Instant per-person and group costing in SAR and PKR</p>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">Umrah Package Cost Calculator</h3>
+              <p className="text-[11px] text-slate-500">Instant per-person and group costing in SAR and PKR</p>
             </div>
           </div>
-          <Button variant="primary" onClick={() => setCalcOpen(true)} leftIcon={<Calculator className="w-4 h-4" />}>
+          <Button variant="primary" size="sm" onClick={() => setCalcOpen(true)} leftIcon={<Calculator className="w-4 h-4" />}>
             Open Calculator
           </Button>
         </div>
@@ -594,14 +592,17 @@ export const DashboardPage: React.FC = () => {
 
       </Modal>
 
+      {/* Main sections — compact responsive grid: 1 col on mobile, 2 on lg, 3 on xl */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 items-start text-center">
+
       {/* 2. Account Summary (SAR) Panel */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-slate-100 pb-3">
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3 lg:col-span-2 xl:col-span-2">
+        <div className="flex flex-col items-center justify-center gap-2 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-[#0e2c4c]" />
+            <CreditCard className="w-4 h-4 text-[#0e2c4c]" />
             <h3 className="text-sm font-bold text-slate-900">Account Summary</h3>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
             <div className="bg-slate-100 p-1 rounded-lg flex items-center gap-1 text-xs">
               <button onClick={() => setAccountPeriod('all')} className={`px-2.5 py-1 rounded-md font-medium transition ${accountPeriod === 'all' ? 'bg-[#0e2c4c] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}>All Time</button>
               <button onClick={() => setAccountPeriod('month')} className={`px-2.5 py-1 rounded-md font-medium transition ${accountPeriod === 'month' ? 'bg-[#0e2c4c] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}>This Month</button>
@@ -611,43 +612,43 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1">
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Bookings ({accountSummaryMetrics.bookingsPax} Pax)</span>
             <span className="font-mono text-slate-900 block font-bold">{formatConvertedMoney(accountSummaryMetrics.bookingsAmtSAR, exchangeRate)}</span>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1">
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Tickets ({accountSummaryMetrics.ticketsCount} Issued)</span>
             <span className="font-mono text-slate-900 block font-bold">{formatConvertedMoney(accountSummaryMetrics.ticketsAmtSAR, exchangeRate)}</span>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1">
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Refunds ({accountSummaryMetrics.refundsCount})</span>
             <span className="font-mono text-rose-600 block font-bold">{formatConvertedMoney(accountSummaryMetrics.refundsAmtSAR, exchangeRate)}</span>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1">
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Services ({accountSummaryMetrics.servicesCount})</span>
             <span className="font-mono text-slate-900 block font-bold">{formatConvertedMoney(accountSummaryMetrics.servicesAmtSAR, exchangeRate)}</span>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1">
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Reservations ({accountSummaryMetrics.reservationsCount})</span>
             <span className="font-mono text-amber-600 block font-bold">{formatConvertedMoney(accountSummaryMetrics.reservationsAmtSAR, exchangeRate)}</span>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1">
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Overseas Partners</span>
             <span className="font-mono text-slate-900 block font-bold">{formatConvertedMoney(accountSummaryMetrics.overseasAmtSAR, exchangeRate)}</span>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1">
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Only Accommodation ({accountSummaryMetrics.onlyHotelStays} Stays)</span>
             <span className="font-mono text-slate-900 block font-bold">{formatConvertedMoney(accountSummaryMetrics.onlyHotelAmtSAR, exchangeRate)}</span>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1">
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Only Transport ({accountSummaryMetrics.onlyTransportTransfers})</span>
             <span className="font-mono text-slate-900 block font-bold">{formatConvertedMoney(accountSummaryMetrics.onlyTransportAmtSAR, exchangeRate)}</span>
           </div>
         </div>
 
         {/* Totals Bar */}
-        <div className="bg-[#0e2c4c] text-white rounded-xl p-4 grid grid-cols-1 sm:grid-cols-5 gap-3 text-center text-xs">
+        <div className="bg-[#0e2c4c] text-white rounded-xl p-3 grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
           <div>
             <span className="text-[10px] uppercase tracking-wider text-slate-300 block font-bold">Openings</span>
             <span className="font-mono font-bold text-white">{formatConvertedMoney(accountSummaryMetrics.totalOpenings, exchangeRate)}</span>
@@ -672,10 +673,10 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* 3. KSA Status Panel for Any Selected Date */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-slate-100 pb-3">
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3 lg:col-span-2 xl:col-span-3">
+        <div className="flex flex-col items-center justify-center gap-2 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-[#0e2c4c]" />
+            <Calendar className="w-4 h-4 text-[#0e2c4c]" />
             <h3 className="text-sm font-bold text-slate-900">KSA Movement & Status Tracker</h3>
           </div>
           <div className="flex items-center gap-2">
@@ -689,7 +690,7 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-center">
           <div onClick={() => navigate('/tickets/movement-reports', { state: { reportType: 'Arrival to Kingdom', date: ksaDate } })} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
             <PlaneLanding className="w-6 h-6 mx-auto mb-1 text-emerald-600" />
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Arrival</span>
@@ -739,107 +740,104 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Bookings Panel & 5. Vouchers Panel side by side */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* 4. Bookings Panel */}
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2">
-              <FileCheck className="w-5 h-5 text-[#0e2c4c]" />
-              <h3 className="text-sm font-bold text-slate-900">Bookings Overview</h3>
-            </div>
-            <span className="text-xs font-mono font-bold bg-navy-50 text-[#0e2c4c] px-2.5 py-1 rounded-lg">Total: {visas.length} Bookings</span>
+      {/* 4. Bookings Panel */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3">
+        <div className="flex flex-col items-center justify-center gap-1 border-b border-slate-100 pb-2 text-center">
+          <div className="flex items-center gap-2">
+            <FileCheck className="w-4 h-4 text-[#0e2c4c]" />
+            <h3 className="text-sm font-bold text-slate-900">Bookings Overview</h3>
           </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-xs bg-slate-50 p-3 rounded-xl">
-              <span className="font-semibold text-slate-700">Total Mutamers</span>
-              <span className="font-mono font-bold text-slate-900">{bookingsDemographics.total} Pax</span>
+          <span className="text-xs font-mono font-bold bg-navy-50 text-[#0e2c4c] px-2.5 py-1 rounded-lg">Total: {visas.length} Bookings</span>
+        </div>
+        <div className="space-y-2.5 text-center">
+          <div className="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl">
+            <span className="font-semibold text-slate-700">Total Mutamers</span>
+            <span className="font-mono font-bold text-slate-900">{bookingsDemographics.total} Pax</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-slate-50 p-2 rounded-xl text-center">
+              <span className="text-[10px] text-slate-400 block uppercase font-bold">Adults</span>
+              <span className="text-sm font-mono font-bold text-slate-900">{bookingsDemographics.adults}</span>
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-slate-50 p-2.5 rounded-xl text-center">
-                <span className="text-[10px] text-slate-400 block uppercase font-bold">Adults</span>
-                <span className="text-sm font-mono font-bold text-slate-900">{bookingsDemographics.adults}</span>
-              </div>
-              <div className="bg-slate-50 p-2.5 rounded-xl text-center">
-                <span className="text-[10px] text-slate-400 block uppercase font-bold">Children</span>
-                <span className="text-sm font-mono font-bold text-slate-900">{bookingsDemographics.children}</span>
-              </div>
-              <div className="bg-slate-50 p-2.5 rounded-xl text-center">
-                <span className="text-[10px] text-slate-400 block uppercase font-bold">Infants</span>
-                <span className="text-sm font-mono font-bold text-slate-900">{bookingsDemographics.infants}</span>
-              </div>
+            <div className="bg-slate-50 p-2 rounded-xl text-center">
+              <span className="text-[10px] text-slate-400 block uppercase font-bold">Children</span>
+              <span className="text-sm font-mono font-bold text-slate-900">{bookingsDemographics.children}</span>
+            </div>
+            <div className="bg-slate-50 p-2 rounded-xl text-center">
+              <span className="text-[10px] text-slate-400 block uppercase font-bold">Infants</span>
+              <span className="text-sm font-mono font-bold text-slate-900">{bookingsDemographics.infants}</span>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* 4b. Voucher Completion Report — numbers */}
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2">
-              <FileCheck className="w-5 h-5 text-[#0e2c4c]" />
-              <h3 className="text-sm font-bold text-slate-900">Voucher Completion Report</h3>
-            </div>
-            <span className="text-xs font-mono font-bold text-[#0e2c4c]">{voucherCompletion.pct}% Complete</span>
+      {/* 4b. Voucher Completion Report — numbers */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3">
+        <div className="flex flex-col items-center justify-center gap-1 border-b border-slate-100 pb-2 text-center">
+          <div className="flex items-center gap-2">
+            <FileCheck className="w-4 h-4 text-[#0e2c4c]" />
+            <h3 className="text-sm font-bold text-slate-900">Voucher Completion Report</h3>
           </div>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl">
-              <span className="text-[10px] text-emerald-700 block uppercase font-bold">Vouchers Made</span>
-              <span className="text-2xl font-mono font-bold text-emerald-700">{voucherCompletion.done}</span>
-              <span className="text-[10px] text-emerald-600 block">pilgrims</span>
-            </div>
-            <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl">
-              <span className="text-[10px] text-amber-700 block uppercase font-bold">Remaining</span>
-              <span className="text-2xl font-mono font-bold text-amber-700">{voucherCompletion.remaining}</span>
-              <span className="text-[10px] text-amber-600 block">pilgrims</span>
-            </div>
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
-              <span className="text-[10px] text-slate-500 block uppercase font-bold">Total Pilgrims</span>
-              <span className="text-2xl font-mono font-bold text-slate-900">{voucherCompletion.total}</span>
-              <span className="text-[10px] text-slate-400 block">visas imported</span>
-            </div>
+          <span className="text-xs font-mono font-bold text-[#0e2c4c]">{voucherCompletion.pct}% Complete</span>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
+            <span className="text-[10px] text-emerald-700 block uppercase font-bold">Vouchers Made</span>
+            <span className="text-xl font-mono font-bold text-emerald-700">{voucherCompletion.done}</span>
+            <span className="text-[10px] text-emerald-600 block">pilgrims</span>
           </div>
-          <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full transition-all" style={{ width: `${voucherCompletion.pct}%` }} />
+          <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl">
+            <span className="text-[10px] text-amber-700 block uppercase font-bold">Remaining</span>
+            <span className="text-xl font-mono font-bold text-amber-700">{voucherCompletion.remaining}</span>
+            <span className="text-[10px] text-amber-600 block">pilgrims</span>
+          </div>
+          <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl">
+            <span className="text-[10px] text-slate-500 block uppercase font-bold">Total Pilgrims</span>
+            <span className="text-xl font-mono font-bold text-slate-900">{voucherCompletion.total}</span>
+            <span className="text-[10px] text-slate-400 block">visas imported</span>
           </div>
         </div>
+        <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full transition-all" style={{ width: `${voucherCompletion.pct}%` }} />
+        </div>
+      </div>
 
-        {/* 5. Vouchers Panel */}
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2">
-              <Hotel className="w-5 h-5 text-[#0e2c4c]" />
-              <h3 className="text-sm font-bold text-slate-900">Vouchers Overview</h3>
-            </div>
-            <span className="text-xs font-mono font-bold bg-navy-50 text-[#0e2c4c] px-2.5 py-1 rounded-lg">Total: {vouchers.length} Vouchers</span>
+      {/* 5. Vouchers Panel */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3">
+        <div className="flex flex-col items-center justify-center gap-1 border-b border-slate-100 pb-2 text-center">
+          <div className="flex items-center gap-2">
+            <Hotel className="w-4 h-4 text-[#0e2c4c]" />
+            <h3 className="text-sm font-bold text-slate-900">Vouchers Overview</h3>
           </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-xs bg-slate-50 p-3 rounded-xl">
-              <span className="font-semibold text-slate-700">Passenger Breakup</span>
-              <span className="font-mono font-bold text-slate-900">{vouchersDemographics.total} Total Passengers</span>
+          <span className="text-xs font-mono font-bold bg-navy-50 text-[#0e2c4c] px-2.5 py-1 rounded-lg">Total: {vouchers.length} Vouchers</span>
+        </div>
+        <div className="space-y-2.5 text-center">
+          <div className="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl">
+            <span className="font-semibold text-slate-700">Passenger Breakup</span>
+            <span className="font-mono font-bold text-slate-900">{vouchersDemographics.total} Total Passengers</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="bg-slate-50 p-2 rounded-xl text-center">
+              <span className="text-[10px] text-slate-400 block uppercase font-bold">Adults</span>
+              <span className="text-sm font-mono font-bold text-slate-900">{vouchersDemographics.adults}</span>
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-slate-50 p-2.5 rounded-xl text-center">
-                <span className="text-[10px] text-slate-400 block uppercase font-bold">Adults</span>
-                <span className="text-sm font-mono font-bold text-slate-900">{vouchersDemographics.adults}</span>
-              </div>
-              <div className="bg-slate-50 p-2.5 rounded-xl text-center">
-                <span className="text-[10px] text-slate-400 block uppercase font-bold">Children</span>
-                <span className="text-sm font-mono font-bold text-slate-900">{vouchersDemographics.children}</span>
-              </div>
-              <div className="bg-slate-50 p-2.5 rounded-xl text-center">
-                <span className="text-[10px] text-slate-400 block uppercase font-bold">Infants</span>
-                <span className="text-sm font-mono font-bold text-slate-900">{vouchersDemographics.infants}</span>
-              </div>
+            <div className="bg-slate-50 p-2 rounded-xl text-center">
+              <span className="text-[10px] text-slate-400 block uppercase font-bold">Children</span>
+              <span className="text-sm font-mono font-bold text-slate-900">{vouchersDemographics.children}</span>
+            </div>
+            <div className="bg-slate-50 p-2 rounded-xl text-center">
+              <span className="text-[10px] text-slate-400 block uppercase font-bold">Infants</span>
+              <span className="text-sm font-mono font-bold text-slate-900">{vouchersDemographics.infants}</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* 6. Latest Umrah Group Packages Panel */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3 lg:col-span-2 xl:col-span-2">
+        <div className="flex flex-col items-center justify-center gap-2 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
-            <Plane className="w-5 h-5 text-[#0e2c4c]" />
+            <Plane className="w-4 h-4 text-[#0e2c4c]" />
             <h3 className="text-sm font-bold text-slate-900">Latest Umrah Group Packages (Live Visa Data)</h3>
           </div>
           <Button variant="outline" size="sm" onClick={() => navigate('/visas')}>View All Groups →</Button>
@@ -847,10 +845,10 @@ export const DashboardPage: React.FC = () => {
         {latestGroups.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">No visa groups imported yet — upload a Nusuk export in the Visa module to see live groups here.</p>
         ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {latestGroups.map((g, i) => (
-            <div key={i} onClick={() => navigate('/visas')} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 cursor-pointer hover:bg-slate-100 transition">
-              <div className="flex items-center justify-between">
+            <div key={i} onClick={() => navigate('/visas')} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 cursor-pointer hover:bg-slate-100 transition text-center">
+              <div className="flex items-center justify-center gap-2">
                 <span className="font-mono font-bold text-[#0e2c4c]">{g.groupCode}</span>
                 <Badge variant="success">{g.paxCount} Pax</Badge>
               </div>
@@ -863,13 +861,13 @@ export const DashboardPage: React.FC = () => {
       </div>
 
       {/* 7. Smart Alerts Section */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-5 space-y-4">
-        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-          <ShieldAlert className="w-5 h-5 text-amber-600" />
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 space-y-3 lg:col-span-2 xl:col-span-3">
+        <div className="flex items-center justify-center gap-2 border-b border-slate-100 pb-2">
+          <ShieldAlert className="w-4 h-4 text-amber-600" />
           <h3 className="text-sm font-bold text-slate-900">Smart Operational Alerts</h3>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Missing Hotel */}
           <div 
             onClick={() => {
@@ -877,16 +875,16 @@ export const DashboardPage: React.FC = () => {
               if (target) navigate('/vouchers', { state: { highlightVoucherNo: target.voucherNo } });
               else navigate('/vouchers');
             }}
-            className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl cursor-pointer hover:bg-amber-100/60 transition space-y-2"
+            className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl cursor-pointer hover:bg-amber-100/60 transition space-y-1.5 text-center"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-center gap-2">
               <span className="text-xs font-bold text-amber-900 uppercase">Missing Hotel Stay</span>
               <span className="font-mono font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded-full text-xs">
                 {missingHotelVouchers.length}
               </span>
             </div>
             <p className="text-[11px] text-amber-700">Vouchers registered without hotel accommodation assignments.</p>
-            <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1">Review Voucher <ArrowRight className="w-3 h-3" /></span>
+            <span className="text-[11px] font-bold text-amber-900 flex items-center justify-center gap-1">Review Voucher <ArrowRight className="w-3 h-3" /></span>
           </div>
 
           {/* Missing Transport */}
@@ -896,16 +894,16 @@ export const DashboardPage: React.FC = () => {
               if (target) navigate('/vouchers', { state: { highlightVoucherNo: target.voucherNo } });
               else navigate('/vouchers');
             }}
-            className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl cursor-pointer hover:bg-amber-100/60 transition space-y-2"
+            className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl cursor-pointer hover:bg-amber-100/60 transition space-y-1.5 text-center"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-center gap-2">
               <span className="text-xs font-bold text-amber-900 uppercase">Missing Transport</span>
               <span className="font-mono font-bold text-amber-800 bg-amber-200 px-2 py-0.5 rounded-full text-xs">
                 {missingTransportVouchers.length}
               </span>
             </div>
             <p className="text-[11px] text-amber-700">Vouchers lacking transport sector vehicle or sector bookings.</p>
-            <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1">Review Voucher <ArrowRight className="w-3 h-3" /></span>
+            <span className="text-[11px] font-bold text-amber-900 flex items-center justify-center gap-1">Review Voucher <ArrowRight className="w-3 h-3" /></span>
           </div>
 
           {/* Over Due Limit */}
@@ -915,19 +913,21 @@ export const DashboardPage: React.FC = () => {
               if (target) navigate(`/accounts?accountId=${target.id}`);
               else navigate('/accounts');
             }}
-            className="p-4 bg-rose-50/60 border border-rose-200 rounded-xl cursor-pointer hover:bg-rose-100/60 transition space-y-2"
+            className="p-3 bg-rose-50/60 border border-rose-200 rounded-xl cursor-pointer hover:bg-rose-100/60 transition space-y-1.5 text-center"
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-center gap-2">
               <span className="text-xs font-bold text-rose-900 uppercase">Agents Over Credit Limit</span>
               <span className="font-mono font-bold text-rose-800 bg-rose-200 px-2 py-0.5 rounded-full text-xs">
                 {overdueAccounts.length}
               </span>
             </div>
             <p className="text-[11px] text-rose-700">Sub-agents exceeding their maximum allowed credit or due payment threshold.</p>
-            <span className="text-[11px] font-bold text-rose-900 flex items-center gap-1">Review Accounts <ArrowRight className="w-3 h-3" /></span>
+            <span className="text-[11px] font-bold text-rose-900 flex items-center justify-center gap-1">Review Accounts <ArrowRight className="w-3 h-3" /></span>
           </div>
         </div>
       </div>
+
+      </div>{/* end main grid */}
     </div>
   );
 };
