@@ -40,7 +40,7 @@ export const ProfilePage: React.FC = () => {
           </div>
 
           <h3 className="text-lg font-bold text-slate-900 tracking-tight">
-            {userProfile?.name || 'SafarDesk User'}
+            {userProfile?.name || 'User'}
           </h3>
           <p className="text-xs text-slate-500 font-mono mt-0.5">
             {userProfile?.email || 'user@safardesk.com'}

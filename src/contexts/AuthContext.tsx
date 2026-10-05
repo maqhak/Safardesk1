@@ -111,8 +111,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Default fallback
       const fallbackProfile: UserDoc = {
         uid: firebaseUser.uid,
-        name: firebaseUser.displayName || 'SafarDesk Staff',
-        email: firebaseUser.email || 'staff@safardesk.com',
+        name: firebaseUser.displayName || 'Staff Member',
+        email: firebaseUser.email || 'staff@company.com',
         role: 'staff',
         isActive: true,
         permissions: createDefaultPermissions('Semi Admin'),

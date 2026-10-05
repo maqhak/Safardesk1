@@ -27,6 +27,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
+import { TENANT } from '../config';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -820,7 +821,7 @@ export const UsersAndPermissionsPage: React.FC = () => {
           message={
             targetUser.isActive ? (
               <p>
-                Are you sure you want to suspend <strong>{targetUser.name}</strong>? They will be immediately blocked from signing into SafarDesk with a clear suspension alert.
+                Are you sure you want to suspend <strong>{targetUser.name}</strong>? They will be immediately blocked from signing into {TENANT.companyName} with a clear suspension alert.
               </p>
             ) : (
               <p>

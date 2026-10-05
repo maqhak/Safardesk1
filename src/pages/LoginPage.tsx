@@ -127,49 +127,85 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-navy-50/50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      
-      {/* Brand Header */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        {companyLogoUrl ? (
-          <img
-            src={companyLogoUrl}
-            alt={TENANT.companyName}
-            className="inline-block w-16 h-16 rounded-2xl object-contain bg-white p-2 shadow-xl mb-4 border border-slate-200"
-          />
-        ) : (
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#0e2c4c] text-[#c9a227] shadow-xl mb-4 border border-[#163b63]">
-            <Compass className="w-10 h-10 stroke-[2.2]" />
-          </div>
-        )}
-        <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">
-          {TENANT.companyName}
-        </h2>
-        {!theme.hidePoweredBy && (
-          <p className="mt-1 text-sm font-medium text-slate-600">
-            Powered by SafarDesk
-          </p>
-        )}
-        <p className="mt-0.5 text-xs text-slate-400">
-          {TENANT.tagline}
-        </p>
-      </div>
-
-      {/* Main Login Card */}
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
-        <Card className="p-8 shadow-xl border-slate-200/90 relative overflow-hidden">
-          
-          {/* Top Brand Accent Stripe */}
-          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#0e2c4c] via-[#c9a227] to-[#0e2c4c]" />
-
+    <div className="min-h-screen flex">
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+        <img
+          src="/images/umrah-login-bg.jpg"
+          alt="Kaaba in Makkah"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div
+          className="absolute inset-0"
+          style={{ background: 'linear-gradient(135deg, rgba(14,44,76,0.85) 0%, rgba(14,44,76,0.4) 50%, rgba(201,162,39,0.2) 100%)' }}
+        />
+        <div className="relative z-10 flex flex-col justify-end p-12 text-white">
           <div className="mb-6">
-            <h3 className="text-lg font-bold text-slate-900">
-              Sign In to Your Workspace
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Private agency CRM. Every staff and agent account is created by the Owner.
+            {companyLogoUrl ? (
+              <img
+                src={companyLogoUrl}
+                alt={TENANT.companyName}
+                className="w-20 h-20 rounded-2xl object-contain bg-white/95 p-2 shadow-2xl mb-4"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-2xl bg-white/10 backdrop-blur border border-white/20 flex items-center justify-center mb-4">
+                <Compass className="w-12 h-12 text-white" />
+              </div>
+            )}
+            <h1 className="text-4xl font-extrabold tracking-tight mb-2">
+              {TENANT.companyName}
+            </h1>
+            <p className="text-lg text-white/90 font-medium">
+              {TENANT.tagline}
             </p>
           </div>
+          <div className="border-t border-white/20 pt-6">
+            <p className="text-sm text-white/80 italic">
+              Serving the guests of the Haramain with excellence
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-50">
+        <div className="lg:hidden sm:mx-auto sm:w-full sm:max-w-md text-center mb-8">
+          {companyLogoUrl ? (
+            <img
+              src={companyLogoUrl}
+              alt={TENANT.companyName}
+              className="inline-block w-16 h-16 rounded-2xl object-contain bg-white p-2 shadow-xl mb-4 border border-slate-200"
+            />
+          ) : (
+            <div
+              className="inline-flex items-center justify-center w-16 h-16 rounded-2xl text-white shadow-xl mb-4"
+              style={{ background: 'var(--theme-gradient)' }}
+            >
+              <Compass className="w-10 h-10" />
+            </div>
+          )}
+          <h2 className="text-2xl font-extrabold tracking-tight text-slate-900">
+            {TENANT.companyName}
+          </h2>
+          {!theme.hidePoweredBy && (
+            <p className="mt-1 text-sm font-medium text-slate-600">
+              Powered by SafarDesk
+            </p>
+          )}
+        </div>
+
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <Card className="p-8 shadow-2xl border-slate-200/90 relative overflow-hidden">
+            <div
+              className="absolute top-0 left-0 right-0 h-1.5"
+              style={{ background: 'var(--theme-gradient)' }}
+            />
+            <div className="mb-6">
+              <h3 className="text-xl font-bold text-slate-900">
+                Welcome Back
+              </h3>
+              <p className="text-sm text-slate-500 mt-1">
+                Sign in to {TENANT.companyName}
+              </p>
+            </div>
 
           {errorMessage && (
             <div className="mb-5 p-3.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium leading-relaxed flex items-start gap-2.5">
@@ -182,7 +218,7 @@ export const LoginPage: React.FC = () => {
             <Input
               label="Work Email Address"
               type="email"
-              placeholder="e.g. operations@safardesk.com"
+              placeholder="e.g. operations@company.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -311,6 +347,7 @@ export const LoginPage: React.FC = () => {
             Internal Corporate System • Public registration is disabled
           </p>
         </div>
+        </div>
       </div>
 
       {/* Forgot Password Modal */}
@@ -355,14 +392,14 @@ export const LoginPage: React.FC = () => {
         ) : (
           <form onSubmit={handleForgotPassword} className="space-y-4">
             <p className="text-xs text-slate-600 leading-relaxed">
-              Enter your work email address associated with your {TENANT.companyName} profile:
+              Enter your work email address associated with your SafarDesk profile:
             </p>
             <Input
               label="Work Email"
               type="email"
               value={resetEmail}
               onChange={(e) => setResetEmail(e.target.value)}
-              placeholder="e.g. staff@safardesk.com"
+              placeholder="e.g. staff@company.com"
               required
               autoFocus
             />

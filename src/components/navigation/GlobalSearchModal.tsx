@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { useAuth } from '../../contexts/AuthContext';
+import { TENANT } from '../../config';
 import { fetchVouchers, fetchVouchersForAgent } from '../../services/voucherService';
 import { fetchVendors } from '../../services/masterService';
 import { fetchVisas } from '../../services/visaService';
@@ -270,7 +271,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
         {/* Footer */}
         <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
           <span>Press ESC to close</span>
-          <span className="font-mono">SafarDesk Global Search</span>
+          <span className="font-mono">{TENANT.companyName} Global Search</span>
         </div>
       </div>
     </div>
