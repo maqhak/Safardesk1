@@ -65,6 +65,36 @@ export const GRADIENT_PRESETS: Record<string, { name: string; css: string; darkC
     css: 'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
     darkCss: 'linear-gradient(135deg, #0f172a 0%, #334155 100%)',
   },
+  'sunset-glow': {
+    name: 'Sunset Glow',
+    css: 'linear-gradient(135deg, #ea580c 0%, #ec4899 100%)',
+    darkCss: 'linear-gradient(135deg, #7c2d12 0%, #831843 100%)',
+  },
+  'forest-lime': {
+    name: 'Forest → Lime',
+    css: 'linear-gradient(135deg, #14532d 0%, #65a30d 100%)',
+    darkCss: 'linear-gradient(135deg, #052e16 0%, #3f6212 100%)',
+  },
+  'midnight-indigo': {
+    name: 'Midnight Indigo',
+    css: 'linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%)',
+    darkCss: 'linear-gradient(135deg, #0f0d2e 0%, #2a2590 100%)',
+  },
+  'rose-gold': {
+    name: 'Rose Gold',
+    css: 'linear-gradient(135deg, #9d174d 0%, #d4a017 100%)',
+    darkCss: 'linear-gradient(135deg, #5c0e2e 0%, #8a6d0e 100%)',
+  },
+  'teal-navy': {
+    name: 'Teal → Navy',
+    css: 'linear-gradient(135deg, #0f766e 0%, #1e3a5f 100%)',
+    darkCss: 'linear-gradient(135deg, #0a4a45 0%, #12233d 100%)',
+  },
+  'bronze-ember': {
+    name: 'Bronze Ember',
+    css: 'linear-gradient(135deg, #78350f 0%, #b45309 100%)',
+    darkCss: 'linear-gradient(135deg, #451a03 0%, #78350f 100%)',
+  },
 };
 
 // Quick color palette suggestions (curated, professional)
