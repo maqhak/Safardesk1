@@ -200,6 +200,12 @@ service cloud.firestore {
       allow write: if isOwner();
     }
 
+    // Shared exchange rates — Owner manages via Settings UI
+    match /settings/exchangeRates {
+      allow read: if isSignedIn();
+      allow write: if isOwner();
+    }
+
     match /settings/integrations {
       allow read, write: if isOwner();
     }
