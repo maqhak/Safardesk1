@@ -19,9 +19,9 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { fetchVouchers } from '../services/voucherService';
-import { fetchVisas, VisaDoc } from '../services/visaService';
-import { fetchLedgerEntries, fetchLedgerAccounts } from '../services/accountingService';
+import { fetchVouchers, fetchVouchersForAgent } from '../services/voucherService';
+import { fetchVisas, fetchVisasForAgent, VisaDoc } from '../services/visaService';
+import { fetchLedgerEntries, fetchLedgerAccounts, fetchLedgerAccountsForAgent, fetchLedgerEntriesForAgent } from '../services/accountingService';
 import { useCurrentRate, updateExchangeRate, formatConvertedMoney } from '../services/exchangeRateService';
 import { VoucherDoc } from '../types/voucher';
 import { LedgerEntryDoc, LedgerAccountDoc } from '../types/accounting';
@@ -66,14 +66,29 @@ export const DashboardPage: React.FC = () => {
   const [calcOpen, setCalcOpen] = useState<boolean>(false);
 
   useEffect(() => {
-    Promise.all([fetchVouchers(), fetchVisas(), fetchLedgerEntries(), fetchLedgerAccounts()])
-      .then(([vList, visList, eList, accList]) => {
+    // Data isolation: agents get server-side scoped fetches only (their own
+    // records). Unfiltered queries are rejected by Firestore rules for agents.
+    const isAgent = userProfile?.role === 'agent';
+    const agentId = userProfile?.agentId || '';
+    const vouchersPromise = isAgent ? fetchVouchersForAgent(agentId) : fetchVouchers();
+    const visasPromise = isAgent ? fetchVisasForAgent(agentId) : fetchVisas();
+    const accountsPromise = isAgent ? fetchLedgerAccountsForAgent(agentId) : fetchLedgerAccounts();
+    Promise.all([vouchersPromise, visasPromise, fetchLedgerEntries(), accountsPromise])
+      .then(async ([vList, visList, eList, accList]) => {
         setVouchers(vList);
         setVisas(visList);
-        setEntries(eList);
-        setAccounts(accList);
+        if (isAgent) {
+          // Agent entries: only those posted to the agent's own account
+          const myAcc = accList.find((a) => a.linkedId === agentId || (a as any).linkedAgentId === agentId) || null;
+          setAccounts(myAcc ? [myAcc] : []);
+          setEntries(myAcc ? await fetchLedgerEntriesForAgent(myAcc.id) : []);
+        } else {
+          setEntries(eList);
+          setAccounts(accList);
+        }
       })
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 1. Package Calculator Totals

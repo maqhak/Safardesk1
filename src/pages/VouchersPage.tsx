@@ -38,9 +38,9 @@ import { useDeepOpen } from '../hooks/useDeepOpen';
 import * as XLSX from 'xlsx';
 import { fetchLedgerEntries } from '../services/accountingService';
 import { VoucherDoc, SectorItem, HotelStayItem, VoucherChargeItem, VoucherEditPayload, VoucherEditRequest } from '../types/voucher';
-import { fetchVouchers, createVoucher, cancelVoucher, markCommissionPaid, approveVoucher, disapproveVoucher } from '../services/voucherService';
+import { fetchVouchers, fetchVouchersForAgent, createVoucher, cancelVoucher, markCommissionPaid, approveVoucher, disapproveVoucher } from '../services/voucherService';
 import { DEFAULT_PACKAGE_INCLUDES } from '../types/voucher';
-import { fetchVisas } from '../services/visaService';
+import { fetchVisas, fetchVisasForAgent } from '../services/visaService';
 import { fetchHotels, fetchVehicles, fetchVendors } from '../services/masterService';
 import {
   fetchEditRequests,
@@ -284,9 +284,14 @@ export const VouchersPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
+      // Data isolation: agents fetch only their own vouchers/visas server-side.
+      const isAgentRole = userProfile?.role === 'agent';
+      const agentId = userProfile?.agentId || '';
+      const vouchersPromise = isAgentRole ? fetchVouchersForAgent(agentId) : fetchVouchers();
+      const visasPromise = isAgentRole ? fetchVisasForAgent(agentId) : fetchVisas();
       const [vList, visaList, hList, vList2, cList, aList, ledgerList, vndList] = await Promise.all([
-        fetchVouchers(),
-        fetchVisas(),
+        vouchersPromise,
+        visasPromise,
         fetchHotels(),
         fetchVehicles(),
         fetchCustomers(),
