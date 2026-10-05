@@ -256,9 +256,7 @@ export async function fetchBanks(): Promise<BankDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, BANKS_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as BankDoc);
-      }
+      return snap.docs.map((d) => d.data() as BankDoc);
     }
   } catch (err) {
     console.warn('Could not read banks from Firestore:', err);
@@ -272,9 +270,7 @@ export async function fetchBanks(): Promise<BankDoc[]> {
       // fallback
     }
   }
-
-  localStorage.setItem(LOCAL_STORAGE_BANKS_KEY, JSON.stringify(INITIAL_BANKS));
-  return INITIAL_BANKS;
+  return [];
 }
 
 export async function saveBank(bank: BankDoc): Promise<BankDoc> {
@@ -296,9 +292,7 @@ export async function fetchInvoices(): Promise<InvoiceRecord[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, INVOICES_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as InvoiceRecord);
-      }
+      return snap.docs.map((d) => d.data() as InvoiceRecord);
     }
   } catch (err) {
     console.warn('Could not read invoices from Firestore:', err);
@@ -312,20 +306,16 @@ export async function fetchInvoices(): Promise<InvoiceRecord[]> {
       // fallback
     }
   }
-
-  localStorage.setItem(LOCAL_STORAGE_INVOICES_KEY, JSON.stringify(INITIAL_INVOICES));
-  return INITIAL_INVOICES;
+  return [];
 }
 
 export async function fetchPayments(): Promise<PaymentDoc[]> {
-  let list: PaymentDoc[] = INITIAL_PAYMENTS;
+  let list: PaymentDoc[] = [];
 
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, PAYMENTS_COLLECTION));
-      if (!snap.empty) {
-        list = snap.docs.map((d) => d.data() as PaymentDoc);
-      }
+      list = snap.docs.map((d) => d.data() as PaymentDoc);
     }
   } catch (err) {
     console.warn('Could not read payments from Firestore:', err);
@@ -336,10 +326,8 @@ export async function fetchPayments(): Promise<PaymentDoc[]> {
     try {
       list = JSON.parse(stored);
     } catch {
-      list = INITIAL_PAYMENTS;
+      list = [];
     }
-  } else {
-    localStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(INITIAL_PAYMENTS));
   }
 
   return list;

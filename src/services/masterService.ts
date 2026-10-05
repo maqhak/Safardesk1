@@ -170,9 +170,7 @@ export async function fetchVendors(): Promise<VendorDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, VENDORS_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as VendorDoc);
-      }
+      return snap.docs.map((d) => d.data() as VendorDoc);
     }
   } catch (err) {
     console.warn('Could not read vendors from Firestore:', err);
@@ -186,9 +184,7 @@ export async function fetchVendors(): Promise<VendorDoc[]> {
       // fallback
     }
   }
-
-  localStorage.setItem(LOCAL_STORAGE_VENDORS_KEY, JSON.stringify(INITIAL_VENDORS));
-  return INITIAL_VENDORS;
+  return [];
 }
 
 export async function generateNextVendorCode(): Promise<string> {
@@ -339,9 +335,7 @@ export async function fetchHotels(): Promise<HotelDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, HOTELS_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as HotelDoc);
-      }
+      return snap.docs.map((d) => d.data() as HotelDoc);
     }
   } catch (err) {
     console.warn('Could not read hotels from Firestore:', err);
@@ -355,9 +349,7 @@ export async function fetchHotels(): Promise<HotelDoc[]> {
       // fallback
     }
   }
-
-  localStorage.setItem(LOCAL_STORAGE_HOTELS_KEY, JSON.stringify(INITIAL_HOTELS));
-  return INITIAL_HOTELS;
+  return [];
 }
 
 export async function createHotel(
@@ -513,9 +505,7 @@ export async function fetchVehicles(): Promise<VehicleDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, VEHICLES_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as VehicleDoc);
-      }
+      return snap.docs.map((d) => d.data() as VehicleDoc);
     }
   } catch (err) {
     console.warn('Could not read vehicles from Firestore:', err);
@@ -529,9 +519,7 @@ export async function fetchVehicles(): Promise<VehicleDoc[]> {
       // fallback
     }
   }
-
-  localStorage.setItem(LOCAL_STORAGE_VEHICLES_KEY, JSON.stringify(INITIAL_VEHICLES));
-  return INITIAL_VEHICLES;
+  return [];
 }
 
 export async function updateVehicleReferenceRate(
@@ -666,9 +654,7 @@ export async function fetchAirlines(): Promise<AirlineDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, AIRLINES_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as AirlineDoc);
-      }
+      return snap.docs.map((d) => d.data() as AirlineDoc);
     }
   } catch (err) {
     console.warn('Could not read airlines from Firestore:', err);
@@ -682,9 +668,7 @@ export async function fetchAirlines(): Promise<AirlineDoc[]> {
       // fallback
     }
   }
-
-  localStorage.setItem(LOCAL_STORAGE_AIRLINES_KEY, JSON.stringify(INITIAL_AIRLINES));
-  return INITIAL_AIRLINES;
+  return [];
 }
 
 export async function createAirline(

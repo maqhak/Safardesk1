@@ -129,29 +129,27 @@ export async function logAuditEvent(entry: Omit<AuditLogEntry, 'timestamp'>): Pr
  * Retrieve all registered users from Firestore
  */
 export async function fetchAllUsers(): Promise<UserDoc[]> {
-  try {
-    if (!isConfigPlaceholder) {
+  // Firestore is the source of truth when configured — empty means empty (fresh tenant,
+  // so the AuthContext bootstrap correctly assigns 'owner' to the very first user).
+  if (!isConfigPlaceholder) {
+    try {
       const snap = await getDocs(collection(db, USERS_COLLECTION));
-      if (!snap.empty) {
-        const users = snap.docs.map((d) => d.data() as UserDoc);
-        return users;
-      }
+      return snap.docs.map((d) => d.data() as UserDoc);
+    } catch (err) {
+      console.warn('Error reading users from Firestore:', err);
     }
-  } catch (err) {
-    console.warn('Error reading users from Firestore:', err);
   }
 
-  // Fallback to localStorage / seed users
+  // Fallback to localStorage cache (offline / unconfigured backend)
   const stored = localStorage.getItem(LOCAL_STORAGE_USERS_KEY);
   if (stored) {
     try {
       return JSON.parse(stored);
     } catch {
-      // use initial
+      // ignore
     }
   }
-  localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(INITIAL_USERS));
-  return INITIAL_USERS;
+  return [];
 }
 
 /**

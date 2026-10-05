@@ -59,9 +59,7 @@ export async function fetchVouchers(): Promise<VoucherDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, VOUCHERS_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as VoucherDoc);
-      }
+      return snap.docs.map((d) => d.data() as VoucherDoc);
     }
   } catch (err) {
     console.warn('Could not read vouchers from Firestore:', err);
@@ -75,9 +73,7 @@ export async function fetchVouchers(): Promise<VoucherDoc[]> {
       // fallback
     }
   }
-
-  localStorage.setItem(LOCAL_STORAGE_VOUCHERS_KEY, JSON.stringify(INITIAL_VOUCHERS));
-  return INITIAL_VOUCHERS;
+  return [];
 }
 
 /**
@@ -90,9 +86,7 @@ export async function fetchVouchersForAgent(agentId: string): Promise<VoucherDoc
     if (!isConfigPlaceholder && agentId) {
       const q = query(collection(db, VOUCHERS_COLLECTION), where('agentId', '==', agentId));
       const snap = await getDocs(q);
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as VoucherDoc);
-      }
+      return snap.docs.map((d) => d.data() as VoucherDoc);
       return [];
     }
   } catch (err) {
@@ -505,9 +499,7 @@ export async function fetchEditRequests(): Promise<VoucherEditRequest[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, EDIT_REQUESTS_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as VoucherEditRequest);
-      }
+      return snap.docs.map((d) => d.data() as VoucherEditRequest);
     }
   } catch (err) {
     console.warn('Could not read voucher edit requests from Firestore:', err);

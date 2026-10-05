@@ -28,9 +28,7 @@ export async function fetchVisaDistributions(): Promise<VisaDistributionDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, DISTRIB_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as VisaDistributionDoc);
-      }
+      return snap.docs.map((d) => d.data() as VisaDistributionDoc);
     }
   } catch (err) {
     console.warn('Could not read distributions from Firestore:', err);
@@ -44,9 +42,7 @@ export async function fetchVisaInvoices(): Promise<VisaInvoiceDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, INVOICES_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as VisaInvoiceDoc);
-      }
+      return snap.docs.map((d) => d.data() as VisaInvoiceDoc);
     }
   } catch (err) {
     console.warn('Could not read invoices from Firestore:', err);

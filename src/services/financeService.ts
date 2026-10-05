@@ -47,9 +47,7 @@ export async function fetchExchangeRates(): Promise<ExchangeRateDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, EXCHANGE_RATES_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as ExchangeRateDoc);
-      }
+      return snap.docs.map((d) => d.data() as ExchangeRateDoc);
     }
   } catch (err) {
     console.warn('Could not read exchange rates from Firestore:', err);
@@ -63,9 +61,7 @@ export async function fetchExchangeRates(): Promise<ExchangeRateDoc[]> {
       // fallback
     }
   }
-
-  localStorage.setItem(LOCAL_STORAGE_RATES_KEY, JSON.stringify(INITIAL_RATES));
-  return INITIAL_RATES;
+  return [];
 }
 
 export async function createExchangeRate(

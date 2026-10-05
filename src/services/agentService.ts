@@ -126,9 +126,7 @@ export async function fetchLedgerAccounts(): Promise<LedgerAccountDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, LEDGER_ACCOUNTS_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as LedgerAccountDoc);
-      }
+      return snap.docs.map((d) => d.data() as LedgerAccountDoc);
     }
   } catch (err) {
     console.warn('Could not read ledger accounts from Firestore:', err);
@@ -142,9 +140,7 @@ export async function fetchLedgerAccounts(): Promise<LedgerAccountDoc[]> {
       // fallback
     }
   }
-
-  localStorage.setItem(LOCAL_STORAGE_LEDGERS_KEY, JSON.stringify(INITIAL_LEDGER_ACCOUNTS));
-  return INITIAL_LEDGER_ACCOUNTS;
+  return [];
 }
 
 /**
@@ -154,9 +150,7 @@ export async function fetchAgents(): Promise<AgentDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, AGENTS_COLLECTION));
-      if (!snap.empty) {
-        return snap.docs.map((d) => d.data() as AgentDoc);
-      }
+      return snap.docs.map((d) => d.data() as AgentDoc);
     }
   } catch (err) {
     console.warn('Could not read agents from Firestore:', err);
@@ -170,9 +164,7 @@ export async function fetchAgents(): Promise<AgentDoc[]> {
       // fallback
     }
   }
-
-  localStorage.setItem(LOCAL_STORAGE_AGENTS_KEY, JSON.stringify(INITIAL_AGENTS));
-  return INITIAL_AGENTS;
+  return [];
 }
 
 /**
