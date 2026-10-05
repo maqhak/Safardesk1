@@ -166,7 +166,7 @@ export const ThemeSettings: React.FC = () => {
                 type="button"
                 onClick={() => handleUpdate({ gradient: key })}
                 disabled={saving}
-                className={`relative h-16 rounded-xl overflow-hidden border-2 transition-all ${
+                className={`relative h-12 rounded-lg overflow-hidden border-2 transition-all ${
                   theme.gradient === key
                     ? 'border-slate-900 shadow-lg scale-[1.02]'
                     : 'border-transparent hover:scale-[1.02]'
@@ -175,13 +175,13 @@ export const ThemeSettings: React.FC = () => {
                 title={preset.name}
               >
                 <span className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xs font-bold text-white drop-shadow-lg px-2 text-center">
+                  <span className="text-[11px] font-bold text-white px-2 text-center" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.7)' }}>
                     {preset.name}
                   </span>
                 </span>
                 {theme.gradient === key && (
-                  <span className="absolute top-1 right-1 w-6 h-6 rounded-full bg-white flex items-center justify-center shadow">
-                    <Check className="w-4 h-4 text-emerald-600" />
+                  <span className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow">
+                    <Check className="w-3 h-3 text-emerald-600" />
                   </span>
                 )}
               </button>
@@ -229,9 +229,9 @@ export const ThemeSettings: React.FC = () => {
               : GRADIENT_PRESETS[theme.gradient]?.css 
             }}
           >
-            <p className="text-lg font-bold">Your Company Name</p>
+            <p className="text-lg font-bold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>Your Company Name</p>
             {!theme.hidePoweredBy && (
-              <p className="text-xs opacity-75">SafarDesk</p>
+              <p className="text-xs" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.6)', opacity: 0.9 }}>SafarDesk</p>
             )}
             <div className="mt-3 flex gap-2">
               <span

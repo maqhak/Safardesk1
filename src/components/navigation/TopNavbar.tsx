@@ -366,7 +366,7 @@ export const TopNavbar: React.FC = () => {
                   </div>
                 )}
                 <div className="flex flex-col">
-                  <span className="font-extrabold text-lg tracking-tight text-white group-hover:text-gold-300 transition-colors truncate max-w-[200px] sm:max-w-none">
+                  <span className="font-extrabold text-lg tracking-tight text-white group-hover:text-gold-300 transition-colors truncate max-w-[200px] sm:max-w-none" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
                     {TENANT.companyName}
                   </span>
                   {!theme.hidePoweredBy && (
