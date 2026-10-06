@@ -29,6 +29,19 @@ export interface TicketDoc {
   purchaseCostSAR: number;
   salePriceSAR: number;
   marginSAR: number; // sale - purchase
+  // Fare breakdown (voucher-style detail)
+  basicFareSAR?: number;
+  otherTaxesSAR?: number;
+  psfPercent?: number;
+  psfAmountSAR?: number;
+  // Airline commission
+  airlineCommPercent?: number;
+  airlineCommAmountSAR?: number;
+  // Withholding tax
+  whtPercent?: number;
+  whtAmountSAR?: number;
+  // Net profit after commission & WHT
+  netProfitSAR?: number;
   supplierName: string;
   buyerType: 'agent' | 'customer';
   buyerId: string; // agentId or customerId
