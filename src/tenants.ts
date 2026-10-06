@@ -30,7 +30,7 @@ export interface TenantFirebaseConfig {
   hostname: string;
 }
 
-const TENANT_KEYS = ['ABUSULTAN', 'ADAN', 'LEADING', 'BROTHERS6', 'FS', 'UB'] as const;
+const TENANT_KEYS = ['ABUSULTAN', 'ADAN', 'LEADING', 'BROTHERS6', 'FS', 'UB', 'SKYSHIP'] as const;
 
 function loadTenantFromEnv(key: string): TenantFirebaseConfig | null {
   const env = import.meta.env as Record<string, string | undefined>;
