@@ -37,6 +37,17 @@ import { fetchCustomers } from '../services/customerService';
 import { fetchLedgerEntries } from '../services/accountingService';
 import { downloadCSV } from '../utils/csv';
 import { fetchAgents } from '../services/agentService';
+import { fetchAirlines } from '../services/masterService';
+
+// IATA numeric ticket stock codes → 2-letter IATA airline code.
+// E-ticket numbers start with the 3-digit airline code (e.g. 065... = Saudia).
+const TICKET_STOCK_CODES: Record<string, string> = {
+  '065': 'SV', '176': 'EK', '071': 'PK', '098': 'G9', '037': 'QR',
+  '072': 'EY', '081': 'TK', '055': 'FZ', '016': 'WY', '069': 'GF',
+  '026': 'KU', '030': 'RJ', '023': 'MS', '058': 'AI', '074': 'BA',
+  '006': 'DL', '001': 'AA', '020': 'LH', '011': 'TG', '012': 'SQ',
+  '105': 'UL', '044': 'BG', '027': 'LA', '075': 'IB', '080': 'LO',
+};
 
 export const TicketsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -75,6 +86,13 @@ export const TicketsPage: React.FC = () => {
   const [purchaseCost, setPurchaseCost] = useState<string>('');
   const [salePrice, setSalePrice] = useState<string>('');
   const [salePricePKR, setSalePricePKR] = useState<string>('');
+  // Fare breakdown (voucher-style)
+  const [basicFare, setBasicFare] = useState<string>('');
+  const [otherTaxes, setOtherTaxes] = useState<string>('');
+  const [psfPercent, setPsfPercent] = useState<string>('');
+  const [airlineCommPercent, setAirlineCommPercent] = useState<string>('');
+  const [whtPercent, setWhtPercent] = useState<string>('');
+  const [airlinesCache, setAirlinesCache] = useState<AirlineDoc[]>([]);
   const [buyerType, setBuyerType] = useState<'customer' | 'agent'>('customer');
   const [buyerId, setBuyerId] = useState<string>('');
   const [passengers, setPassengers] = useState<TicketPassenger[]>([
@@ -97,16 +115,18 @@ export const TicketsPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [tList, cList, aList, ledgerList] = await Promise.all([
+      const [tList, cList, aList, ledgerList, alList] = await Promise.all([
         fetchTickets(),
         fetchCustomers(),
         fetchAgents(),
         fetchLedgerEntries(),
+        fetchAirlines(),
       ]);
       setTickets(tList);
       setCustomers(cList);
       setAgents(aList);
       setLedgerEntries(ledgerList);
+      setAirlinesCache(alList);
       if (cList.length > 0 && !buyerId) {
         setBuyerId(cList[0].id);
       }
@@ -120,6 +140,21 @@ export const TicketsPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Auto-detect airline from e-ticket number's 3-digit stock code
+  const detectAirlineFromTicketNo = (ticketNo: string) => {
+    const digits = ticketNo.replace(/\D/g, '');
+    if (digits.length < 3) return;
+    const code = digits.substring(0, 3);
+    const iata = TICKET_STOCK_CODES[code];
+    if (iata && airlinesCache.length > 0) {
+      const match = airlinesCache.find((a) => a.iataCode.toUpperCase() === iata);
+      if (match && (!airline || airline.iataCode !== match.iataCode)) {
+        setAirline(match);
+        success(`Airline auto-detected: ${match.name} (${match.iataCode})`);
+      }
+    }
+  };
 
   const handleAddPassengerRow = () => {
     setPassengers([...passengers, { name: '', passportNumber: '', ageType: 'Adult', ticketNo: '' }]);
@@ -148,6 +183,18 @@ export const TicketsPage: React.FC = () => {
     // Sale entered in PKR + exchange rate → SAR for the ledger
     const saleNum = Math.round((pkrNum / rateNum) * 100) / 100;
 
+    // Fare breakdown calculations
+    const bfNum = parseFloat(basicFare) || 0;
+    const txNum = parseFloat(otherTaxes) || 0;
+    const psfPNum = parseFloat(psfPercent) || 0;
+    const commPNum = parseFloat(airlineCommPercent) || 0;
+    const whtPNum = parseFloat(whtPercent) || 0;
+    const psfAmtNum = Math.round(bfNum * psfPNum) / 100;
+    const fareTotal = bfNum + txNum + psfAmtNum;
+    const commAmtNum = Math.round(fareTotal * commPNum) / 100;
+    const whtAmtNum = Math.round(commAmtNum * whtPNum) / 100;
+    const netProfitNum = Math.round((commAmtNum - whtAmtNum) * 100) / 100;
+
     const buyerObj = buyerType === 'customer' 
       ? customers.find((c) => c.id === buyerId) 
       : agents.find((a) => a.id === buyerId);
@@ -166,6 +213,15 @@ export const TicketsPage: React.FC = () => {
         passengers,
         purchaseCostSAR: costNum,
         salePriceSAR: saleNum,
+        basicFareSAR: bfNum || undefined,
+        otherTaxesSAR: txNum || undefined,
+        psfPercent: psfPNum || undefined,
+        psfAmountSAR: psfAmtNum || undefined,
+        airlineCommPercent: commPNum || undefined,
+        airlineCommAmountSAR: commAmtNum || undefined,
+        whtPercent: whtPNum || undefined,
+        whtAmountSAR: whtAmtNum || undefined,
+        netProfitSAR: netProfitNum || undefined,
         supplierName: supplierName.trim(),
         buyerType,
         buyerId,
@@ -182,6 +238,11 @@ export const TicketsPage: React.FC = () => {
       setPurchaseCost('');
       setSalePrice('');
       setSalePricePKR('');
+      setBasicFare('');
+      setOtherTaxes('');
+      setPsfPercent('');
+      setAirlineCommPercent('');
+      setWhtPercent('');
       setPassengers([{ name: '', passportNumber: '', ageType: 'Adult', ticketNo: '' }]);
       await loadData();
     } catch (err: any) {
@@ -551,6 +612,54 @@ export const TicketsPage: React.FC = () => {
             </div>
           )}
 
+          {/* Fare Breakdown & Commission (voucher-style) */}
+          <div className="pt-2 border-t border-slate-100 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Fare Breakdown & Commission</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div>
+                <Input label="Basic Fare (SAR)" type="number" step="0.01" placeholder="e.g. 1200"
+                  value={basicFare} onChange={(e) => setBasicFare(e.target.value)} />
+              </div>
+              <div>
+                <Input label="Other Taxes (SAR)" type="number" step="0.01" placeholder="e.g. 150"
+                  value={otherTaxes} onChange={(e) => setOtherTaxes(e.target.value)} />
+              </div>
+              <div>
+                <Input label="PSF %" type="number" step="0.01" placeholder="e.g. 2.5"
+                  value={psfPercent} onChange={(e) => setPsfPercent(e.target.value)} />
+              </div>
+              <div>
+                <Input label="Airline Comm. %" type="number" step="0.01" placeholder="e.g. 5"
+                  value={airlineCommPercent} onChange={(e) => setAirlineCommPercent(e.target.value)} />
+              </div>
+              <div>
+                <Input label="WHT %" type="number" step="0.01" placeholder="e.g. 4"
+                  value={whtPercent} onChange={(e) => setWhtPercent(e.target.value)} />
+              </div>
+            </div>
+            {(() => {
+              const bf = parseFloat(basicFare) || 0;
+              const tx = parseFloat(otherTaxes) || 0;
+              const psfP = parseFloat(psfPercent) || 0;
+              const commP = parseFloat(airlineCommPercent) || 0;
+              const whtP = parseFloat(whtPercent) || 0;
+              const psfAmt = bf * psfP / 100;
+              const total = bf + tx + psfAmt;
+              const commAmt = total * commP / 100;
+              const whtAmt = commAmt * whtP / 100;
+              const net = commAmt - whtAmt;
+              if (!bf && !tx && !commP) return null;
+              return (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs font-semibold text-amber-800 space-y-1">
+                  <div className="flex justify-between"><span>Total Fare (Basic + Taxes + PSF):</span><span className="font-mono">SAR {total.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span>Airline Commission ({commP}%):</span><span className="font-mono">SAR {commAmt.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span>WHT ({whtP}%):</span><span className="font-mono text-rose-700">- SAR {whtAmt.toFixed(2)}</span></div>
+                  <div className="flex justify-between border-t border-amber-200 pt-1"><span>Net Commission Profit:</span><span className="font-mono text-emerald-700">SAR {net.toFixed(2)}</span></div>
+                </div>
+              );
+            })()}
+          </div>
+
           {/* Buyer selection */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
             <div>
@@ -623,6 +732,7 @@ export const TicketsPage: React.FC = () => {
                     const updated = [...passengers];
                     updated[idx].ticketNo = e.target.value;
                     setPassengers(updated);
+                    detectAirlineFromTicketNo(e.target.value);
                   }}
                   className="p-2 bg-white border border-slate-300 rounded text-xs"
                 />
