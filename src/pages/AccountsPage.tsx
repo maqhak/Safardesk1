@@ -51,6 +51,7 @@ import {
   computeLedgerStatement, 
   voidLedgerEntry, 
   postBalancedTransaction, 
+  postItemServiceEntry,
   exportLedgerToCSV,
   exportLedgerDetailedCSV,
   exportLedgerToPDF 
@@ -143,6 +144,22 @@ export const AccountsPage: React.FC = () => {
   const [newMofaPax, setNewMofaPax] = useState<number>(0);
   const [newHotelPax, setNewHotelPax] = useState<number>(0);
   const [newDriveUrl, setNewDriveUrl] = useState<string>('');
+
+  // Item/Service Entry Modal
+  const [itemModalOpen, setItemModalOpen] = useState<boolean>(false);
+  const [savingItem, setSavingItem] = useState<boolean>(false);
+  const [itemDate, setItemDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [itemName, setItemName] = useState<string>('');
+  const [itemSupplierId, setItemSupplierId] = useState<string>('');
+  const [itemCustomerId, setItemCustomerId] = useState<string>('');
+  const [itemBuyingSAR, setItemBuyingSAR] = useState<number>(0);
+  const [itemSellingSAR, setItemSellingSAR] = useState<number>(0);
+  const [itemRate, setItemRate] = useState<number>(0);
+  const [itemDescription, setItemDescription] = useState<string>('');
+
+  useEffect(() => {
+    if (itemRate === 0) setItemRate(masterRate);
+  }, [masterRate]);
 
   // Load accounts and entries
   const loadData = async () => {
@@ -323,6 +340,65 @@ export const AccountsPage: React.FC = () => {
     }
   };
 
+  // Item/Service Entry: supplier -> us -> customer (e.g. Viaa service from Sheraz Bhai)
+  const handleSaveItemService = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!itemName.trim()) {
+      showError('Please enter the Item / Service name.');
+      return;
+    }
+    if (!itemSupplierId && !itemCustomerId) {
+      showError('Please select a Supplier (party from) or a Customer (party to).');
+      return;
+    }
+    if (itemSupplierId && itemBuyingSAR <= 0) {
+      showError('Buying price must be greater than zero when a Supplier is selected.');
+      return;
+    }
+    if (itemCustomerId && itemSellingSAR <= 0) {
+      showError('Selling price must be greater than zero when a Customer is selected.');
+      return;
+    }
+    if (itemBuyingSAR <= 0 && itemSellingSAR <= 0) {
+      showError('Enter a Buying price or a Selling price.');
+      return;
+    }
+
+    setSavingItem(true);
+    try {
+      const transNo = `ITM-${Date.now().toString().slice(-6)}`;
+      await postItemServiceEntry({
+        date: itemDate,
+        transNo,
+        itemName: itemName.trim(),
+        description: itemDescription,
+        supplierAccountId: itemSupplierId || null,
+        customerAccountId: itemCustomerId || null,
+        buyingSAR: itemBuyingSAR,
+        sellingSAR: itemSellingSAR,
+        rate: itemRate || masterRate,
+        createdBy: userProfile?.name || 'Operator',
+      });
+
+      const margin = Math.round((itemSellingSAR - itemBuyingSAR) * 100) / 100;
+      success(`Item/Service entry ${transNo} posted.${margin !== 0 ? ` Margin: SAR ${margin.toLocaleString()}` : ''}`);
+      setItemModalOpen(false);
+      // Reset form
+      setItemName('');
+      setItemSupplierId('');
+      setItemCustomerId('');
+      setItemBuyingSAR(0);
+      setItemSellingSAR(0);
+      setItemDescription('');
+      setItemDate(new Date().toISOString().split('T')[0]);
+      await loadData();
+    } catch {
+      showError('Failed to post item/service entry.');
+    } finally {
+      setSavingItem(false);
+    }
+  };
+
   // Export CSV (kept for compatibility)
   const handleExport = () => {
     if (!statement) return;
@@ -427,17 +503,30 @@ export const AccountsPage: React.FC = () => {
               </div>
 
               {canCreate && !isAgent && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={<Plus className="w-4 h-4" />}
-                  onClick={() => {
-                    setNewDebitAccountId(selectedAccountId || '');
-                    setTransModalOpen(true);
-                  }}
-                >
-                  Post Balanced Entry
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    leftIcon={<Plus className="w-4 h-4" />}
+                    onClick={() => {
+                      setItemRate(masterRate);
+                      setItemModalOpen(true);
+                    }}
+                  >
+                    Item/Service Entry
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    leftIcon={<Plus className="w-4 h-4" />}
+                    onClick={() => {
+                      setNewDebitAccountId(selectedAccountId || '');
+                      setTransModalOpen(true);
+                    }}
+                  >
+                    Post Balanced Entry
+                  </Button>
+                </>
               )}
 
               <Button
@@ -800,6 +889,7 @@ export const AccountsPage: React.FC = () => {
                           variant={
                             e.entryType === 'Payment' ? 'success' :
                             e.entryType === 'Invoice' ? 'navy' :
+                            e.entryType === 'Item/Service' ? 'info' :
                             e.entryType === 'Voucher Charge' ? 'warning' : 'neutral'
                           }
                           size="sm"
@@ -1085,6 +1175,7 @@ export const AccountsPage: React.FC = () => {
               >
                 <option value="Journal Voucher">Journal Voucher</option>
                 <option value="Invoice">Invoice</option>
+                <option value="Item/Service">Item/Service</option>
                 <option value="Payment">Payment</option>
                 <option value="Voucher Charge">Voucher Charge</option>
                 <option value="Refund">Refund</option>
@@ -1241,6 +1332,158 @@ export const AccountsPage: React.FC = () => {
               value={newDriveUrl}
               onChange={(e) => setNewDriveUrl(e.target.value)}
               placeholder="https://drive.google.com/..."
+              className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
+            />
+          </div>
+        </form>
+      </Modal>
+
+      {/* Item/Service Entry Modal — non-visa product/service sale & purchase */}
+      <Modal
+        isOpen={itemModalOpen}
+        onClose={() => setItemModalOpen(false)}
+        title="Item / Service Entry"
+        subtitle="Record a non-visa product or service: bought from a supplier, sold to a customer."
+        size="lg"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setItemModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSaveItemService}
+              loading={savingItem}
+            >
+              Post Entry
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleSaveItemService} className="space-y-4 py-2 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Date *</label>
+              <input
+                type="date"
+                value={itemDate}
+                onChange={(e) => setItemDate(e.target.value)}
+                required
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Item / Service Name *</label>
+              <input
+                type="text"
+                value={itemName}
+                onChange={(e) => setItemName(e.target.value)}
+                placeholder="e.g. Viaa Service, Hotel Room, PIA Ticket"
+                required
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+              />
+            </div>
+          </div>
+
+          {/* Parties */}
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <div className="font-bold text-[var(--theme-primary)] text-xs">Parties</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-amber-700 mb-1">
+                  Supplier — Party From (jis se li)
+                </label>
+                <select
+                  value={itemSupplierId}
+                  onChange={(e) => setItemSupplierId(e.target.value)}
+                  className="w-full p-2 bg-white border border-amber-300 rounded-lg text-xs font-semibold"
+                >
+                  <option value="">-- No supplier --</option>
+                  {accounts
+                    .filter((a) => ['vendor', 'hotel', 'agent', 'customer'].includes(a.accountType))
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        [{a.accountCode}] {a.title}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-emerald-700 mb-1">
+                  Customer — Party To (jis ko di / charge)
+                </label>
+                <select
+                  value={itemCustomerId}
+                  onChange={(e) => setItemCustomerId(e.target.value)}
+                  className="w-full p-2 bg-white border border-emerald-300 rounded-lg text-xs font-semibold"
+                >
+                  <option value="">-- No customer --</option>
+                  {accounts
+                    .filter((a) => ['agent', 'customer', 'vendor', 'hotel'].includes(a.accountType))
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        [{a.accountCode}] {a.title}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Amounts */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Buying Price (SAR)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={itemBuyingSAR || ''}
+                onChange={(e) => setItemBuyingSAR(parseFloat(e.target.value) || 0)}
+                placeholder="0.00"
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold"
+              />
+              <div className="text-[10px] text-slate-500 mt-0.5">Supplier ko dena hai</div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Selling Price (SAR)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={itemSellingSAR || ''}
+                onChange={(e) => setItemSellingSAR(parseFloat(e.target.value) || 0)}
+                placeholder="0.00"
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[var(--theme-primary)]"
+              />
+              <div className="text-[10px] text-slate-500 mt-0.5">Customer se lena hai</div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Rate (SAR→PKR)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={itemRate || ''}
+                onChange={(e) => setItemRate(parseFloat(e.target.value) || masterRate)}
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+              />
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                Margin: <strong className={itemSellingSAR - itemBuyingSAR >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                  SAR {(Math.round((itemSellingSAR - itemBuyingSAR) * 100) / 100).toLocaleString()}
+                </strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Description</label>
+            <textarea
+              value={itemDescription}
+              onChange={(e) => setItemDescription(e.target.value)}
+              rows={3}
+              placeholder="Manually likhein — kis cheez ki entry hai, koi khaas tafseel..."
               className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
             />
           </div>

@@ -14,7 +14,8 @@ export type LedgerEntryType =
   | 'Journal Voucher'
   | 'Voucher Charge'
   | 'Refund'
-  | 'Adjustment';
+  | 'Adjustment'
+  | 'Item/Service';
 
 export interface LedgerAccountDoc {
   id: string;

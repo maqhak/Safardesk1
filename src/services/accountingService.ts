@@ -282,6 +282,34 @@ export const INITIAL_LEDGER_ACCOUNTS: LedgerAccountDoc[] = [
     createdAt: '2026-01-01T00:00:00Z',
     createdBy: 'system',
   },
+  {
+    id: 'acc-sys-005',
+    accountCode: 'SYS-005',
+    accountType: 'income',
+    title: 'Item/Service Income',
+    linkedId: null,
+    isSystem: true,
+    isActive: true,
+    openingBalanceSAR: 0,
+    openingBalancePKR: 0,
+    notes: 'Revenue from item/service sales (non-visa products & services)',
+    createdAt: '2026-01-01T00:00:00Z',
+    createdBy: 'system',
+  },
+  {
+    id: 'acc-sys-006',
+    accountCode: 'SYS-006',
+    accountType: 'expense',
+    title: 'Item/Service Cost',
+    linkedId: null,
+    isSystem: true,
+    isActive: true,
+    openingBalanceSAR: 0,
+    openingBalancePKR: 0,
+    notes: 'Cost of items/services purchased from suppliers for resale',
+    createdAt: '2026-01-01T00:00:00Z',
+    createdBy: 'system',
+  },
 ];
 
 export const INITIAL_LEDGER_ENTRIES: LedgerEntryDoc[] = [
@@ -725,6 +753,108 @@ export async function postBalancedTransaction(params: {
   }
 
   return { debitEntry, creditEntry };
+}
+
+/**
+ * Ensure the Item/Service system accounts exist (for tenants seeded before SYS-005/SYS-006).
+ * Creates them in Firestore/local if missing, and returns their ids.
+ */
+export async function ensureItemServiceAccounts(createdBy: string): Promise<{ incomeId: string; costId: string }> {
+  const accounts = await fetchLedgerAccounts();
+  let income = accounts.find((a) => a.id === 'acc-sys-005' || a.accountCode === 'SYS-005');
+  let cost = accounts.find((a) => a.id === 'acc-sys-006' || a.accountCode === 'SYS-006');
+  const now = new Date().toISOString();
+
+  if (!income) {
+    income = {
+      id: 'acc-sys-005',
+      accountCode: 'SYS-005',
+      accountType: 'income',
+      title: 'Item/Service Income',
+      linkedId: null,
+      isSystem: true,
+      isActive: true,
+      openingBalanceSAR: 0,
+      openingBalancePKR: 0,
+      notes: 'Revenue from item/service sales (non-visa products & services)',
+      createdAt: now,
+      createdBy,
+    };
+    await saveLedgerAccount(income);
+  }
+  if (!cost) {
+    cost = {
+      id: 'acc-sys-006',
+      accountCode: 'SYS-006',
+      accountType: 'expense',
+      title: 'Item/Service Cost',
+      linkedId: null,
+      isSystem: true,
+      isActive: true,
+      openingBalanceSAR: 0,
+      openingBalancePKR: 0,
+      notes: 'Cost of items/services purchased from suppliers for resale',
+      createdAt: now,
+      createdBy,
+    };
+    await saveLedgerAccount(cost);
+  }
+  return { incomeId: income.id, costId: cost.id };
+}
+
+/**
+ * Post an Item/Service entry (non-visa product or service sale/purchase).
+ * Posts two balanced pairs under one transNo:
+ *   1) Dr Customer (selling) / Cr Item-Service Income (selling)
+ *   2) Dr Item-Service Cost (buying) / Cr Supplier (buying)
+ * Either leg is skipped when its amount is zero.
+ */
+export async function postItemServiceEntry(params: {
+  date: string;
+  transNo: string;
+  itemName: string;
+  description: string;
+  supplierAccountId: string | null;
+  customerAccountId: string | null;
+  buyingSAR: number;
+  sellingSAR: number;
+  rate: number;
+  createdBy: string;
+}): Promise<{ transNo: string }> {
+  const { incomeId, costId } = await ensureItemServiceAccounts(params.createdBy);
+  const baseParticulars = params.description?.trim()
+    ? `${params.itemName} — ${params.description.trim()}`
+    : params.itemName;
+
+  if (params.customerAccountId && params.sellingSAR > 0) {
+    await postBalancedTransaction({
+      date: params.date,
+      entryType: 'Item/Service',
+      transNo: params.transNo,
+      particulars: `Sale: ${baseParticulars}`,
+      rate: params.rate,
+      debitAccountId: params.customerAccountId,
+      creditAccountId: incomeId,
+      amountSAR: Math.round(params.sellingSAR * 100) / 100,
+      createdBy: params.createdBy,
+    });
+  }
+
+  if (params.supplierAccountId && params.buyingSAR > 0) {
+    await postBalancedTransaction({
+      date: params.date,
+      entryType: 'Item/Service',
+      transNo: params.transNo,
+      particulars: `Purchase: ${baseParticulars}`,
+      rate: params.rate,
+      debitAccountId: costId,
+      creditAccountId: params.supplierAccountId,
+      amountSAR: Math.round(params.buyingSAR * 100) / 100,
+      createdBy: params.createdBy,
+    });
+  }
+
+  return { transNo: params.transNo };
 }
 
 /**
