@@ -38,6 +38,7 @@ import { fetchLedgerEntries } from '../services/accountingService';
 import { downloadCSV } from '../utils/csv';
 import { fetchAgents } from '../services/agentService';
 import { fetchAirlines } from '../services/masterService';
+import { fetchVendors } from '../services/masterService';
 
 // IATA numeric ticket stock codes → 2-letter IATA airline code.
 // E-ticket numbers start with the 3-digit airline code (e.g. 065... = Saudia).
@@ -83,6 +84,8 @@ export const TicketsPage: React.FC = () => {
   const [departureTime, setDepartureTime] = useState<string>('08:00');
   const [arrivalTime, setArrivalTime] = useState<string>('12:00');
   const [supplierName, setSupplierName] = useState<string>('Saudia GDS Direct');
+  const [purchaseSource, setPurchaseSource] = useState<'vendor' | 'airline' | 'customer'>('airline');
+  const [vendorsCache, setVendorsCache] = useState<any[]>([]);
   const [purchaseCost, setPurchaseCost] = useState<string>('');
   const [salePrice, setSalePrice] = useState<string>('');
   const [salePricePKR, setSalePricePKR] = useState<string>('');
@@ -115,18 +118,20 @@ export const TicketsPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [tList, cList, aList, ledgerList, alList] = await Promise.all([
+      const [tList, cList, aList, ledgerList, alList, vList] = await Promise.all([
         fetchTickets(),
         fetchCustomers(),
         fetchAgents(),
         fetchLedgerEntries(),
         fetchAirlines(),
+        fetchVendors(),
       ]);
       setTickets(tList);
       setCustomers(cList);
       setAgents(aList);
       setLedgerEntries(ledgerList);
       setAirlinesCache(alList);
+      setVendorsCache(vList);
       if (cList.length > 0 && !buyerId) {
         setBuyerId(cList[0].id);
       }
@@ -199,6 +204,15 @@ export const TicketsPage: React.FC = () => {
       ? customers.find((c) => c.id === buyerId) 
       : agents.find((a) => a.id === buyerId);
 
+    // Resolve purchase source name
+    const resolvedSupplier = purchaseSource === 'airline'
+      ? (airline ? `${airline.name} (${airline.iataCode}) Direct` : 'Direct Airline')
+      : supplierName.trim();
+    if (!resolvedSupplier) {
+      showError('Please select a purchase source.');
+      return;
+    }
+
     setSaving(true);
     try {
       await createTicket(userProfile, {
@@ -222,7 +236,7 @@ export const TicketsPage: React.FC = () => {
         whtPercent: whtPNum || undefined,
         whtAmountSAR: whtAmtNum || undefined,
         netProfitSAR: netProfitNum || undefined,
-        supplierName: supplierName.trim(),
+        supplierName: resolvedSupplier,
         buyerType,
         buyerId,
         buyerName: buyerObj?.fullName || buyerObj?.companyName || 'General Buyer',
@@ -550,13 +564,62 @@ export const TicketsPage: React.FC = () => {
                 onChange={(e) => setDepartureTime(e.target.value)}
               />
             </div>
-            <div>
-              <Input
-                label="Supplier Name"
-                value={supplierName}
-                onChange={(e) => setSupplierName(e.target.value)}
-                required
-              />
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Ticket Purchase Source</label>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { key: 'vendor', label: 'Vendor', desc: 'Consolidator / Shirka' },
+                  { key: 'airline', label: 'Direct Airline', desc: 'Airline stock / GDS' },
+                  { key: 'customer', label: 'Customer', desc: 'Buy-back / reissue' },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setPurchaseSource(opt.key)}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      purchaseSource === opt.key
+                        ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 ring-1 ring-[var(--theme-primary)]'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className={`text-xs font-bold ${purchaseSource === opt.key ? 'text-[var(--theme-primary)]' : 'text-slate-700'}`}>{opt.label}</div>
+                    <div className="text-[10px] text-slate-500">{opt.desc}</div>
+                  </button>
+                ))}
+              </div>
+              <div className="mt-2">
+                {purchaseSource === 'vendor' && (
+                  <select
+                    value={supplierName}
+                    onChange={(e) => setSupplierName(e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded text-xs"
+                    required
+                  >
+                    <option value="">Select vendor...</option>
+                    {vendorsCache.map((v: any) => (
+                      <option key={v.id} value={v.name || v.companyName}>{v.name || v.companyName}</option>
+                    ))}
+                  </select>
+                )}
+                {purchaseSource === 'airline' && (
+                  <div className="p-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600">
+                    Source: <span className="font-bold">{airline ? `${airline.name} (${airline.iataCode})` : 'Select airline above'}</span>
+                  </div>
+                )}
+                {purchaseSource === 'customer' && (
+                  <select
+                    value={supplierName}
+                    onChange={(e) => setSupplierName(e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded text-xs"
+                    required
+                  >
+                    <option value="">Select customer...</option>
+                    {customers.map((c: any) => (
+                      <option key={c.id} value={c.fullName || c.companyName}>{c.fullName || c.companyName}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
             </div>
           </div>
 
