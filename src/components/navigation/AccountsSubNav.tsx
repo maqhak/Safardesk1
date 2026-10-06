@@ -1,14 +1,15 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpen, CreditCard, FileSpreadsheet, Layers, Scale } from 'lucide-react';
+import { BookOpen, CreditCard, FileSpreadsheet, Layers, Scale, Package } from 'lucide-react';
 
 /**
  * Secondary navigation strip for the Accounts section.
  * Each item is a SEPARATE page (own route) — this is page navigation,
  * not tabs. Rendered below the PageHeader on every Accounts page so
- * all five pages stay interlinked.
+ * all six pages stay interlinked.
  */
 const ITEMS = [
   { label: 'Ledgers', path: '/accounts', icon: Layers },
+  { label: 'Item/Service', path: '/accounts/item-service', icon: Package },
   { label: 'Balances Summary', path: '/accounts/balances', icon: Scale },
   { label: 'Day Book', path: '/accounts/day-book', icon: BookOpen },
   { label: 'Payments', path: '/accounts/payments', icon: CreditCard },

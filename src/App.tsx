@@ -21,6 +21,7 @@ const PaymentsPage = lazy(() => import('./pages/PaymentsPage').then(m => ({ defa
 const BalancesSummaryPage = lazy(() => import('./pages/BalancesSummaryPage').then(m => ({ default: m.BalancesSummaryPage })));
 const DayBookPage = lazy(() => import('./pages/DayBookPage').then(m => ({ default: m.DayBookPage })));
 const JournalVouchersPage = lazy(() => import('./pages/JournalVouchersPage').then(m => ({ default: m.JournalVouchersPage })));
+const ItemServicePage = lazy(() => import('./pages/ItemServicePage').then(m => ({ default: m.ItemServicePage })));
 const MastersPage = lazy(() => import('./pages/MastersPage').then(m => ({ default: m.MastersPage })));
 const VendorsPage = lazy(() => import('./pages/VendorsPage').then(m => ({ default: m.VendorsPage })));
 const HotelsPage = lazy(() => import('./pages/HotelsPage').then(m => ({ default: m.HotelsPage })));
@@ -185,6 +186,14 @@ export default function App() {
                   element={
                     <ProtectedRoute requiredModule="Accounts">
                       <JournalVouchersPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/accounts/item-service"
+                  element={
+                    <ProtectedRoute requiredModule="Accounts">
+                      <ItemServicePage />
                     </ProtectedRoute>
                   }
                 />
