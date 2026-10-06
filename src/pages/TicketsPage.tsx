@@ -185,8 +185,7 @@ export const TicketsPage: React.FC = () => {
       showError('Please enter a valid exchange rate (1 SAR = ? PKR).');
       return;
     }
-    // Sale entered in PKR + exchange rate → SAR for the ledger
-    const saleNum = Math.round((pkrNum / rateNum) * 100) / 100;
+    // Both purchase & sale entered in PKR (service derives SAR for ledger)
 
     // Fare breakdown calculations
     const bfNum = parseFloat(basicFare) || 0;
@@ -225,8 +224,8 @@ export const TicketsPage: React.FC = () => {
         departureTime,
         arrivalTime,
         passengers,
-        purchaseCostSAR: costNum,
-        salePriceSAR: saleNum,
+        purchaseCostPKR: costNum,
+        salePricePKR: pkrNum,
         basicFareSAR: bfNum || undefined,
         otherTaxesSAR: txNum || undefined,
         psfPercent: psfPNum || undefined,
@@ -281,9 +280,9 @@ export const TicketsPage: React.FC = () => {
       'Flight Date': tk.flightDate,
       'Buyer': tk.buyerName,
       'Passengers': tk.passengers.length,
-      'Cost SAR': tk.purchaseCostSAR,
-      'Sale SAR': tk.salePriceSAR,
-      'Margin SAR': tk.marginSAR,
+      'Cost PKR': tk.purchaseCostPKR ?? '',
+      'Sale PKR': tk.salePricePKR ?? '',
+      'Margin PKR': tk.purchaseCostPKR != null && tk.salePricePKR != null ? tk.salePricePKR - tk.purchaseCostPKR : '',
       'Status': tk.status,
     }));
     downloadCSV(rows, 'tickets');
@@ -328,16 +327,21 @@ export const TicketsPage: React.FC = () => {
       ),
     },
     {
-      key: 'salePriceSAR',
-      header: 'Sale (SAR)',
+      key: 'salePricePKR',
+      header: 'Sale (PKR)',
       sortable: true,
-      render: (row) => <span className="font-mono font-bold text-[var(--theme-primary)]">SAR {row.salePriceSAR.toLocaleString()}</span>,
+      render: (row) => <span className="font-mono font-bold text-[var(--theme-primary)]">PKR {(row.salePricePKR ?? row.salePriceSAR).toLocaleString()}</span>,
     },
     {
-      key: 'marginSAR',
-      header: 'Margin (SAR)',
+      key: 'marginPKR',
+      header: 'Margin (PKR)',
       sortable: true,
-      render: (row) => <span className="font-mono font-bold text-emerald-600">SAR {row.marginSAR.toLocaleString()}</span>,
+      render: (row) => {
+        const m = row.salePricePKR != null && row.purchaseCostPKR != null
+          ? row.salePricePKR - row.purchaseCostPKR
+          : row.marginSAR;
+        return <span className="font-mono font-bold text-emerald-600">PKR {Number(m).toLocaleString()}</span>;
+      },
     },
     {
       key: 'status',
@@ -626,10 +630,10 @@ export const TicketsPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
             <div>
               <Input
-                label="Purchase Cost (SAR)"
+                label="Purchase Cost (PKR)"
                 type="number"
                 step="0.01"
-                placeholder="e.g. 1450"
+                placeholder="e.g. 105000"
                 value={purchaseCost}
                 onChange={(e) => setPurchaseCost(e.target.value)}
                 required
@@ -668,10 +672,10 @@ export const TicketsPage: React.FC = () => {
             </div>
           )}
 
-          {purchaseCost && salePricePKR && parseFloat(String(exchangeRate)) > 0 && (
+          {purchaseCost && salePricePKR && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800 flex items-center justify-between">
               <span>Calculated Agency Margin:</span>
-              <span className="font-mono text-sm">SAR {(parseFloat(salePricePKR) / parseFloat(String(exchangeRate)) - parseFloat(purchaseCost)).toFixed(2)}</span>
+              <span className="font-mono text-sm">PKR {(parseFloat(salePricePKR) - parseFloat(purchaseCost)).toFixed(2)}</span>
             </div>
           )}
 
@@ -834,8 +838,8 @@ export const TicketsPage: React.FC = () => {
                 <div className="text-slate-200 text-xs mt-1">Airline: {selectedTicket.airline?.name} ({selectedTicket.airline?.iataCode})</div>
               </div>
               <div className="text-right">
-                <div className="text-xl font-mono font-bold">SAR {selectedTicket.salePriceSAR.toLocaleString()}</div>
-                <div className="text-emerald-400 font-mono text-[11px]">Margin: SAR {selectedTicket.marginSAR}</div>
+                <div className="text-xl font-mono font-bold">PKR {(selectedTicket.salePricePKR ?? selectedTicket.salePriceSAR).toLocaleString()}</div>
+                <div className="text-emerald-400 font-mono text-[11px]">Margin: PKR {selectedTicket.salePricePKR != null && selectedTicket.purchaseCostPKR != null ? (selectedTicket.salePricePKR - selectedTicket.purchaseCostPKR).toLocaleString() : selectedTicket.marginSAR}</div>
               </div>
             </div>
 
