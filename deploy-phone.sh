@@ -18,6 +18,7 @@ projects=(
   'fs-travel-n-tours'
   'safardesk-ub-travels'
   'safardesk-skyship-travels'
+  'safardesk-bin-hamid'
 )
 
 for p in "${projects[@]}"; do
