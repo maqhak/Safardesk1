@@ -122,12 +122,13 @@ async function postTicketRefundReversal(actor: UserProfile, ticket: TicketDoc, r
 
 export async function createTicket(
   actor: UserProfile,
-  data: Omit<TicketDoc, 'id' | 'marginSAR' | 'purchaseCostPKR' | 'salePricePKR' | 'createdAt' | 'createdBy' | 'createdByName'>
+  data: Omit<TicketDoc, 'id' | 'marginSAR' | 'purchaseCostSAR' | 'salePriceSAR' | 'createdAt' | 'createdBy' | 'createdByName'>
 ): Promise<TicketDoc> {
-  const marginSAR = data.salePriceSAR - data.purchaseCostSAR;
   const rate = data.exchangeRateSARPKR || getCurrentRate('SAR-PKR');
-  const purchaseCostPKR = Math.round(data.purchaseCostSAR * rate * 100) / 100;
-  const salePricePKR = Math.round(data.salePriceSAR * rate * 100) / 100;
+  // User enters both purchase & sale in PKR → derive SAR for ledger
+  const purchaseCostSAR = Math.round((data.purchaseCostPKR / rate) * 100) / 100;
+  const salePriceSAR = Math.round((data.salePricePKR / rate) * 100) / 100;
+  const marginSAR = Math.round((salePriceSAR - purchaseCostSAR) * 100) / 100;
 
   const ticketId = `tkt-${Date.now()}`;
   const newTicket: TicketDoc = {
@@ -135,8 +136,8 @@ export async function createTicket(
     exchangeRateSARPKR: rate,
     id: ticketId,
     marginSAR,
-    purchaseCostPKR,
-    salePricePKR,
+    purchaseCostSAR,
+    salePriceSAR,
     createdAt: new Date().toISOString(),
     createdBy: actor.uid,
     createdByName: actor.name || actor.email,
