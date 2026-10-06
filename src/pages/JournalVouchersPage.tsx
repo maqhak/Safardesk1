@@ -424,7 +424,7 @@ export const JournalVouchersPage: React.FC = () => {
               to="/accounts/balances"
               className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition flex items-center gap-1.5"
             >
-              <Scale className="w-3.5 h-3.5 text-[#0e2c4c]" />
+              <Scale className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
               <span>Balances</span>
             </Link>
 
@@ -432,7 +432,7 @@ export const JournalVouchersPage: React.FC = () => {
               to="/accounts/day-book"
               className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition flex items-center gap-1.5"
             >
-              <BookOpen className="w-3.5 h-3.5 text-[#0e2c4c]" />
+              <BookOpen className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
               <span>Day Book</span>
             </Link>
 
@@ -448,7 +448,7 @@ export const JournalVouchersPage: React.FC = () => {
               to="/accounts"
               className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition flex items-center gap-1.5"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-[#0e2c4c]" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
               <span>General Ledger</span>
             </Link>
 
@@ -601,7 +601,7 @@ export const JournalVouchersPage: React.FC = () => {
                       }`}
                     >
                       {/* JV No */}
-                      <td className="py-2.5 px-3 font-mono font-bold text-[#0e2c4c] whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono font-bold text-[var(--theme-primary)] whitespace-nowrap">
                         {jv.jvNo}
                       </td>
 
@@ -730,7 +730,7 @@ export const JournalVouchersPage: React.FC = () => {
                             setSelectedJvForAudit(jv);
                             setAuditModalOpen(true);
                           }}
-                          className="p-1 rounded text-slate-500 hover:text-[#0e2c4c] hover:bg-slate-100 cursor-pointer transition"
+                          className="p-1 rounded text-slate-500 hover:text-[var(--theme-primary)] hover:bg-slate-100 cursor-pointer transition"
                           title="View Full Audit History"
                         >
                           <History className="w-3.5 h-3.5" />
@@ -961,7 +961,7 @@ export const JournalVouchersPage: React.FC = () => {
                 value={exchangeRate}
                 onChange={(e) => setExchangeRate(parseFloat(e.target.value) || masterRate)}
                 required
-                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[#0e2c4c]"
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[var(--theme-primary)]"
               />
               <span className="text-[10px] text-slate-500 mt-1 block">
                 Amounts entered in SAR; ledger entries mirror to PKR at this rate.

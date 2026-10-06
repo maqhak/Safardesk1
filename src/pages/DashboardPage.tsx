@@ -380,9 +380,9 @@ export const DashboardPage: React.FC = () => {
         {/* My Flight Summary */}
         <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden p-3 space-y-2">
           <div className="flex items-center justify-center gap-2 border-b border-slate-100 pb-2">
-            <Plane className="w-4 h-4 text-[#0e2c4c]" />
+            <Plane className="w-4 h-4 text-[var(--theme-primary)]" />
             <h3 className="text-sm font-bold text-slate-900">My Flight Summary</h3>
-            <span className="text-xs font-mono font-bold bg-navy-50 text-[#0e2c4c] px-2.5 py-1 rounded-lg">
+            <span className="text-xs font-mono font-bold bg-navy-50 text-[var(--theme-primary)] px-2.5 py-1 rounded-lg">
               {agentFlightSummary.length} Scheduled Flights
             </span>
           </div>
@@ -394,12 +394,12 @@ export const DashboardPage: React.FC = () => {
               agentFlightSummary.map((f, i) => (
                 <div key={i} className="p-3 bg-slate-50 rounded-xl flex items-center justify-between border border-slate-100">
                   <div className="flex items-center gap-3">
-                    <span className="font-mono font-bold text-[#0e2c4c]">{f.flightNo}</span>
+                    <span className="font-mono font-bold text-[var(--theme-primary)]">{f.flightNo}</span>
                     <span className="text-xs font-semibold text-slate-800">{f.sector}</span>
                   </div>
                   <div className="flex items-center gap-4 text-xs font-mono text-slate-600">
                     <span>{f.date}</span>
-                    <span className="bg-navy-50 text-[#0e2c4c] font-bold px-2 py-0.5 rounded">{f.paxCount} Pax</span>
+                    <span className="bg-navy-50 text-[var(--theme-primary)] font-bold px-2 py-0.5 rounded">{f.paxCount} Pax</span>
                   </div>
                 </div>
               ))
@@ -420,7 +420,7 @@ export const DashboardPage: React.FC = () => {
               agentVouchers.map((v, i) => (
                 <div key={i} onClick={() => navigate('/vouchers', { state: { highlightVoucherNo: v.voucherNo } })} className="p-3 bg-slate-50 rounded-xl flex items-center justify-between cursor-pointer hover:bg-slate-100 transition">
                   <div>
-                    <span className="font-mono font-bold text-[#0e2c4c]">{v.voucherNo}</span>
+                    <span className="font-mono font-bold text-[var(--theme-primary)]">{v.voucherNo}</span>
                     <span className="text-xs text-slate-500 ml-3">{v.passengers?.length || 1} Pax • {v.status}</span>
                   </div>
                   <span className="text-xs font-bold text-slate-800">{formatConvertedMoney(v.totals?.totalSAR || 0, exchangeRate)}</span>
@@ -586,7 +586,7 @@ export const DashboardPage: React.FC = () => {
       <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2 lg:col-span-2 xl:col-span-3">
         <div className="flex flex-col items-center justify-center gap-2 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-[#0e2c4c]" />
+            <CreditCard className="w-4 h-4 text-[var(--theme-primary)]" />
             <h3 className="text-sm font-bold text-slate-900">Account Summary</h3>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2">
@@ -663,7 +663,7 @@ export const DashboardPage: React.FC = () => {
       <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2 lg:col-span-2 xl:col-span-3">
         <div className="flex flex-col items-center justify-center gap-2 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-[#0e2c4c]" />
+            <Calendar className="w-4 h-4 text-[var(--theme-primary)]" />
             <h3 className="text-sm font-bold text-slate-900">KSA Movement & Status Tracker</h3>
           </div>
           <div className="flex items-center gap-2">
@@ -693,7 +693,7 @@ export const DashboardPage: React.FC = () => {
           <div onClick={() => navigate('/vouchers')} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
             <KaabaIcon className="w-6 h-6 mx-auto mb-1 text-slate-800" />
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Makkah In</span>
-            <span className="text-lg font-mono font-bold text-[#0e2c4c]">{ksaStatusCounts.makkahIn}</span>
+            <span className="text-lg font-mono font-bold text-[var(--theme-primary)]">{ksaStatusCounts.makkahIn}</span>
             <span className="text-[10px] text-slate-500 block">Pax</span>
           </div>
           <div onClick={() => navigate('/vouchers')} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
@@ -705,7 +705,7 @@ export const DashboardPage: React.FC = () => {
           <div onClick={() => navigate('/vouchers')} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
             <MasjidNabawiIcon className="w-6 h-6 mx-auto mb-1 text-emerald-700" />
             <span className="text-[10px] text-slate-400 uppercase font-bold block">Madina In</span>
-            <span className="text-lg font-mono font-bold text-[#0e2c4c]">{ksaStatusCounts.madinaIn}</span>
+            <span className="text-lg font-mono font-bold text-[var(--theme-primary)]">{ksaStatusCounts.madinaIn}</span>
             <span className="text-[10px] text-slate-500 block">Pax</span>
           </div>
           <div onClick={() => navigate('/vouchers')} className="bg-slate-50 p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100 transition">
@@ -715,9 +715,9 @@ export const DashboardPage: React.FC = () => {
             <span className="text-[10px] text-slate-500 block">Pax</span>
           </div>
           <div onClick={() => navigate('/vouchers')} className="bg-navy-50 p-3 rounded-xl border border-navy-100 cursor-pointer hover:bg-navy-100/50 transition">
-            <span className="text-[10px] text-[#0e2c4c] uppercase font-bold block">Inside KSA</span>
-            <span className="text-lg font-mono font-bold text-[#0e2c4c]">{ksaStatusCounts.insideKsa}</span>
-            <span className="text-[10px] text-[#0e2c4c] block">Total Pax</span>
+            <span className="text-[10px] text-[var(--theme-primary)] uppercase font-bold block">Inside KSA</span>
+            <span className="text-lg font-mono font-bold text-[var(--theme-primary)]">{ksaStatusCounts.insideKsa}</span>
+            <span className="text-[10px] text-[var(--theme-primary)] block">Total Pax</span>
           </div>
           <div onClick={() => navigate('/vouchers')} className="bg-gold-50 p-3 rounded-xl border border-amber-200 cursor-pointer hover:bg-amber-100/50 transition">
             <span className="text-[10px] text-amber-800 uppercase font-bold block">Makkah / Madinah</span>
@@ -731,10 +731,10 @@ export const DashboardPage: React.FC = () => {
       <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2">
         <div className="flex flex-col items-center justify-center gap-1 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
-            <FileCheck className="w-4 h-4 text-[#0e2c4c]" />
+            <FileCheck className="w-4 h-4 text-[var(--theme-primary)]" />
             <h3 className="text-sm font-bold text-slate-900">Bookings Overview</h3>
           </div>
-          <span className="text-xs font-mono font-bold bg-navy-50 text-[#0e2c4c] px-2.5 py-1 rounded-lg">Total: {visas.length} Bookings</span>
+          <span className="text-xs font-mono font-bold bg-navy-50 text-[var(--theme-primary)] px-2.5 py-1 rounded-lg">Total: {visas.length} Bookings</span>
         </div>
         <div className="space-y-2.5 text-center">
           <div className="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl">
@@ -762,10 +762,10 @@ export const DashboardPage: React.FC = () => {
       <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2">
         <div className="flex flex-col items-center justify-center gap-1 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
-            <FileCheck className="w-4 h-4 text-[#0e2c4c]" />
+            <FileCheck className="w-4 h-4 text-[var(--theme-primary)]" />
             <h3 className="text-sm font-bold text-slate-900">Voucher Completion Report</h3>
           </div>
-          <span className="text-xs font-mono font-bold text-[#0e2c4c]">{voucherCompletion.pct}% Complete</span>
+          <span className="text-xs font-mono font-bold text-[var(--theme-primary)]">{voucherCompletion.pct}% Complete</span>
         </div>
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
@@ -793,10 +793,10 @@ export const DashboardPage: React.FC = () => {
       <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2">
         <div className="flex flex-col items-center justify-center gap-1 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
-            <Hotel className="w-4 h-4 text-[#0e2c4c]" />
+            <Hotel className="w-4 h-4 text-[var(--theme-primary)]" />
             <h3 className="text-sm font-bold text-slate-900">Vouchers Overview</h3>
           </div>
-          <span className="text-xs font-mono font-bold bg-navy-50 text-[#0e2c4c] px-2.5 py-1 rounded-lg">Total: {vouchers.length} Vouchers</span>
+          <span className="text-xs font-mono font-bold bg-navy-50 text-[var(--theme-primary)] px-2.5 py-1 rounded-lg">Total: {vouchers.length} Vouchers</span>
         </div>
         <div className="space-y-2.5 text-center">
           <div className="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl">
@@ -824,7 +824,7 @@ export const DashboardPage: React.FC = () => {
       <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-3 space-y-2 lg:col-span-2 xl:col-span-2">
         <div className="flex flex-col items-center justify-center gap-2 border-b border-slate-100 pb-2 text-center">
           <div className="flex items-center gap-2">
-            <Plane className="w-4 h-4 text-[#0e2c4c]" />
+            <Plane className="w-4 h-4 text-[var(--theme-primary)]" />
             <h3 className="text-sm font-bold text-slate-900">Latest Umrah Group Packages (Live Visa Data)</h3>
           </div>
           <Button variant="outline" size="sm" onClick={() => navigate('/visas')}>View All Groups →</Button>
@@ -836,7 +836,7 @@ export const DashboardPage: React.FC = () => {
           {latestGroups.map((g, i) => (
             <div key={i} onClick={() => navigate('/visas')} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5 cursor-pointer hover:bg-slate-100 transition text-center">
               <div className="flex items-center justify-center gap-2">
-                <span className="font-mono font-bold text-[#0e2c4c]">{g.groupCode}</span>
+                <span className="font-mono font-bold text-[var(--theme-primary)]">{g.groupCode}</span>
                 <Badge variant="success">{g.paxCount} Pax</Badge>
               </div>
               <span className="text-xs font-semibold text-slate-900 block">{g.groupName}</span>

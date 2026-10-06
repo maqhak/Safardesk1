@@ -352,7 +352,7 @@ export const VisaInvoicesPage: React.FC = () => {
                       onClick={() => handleOpenDetail(inv)}
                       className="hover:bg-slate-50 cursor-pointer transition"
                     >
-                      <td className="py-2.5 px-3 font-mono font-bold text-[#0e2c4c] whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono font-bold text-[var(--theme-primary)] whitespace-nowrap">
                         {inv.invoiceNo}
                       </td>
                       <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">
@@ -396,7 +396,7 @@ export const VisaInvoicesPage: React.FC = () => {
                         </Badge>
                       </td>
                       <td className="py-2.5 px-3 text-center whitespace-nowrap print:hidden">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0e2c4c] hover:underline">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--theme-primary)] hover:underline">
                           <span>View Invoice</span>
                           <ExternalLink className="w-3 h-3" />
                         </span>
@@ -436,7 +436,7 @@ export const VisaInvoicesPage: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                leftIcon={<Printer className="w-4 h-4 text-[#0e2c4c]" />}
+                leftIcon={<Printer className="w-4 h-4 text-[var(--theme-primary)]" />}
                 onClick={handlePrint}
               >
                 Print / PDF Letterhead
@@ -450,7 +450,7 @@ export const VisaInvoicesPage: React.FC = () => {
             {/* Branded Letterhead Header */}
             <div className="border-b-2 border-slate-900 pb-4 flex items-start justify-between">
               <div>
-                <h1 className="text-xl font-black text-[#0e2c4c] tracking-tight">{company.companyName}</h1>
+                <h1 className="text-xl font-black text-[var(--theme-primary)] tracking-tight">{company.companyName}</h1>
                 <p className="text-xs text-slate-700 font-semibold">{company.legalName || 'Hajj & Umrah Tour Operations'}</p>
                 <p className="text-[11px] text-slate-500">{company.address}, {company.city} • Tel: {company.phone} • Email: {company.email}</p>
               </div>
@@ -506,7 +506,7 @@ export const VisaInvoicesPage: React.FC = () => {
                         {isLegacy ? (
                           <>
                             <td className="py-2.5 px-3" colSpan={2}>
-                              <span className="font-mono font-bold text-[#0e2c4c] mr-2">[{(l as any).groupCode}]</span>
+                              <span className="font-mono font-bold text-[var(--theme-primary)] mr-2">[{(l as any).groupCode}]</span>
                               <span className="font-medium text-slate-900">{(l as any).groupName} — {(l as any).visaCount} visas</span>
                             </td>
                           </>
@@ -517,7 +517,7 @@ export const VisaInvoicesPage: React.FC = () => {
                           </>
                         )}
                         <td className="py-2.5 px-3">
-                          <span className="font-mono font-bold text-[#0e2c4c]">{l.groupCode}</span>
+                          <span className="font-mono font-bold text-[var(--theme-primary)]">{l.groupCode}</span>
                           {l.groupName && l.groupName !== l.groupCode && (
                             <span className="block text-[10px] text-slate-500">{l.groupName}</span>
                           )}

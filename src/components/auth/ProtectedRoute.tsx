@@ -35,7 +35,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <Loader2 className="w-8 h-8 animate-spin text-[#0e2c4c]" />
+        <Loader2 className="w-8 h-8 animate-spin text-[var(--theme-primary)]" />
         <p className="text-xs text-slate-500 mt-3 font-medium">Loading...</p>
         {slowAuth && (
           <div className="mt-4 text-center space-y-2">

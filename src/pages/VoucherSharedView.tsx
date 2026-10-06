@@ -86,7 +86,7 @@ export const VoucherSharedView: React.FC = () => {
       <Card className="p-6 sm:p-8">
         {/* Letterhead */}
         <div className="border-b-2 border-slate-900 pb-4 mb-5">
-          <h1 className="text-2xl font-black text-[#0e2c4c] tracking-tight">{company.companyName}</h1>
+          <h1 className="text-2xl font-black text-[var(--theme-primary)] tracking-tight">{company.companyName}</h1>
           <p className="text-xs text-slate-600 mt-1">
             {[company.address, company.city, company.phone, company.email].filter(Boolean).join(' • ')}
           </p>
@@ -119,7 +119,7 @@ export const VoucherSharedView: React.FC = () => {
             <div className="space-y-2 mb-5 text-xs">
               {voucher.sectors.map((s, i) => (
                 <div key={i} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex justify-between">
-                  <span className="font-bold text-[#0e2c4c]">{s.type} • {s.date}</span>
+                  <span className="font-bold text-[var(--theme-primary)]">{s.type} • {s.date}</span>
                   <span className="text-slate-600">{s.isSelfGari ? 'Self Gari' : s.vehicleType || '—'}</span>
                 </div>
               ))}
@@ -155,7 +155,7 @@ export const VoucherSharedView: React.FC = () => {
           ))}
           <div className="flex justify-between pt-2 font-black text-sm">
             <span>Total</span>
-            <span className="font-mono text-[#0e2c4c]">SAR {(voucher.totals.totalSAR || 0).toLocaleString()}</span>
+            <span className="font-mono text-[var(--theme-primary)]">SAR {(voucher.totals.totalSAR || 0).toLocaleString()}</span>
           </div>
           {voucher.totals.totalPKR > 0 && (
             <div className="flex justify-between text-slate-500">

@@ -130,10 +130,10 @@ export const AirlineSelect: React.FC<AirlineSelectProps> = ({
         )}
       >
         <div className="flex items-center gap-2.5 truncate text-slate-800">
-          <Compass className="w-4 h-4 text-[#0e2c4c] shrink-0" />
+          <Compass className="w-4 h-4 text-[var(--theme-primary)] shrink-0" />
           {value ? (
             <span className="font-medium truncate">
-              <span className="font-bold text-[#0e2c4c]">{value.iataCode}</span> — {value.name} ({value.country})
+              <span className="font-bold text-[var(--theme-primary)]">{value.iataCode}</span> — {value.name} ({value.country})
             </span>
           ) : (
             <span className="text-slate-400">{placeholder}</span>
@@ -192,11 +192,11 @@ export const AirlineSelect: React.FC<AirlineSelectProps> = ({
                     className="px-3 py-2 hover:bg-amber-100/60 cursor-pointer flex items-center justify-between text-xs transition-colors"
                   >
                     <div>
-                      <span className="font-bold text-[#0e2c4c]">{rec.iataCode}</span>
+                      <span className="font-bold text-[var(--theme-primary)]">{rec.iataCode}</span>
                       <span className="font-medium text-slate-700 ml-1.5">{rec.name}</span>
                       <span className="text-slate-500 ml-1">({rec.country})</span>
                     </div>
-                    {value?.id === rec.id && <Check className="w-3.5 h-3.5 text-[#0e2c4c]" />}
+                    {value?.id === rec.id && <Check className="w-3.5 h-3.5 text-[var(--theme-primary)]" />}
                   </div>
                 ))}
               </div>
@@ -217,16 +217,16 @@ export const AirlineSelect: React.FC<AirlineSelectProps> = ({
                     onMouseEnter={() => setHighlightedIndex(index)}
                     className={cn(
                       'px-3.5 py-2.5 cursor-pointer flex items-center justify-between text-sm transition-colors',
-                      isHighlighted ? 'bg-navy-50 text-[#0e2c4c]' : 'hover:bg-slate-50 text-slate-700',
+                      isHighlighted ? 'bg-navy-50 text-[var(--theme-primary)]' : 'hover:bg-slate-50 text-slate-700',
                       isSelected && 'font-semibold'
                     )}
                   >
                     <div>
-                      <span className="font-bold text-[#0e2c4c] tracking-wide">{airline.iataCode}</span>
+                      <span className="font-bold text-[var(--theme-primary)] tracking-wide">{airline.iataCode}</span>
                       <span className="font-semibold text-slate-800 ml-2">{airline.name}</span>
                       <span className="text-slate-500 text-xs ml-1.5">({airline.country})</span>
                     </div>
-                    {isSelected && <Check className="w-4 h-4 text-[#0e2c4c] shrink-0" />}
+                    {isSelected && <Check className="w-4 h-4 text-[var(--theme-primary)] shrink-0" />}
                   </div>
                 );
               })

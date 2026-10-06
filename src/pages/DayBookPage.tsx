@@ -496,7 +496,7 @@ export const DayBookPage: React.FC = () => {
                       </td>
 
                       {/* Trans No */}
-                      <td className="py-2.5 px-3 font-mono font-bold text-[#0e2c4c] whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono font-bold text-[var(--theme-primary)] whitespace-nowrap">
                         {e.transNo || e.entryNo}
                       </td>
 
@@ -521,7 +521,7 @@ export const DayBookPage: React.FC = () => {
                           onClick={() => navigate(`/accounts?accountId=${e.accountId}`)}
                           className="text-left group cursor-pointer"
                         >
-                          <div className="font-semibold text-slate-900 group-hover:text-[#0e2c4c] group-hover:underline">
+                          <div className="font-semibold text-slate-900 group-hover:text-[var(--theme-primary)] group-hover:underline">
                             {acc?.title || 'Unknown Account'}
                           </div>
                           <div className="text-[10px] font-mono text-slate-500">
@@ -546,7 +546,7 @@ export const DayBookPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setActiveVoucherNo(e.voucherNo!)}
-                            className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-mono font-bold text-[#0e2c4c] bg-amber-50 hover:bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded cursor-pointer"
+                            className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-mono font-bold text-[var(--theme-primary)] bg-amber-50 hover:bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded cursor-pointer"
                           >
                             <FileText className="w-3 h-3 text-[#c9a227]" />
                             <span>{e.voucherNo}</span>

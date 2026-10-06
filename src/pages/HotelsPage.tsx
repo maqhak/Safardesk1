@@ -372,7 +372,7 @@ export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lo
                       <td className="py-2.5 px-3">
                         <div className="font-bold text-slate-900 text-sm">{h.name}</div>
                         <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
-                          <span className="font-semibold text-[#0e2c4c]">{h.city}</span>
+                          <span className="font-semibold text-[var(--theme-primary)]">{h.city}</span>
                           <span>•</span>
                           <span>{h.distanceFromHaram || 'Near Haram'}</span>
                         </div>
@@ -398,7 +398,7 @@ export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lo
                       <td className="py-2.5 px-3 text-slate-600 font-medium">
                         {h.availabilityNote || 'Available'}
                       </td>
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap font-mono font-bold text-[#0e2c4c]">
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap font-mono font-bold text-[var(--theme-primary)]">
                         {h.usedFromCount || 0} Vouchers
                       </td>
                       <td className="py-2.5 px-3 text-center whitespace-nowrap">
@@ -418,7 +418,7 @@ export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lo
                             <button
                               type="button"
                               onClick={() => handleOpenEdit(h)}
-                              className="p-1 text-slate-500 hover:text-[#0e2c4c] rounded transition cursor-pointer"
+                              className="p-1 text-slate-500 hover:text-[var(--theme-primary)] rounded transition cursor-pointer"
                               title="Edit Hotel"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
@@ -577,7 +577,7 @@ export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lo
                       updated[idx].nightlyRateSAR = parseFloat(e.target.value) || 0;
                       setRoomTypes(updated);
                     }}
-                    className="w-full p-1.5 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-[#0e2c4c]"
+                    className="w-full p-1.5 bg-white border border-slate-300 rounded text-xs font-mono font-bold text-[var(--theme-primary)]"
                   />
                 </div>
               ))}
@@ -601,7 +601,7 @@ export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lo
               id="isActiveHotel"
               checked={isActive}
               onChange={(e) => setIsActive(e.target.checked)}
-              className="rounded text-[#0e2c4c]"
+              className="rounded text-[var(--theme-primary)]"
             />
             <label htmlFor="isActiveHotel" className="text-xs font-semibold text-slate-700 cursor-pointer">
               Active Hotel (Available for booking selection)

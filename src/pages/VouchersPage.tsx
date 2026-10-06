@@ -791,7 +791,7 @@ export const VouchersPage: React.FC = () => {
       header: 'Voucher No & Link',
       render: (row) => (
         <div>
-          <div className="font-mono font-bold text-[#0e2c4c] text-xs">{row.voucherNo}</div>
+          <div className="font-mono font-bold text-[var(--theme-primary)] text-xs">{row.voucherNo}</div>
           <div className="text-[10px] text-slate-500 uppercase font-semibold">
             Link: {row.linkType} • {row.passengers.length} Pax
           </div>
@@ -1179,7 +1179,7 @@ export const VouchersPage: React.FC = () => {
             <div className="space-y-4">
               {/* Step 1a: Shirka FIRST — mandatory, picker filters on it */}
               <div className="p-4 bg-[#0e2c4c]/5 border-2 border-[#0e2c4c]/25 rounded-xl">
-                <label className="block text-sm font-bold text-[#0e2c4c] mb-1">
+                <label className="block text-sm font-bold text-[var(--theme-primary)] mb-1">
                   Step 1: Select Shirka <span className="text-red-500">*</span>
                 </label>
                 <p className="text-[11px] text-slate-500 mb-2">Select the Shirka first — only that Shirka's pilgrims will appear below.</p>
@@ -1307,7 +1307,7 @@ export const VouchersPage: React.FC = () => {
                           onClick={() => { allIn ? deselectPickerIds(groupIds) : selectPickerIds(groupIds); }}
                           className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 hover:bg-slate-100 transition"
                         >
-                          <span className="text-xs font-bold text-[#0e2c4c]">
+                          <span className="text-xs font-bold text-[var(--theme-primary)]">
                             {pickerAgentName(group.agentId)}
                             <span className="ml-2 text-[10px] font-semibold text-slate-500">
                               {group.visas.length} pax • {groupIds.filter((id) => selectedVisaIds.includes(id)).length} selected
@@ -1356,7 +1356,7 @@ export const VouchersPage: React.FC = () => {
             <div className="space-y-6">
               {/* Smart Date Chaining Anchor */}
               <div className="p-4 bg-[#0e2c4c]/5 border border-[#0e2c4c]/20 rounded-xl space-y-2">
-                <label className="block text-xs font-bold text-[#0e2c4c] uppercase tracking-wider">Trip Arrival Date (Smart Chain Anchor)</label>
+                <label className="block text-xs font-bold text-[var(--theme-primary)] uppercase tracking-wider">Trip Arrival Date (Smart Chain Anchor)</label>
                 <input
                   type="date"
                   value={arrivalDate}
@@ -1374,7 +1374,7 @@ export const VouchersPage: React.FC = () => {
                       setHotelStays(updated);
                     }
                   }}
-                  className="w-full sm:w-64 p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[#0e2c4c]"
+                  className="w-full sm:w-64 p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[var(--theme-primary)]"
                 />
                 <div className="text-[11px] text-slate-500">Changing arrival date automatically shifts and chains subsequent hotel check-in/check-out dates.</div>
               </div>
@@ -1384,7 +1384,7 @@ export const VouchersPage: React.FC = () => {
                 <div className="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-2">
                   <div>
                     <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                      <Plane className="w-4 h-4 text-[#0e2c4c]" />
+                      <Plane className="w-4 h-4 text-[var(--theme-primary)]" />
                       <span>Flight Details (Departure & Return)</span>
                     </h4>
                     <p className="text-[11px] text-slate-500">Optional carrier and flight schedule tracking.</p>
@@ -1394,7 +1394,7 @@ export const VouchersPage: React.FC = () => {
                       type="checkbox"
                       checked={allowFlightInfo}
                       onChange={(e) => setAllowFlightInfo(e.target.checked)}
-                      className="rounded text-[#0e2c4c]"
+                      className="rounded text-[var(--theme-primary)]"
                     />
                     <span className="text-xs font-bold text-slate-800">Allow Flight Information</span>
                   </label>
@@ -1403,7 +1403,7 @@ export const VouchersPage: React.FC = () => {
                 <fieldset disabled={!allowFlightInfo} className={`space-y-4 ${!allowFlightInfo ? 'opacity-50' : ''}`}>
                   {/* Departure Flight Block */}
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                    <span className="font-bold text-[#0e2c4c] text-xs uppercase block tracking-wider">Departure Flight Block</span>
+                    <span className="font-bold text-[var(--theme-primary)] text-xs uppercase block tracking-wider">Departure Flight Block</span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                       <div>
                         <AirlineSelect
@@ -1474,7 +1474,7 @@ export const VouchersPage: React.FC = () => {
 
                   {/* Return Flight Block */}
                   <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                    <span className="font-bold text-[#0e2c4c] text-xs uppercase block tracking-wider">Return Flight Block</span>
+                    <span className="font-bold text-[var(--theme-primary)] text-xs uppercase block tracking-wider">Return Flight Block</span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                       <div>
                         <AirlineSelect
@@ -1556,7 +1556,7 @@ export const VouchersPage: React.FC = () => {
                     value={lateIntimationSAR}
                     onChange={(e) => setLateIntimationSAR(e.target.value)}
                     placeholder="0 (Manual entry)"
-                    className="w-full sm:w-64 p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold text-[#0e2c4c]"
+                    className="w-full sm:w-64 p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold text-[var(--theme-primary)]"
                   />
                   <span className="text-[11px] text-slate-500 block mt-1">Manual entry. Empty means zero. Added directly to voucher gross.</span>
                 </div>
@@ -1586,7 +1586,7 @@ export const VouchersPage: React.FC = () => {
                   <div key={idx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 text-xs">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-[#0e2c4c] px-2.5 py-1 bg-[#0e2c4c]/10 rounded uppercase text-[10px]">{sec.type}</span>
+                        <span className="font-bold text-[var(--theme-primary)] px-2.5 py-1 bg-[#0e2c4c]/10 rounded uppercase text-[10px]">{sec.type}</span>
                         <input
                           type="date"
                           value={sec.date}
@@ -1672,7 +1672,7 @@ export const VouchersPage: React.FC = () => {
                           }}
                           placeholder={isAgent ? "Staff will add the charge" : "Type rate (SAR)..."}
                           disabled={isAgent || !!sec.isSelfGari}
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[#0e2c4c] disabled:bg-slate-100 disabled:text-slate-400"
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[var(--theme-primary)] disabled:bg-slate-100 disabled:text-slate-400"
                         />
                       </div>
                     </div>
@@ -1707,12 +1707,12 @@ export const VouchersPage: React.FC = () => {
                             {stay.description ? ` • ${stay.description}` : ''}
                           </div>
                         </div>
-                        <span className="font-mono font-bold text-[#0e2c4c] whitespace-nowrap">SAR {(stay.totalSAR || 0).toLocaleString()}</span>
+                        <span className="font-mono font-bold text-[var(--theme-primary)] whitespace-nowrap">SAR {(stay.totalSAR || 0).toLocaleString()}</span>
                         <div className="flex items-center gap-1 shrink-0">
                           <button
                             type="button"
                             onClick={() => openStayModal(idx)}
-                            className="px-2 py-1 text-[11px] font-bold text-[#0e2c4c] bg-slate-100 hover:bg-slate-200 rounded"
+                            className="px-2 py-1 text-[11px] font-bold text-[var(--theme-primary)] bg-slate-100 hover:bg-slate-200 rounded"
                           >
                             Edit
                           </button>
@@ -1806,7 +1806,7 @@ export const VouchersPage: React.FC = () => {
                       onChange={(e) => setDRate(e.target.value)}
                       placeholder={isAgent ? 'Staff will add' : 'Type rate...'}
                       disabled={isAgent}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-[#0e2c4c] disabled:bg-slate-100 disabled:text-slate-400"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg font-mono font-bold text-[var(--theme-primary)] disabled:bg-slate-100 disabled:text-slate-400"
                     />
                   </div>
                   <div>
@@ -1825,7 +1825,7 @@ export const VouchersPage: React.FC = () => {
                     <span className="text-[11px] font-semibold text-slate-500">
                       Check-out: <span className="font-mono font-bold text-slate-700">{dCheckIn ? addDays(dCheckIn, Math.max(0, parseInt(dNights) || 0)) : '—'}</span>
                     </span>
-                    <span className="text-sm font-mono font-bold text-[#0e2c4c]">
+                    <span className="text-sm font-mono font-bold text-[var(--theme-primary)]">
                       SAR {((Math.max(0, parseInt(dNights) || 0)) * (parseFloat(dRate) || 0) * (Math.max(1, parseInt(dRoomCount) || 1))).toLocaleString()}
                     </span>
                   </div>
@@ -1865,7 +1865,7 @@ export const VouchersPage: React.FC = () => {
                 )}
                 <div className="pt-2 border-t border-slate-200 flex justify-between font-bold text-slate-900 text-sm">
                   <span>Gross Voucher Total:</span>
-                  <span className="font-mono text-[#0e2c4c]">
+                  <span className="font-mono text-[var(--theme-primary)]">
                     SAR {totalSAR.toLocaleString()}
                   </span>
                 </div>
@@ -1878,7 +1878,7 @@ export const VouchersPage: React.FC = () => {
                     type="checkbox"
                     checked={commissionEnabled}
                     onChange={(e) => setCommissionEnabled(e.target.checked)}
-                    className="rounded text-[#0e2c4c]"
+                    className="rounded text-[var(--theme-primary)]"
                   />
                   <span>Include Sub-Agent / Referrer Commission</span>
                 </label>
@@ -1898,7 +1898,7 @@ export const VouchersPage: React.FC = () => {
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <h5 className="font-bold text-slate-900 text-xs uppercase tracking-wide">Package Includes</h5>
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => setPackageIncludes([...DEFAULT_PACKAGE_INCLUDES])} className="text-[11px] font-bold text-[#0e2c4c] hover:underline">Select All</button>
+                    <button type="button" onClick={() => setPackageIncludes([...DEFAULT_PACKAGE_INCLUDES])} className="text-[11px] font-bold text-[var(--theme-primary)] hover:underline">Select All</button>
                     <span className="text-slate-300">|</span>
                     <button type="button" onClick={() => setPackageIncludes([])} className="text-[11px] font-bold text-slate-500 hover:underline">Clear</button>
                   </div>
@@ -1950,7 +1950,7 @@ export const VouchersPage: React.FC = () => {
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Pilgrims:</span>
-                  <span className="font-bold text-[#0e2c4c]">{selectedVisaIds.length} Pilgrims Selected</span>
+                  <span className="font-bold text-[var(--theme-primary)]">{selectedVisaIds.length} Pilgrims Selected</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Flight Information:</span>
@@ -1972,7 +1972,7 @@ export const VouchersPage: React.FC = () => {
                 )}
                 <div className="pt-3 border-t border-slate-200 flex justify-between font-bold text-base">
                   <span>Total Amount:</span>
-                  <span className="font-mono text-[#0e2c4c]">
+                  <span className="font-mono text-[var(--theme-primary)]">
                     SAR {totalSAR.toLocaleString()}
                   </span>
                 </div>
@@ -2049,7 +2049,7 @@ export const VouchersPage: React.FC = () => {
                 <span className="font-semibold text-slate-600">{label}</span>
                 <span className="font-mono text-right">
                   <span className={changed ? 'line-through text-slate-400' : 'text-slate-700'}>{oldV}</span>
-                  {changed && <span className="ml-2 font-bold text-[#0e2c4c]">{newV}</span>}
+                  {changed && <span className="ml-2 font-bold text-[var(--theme-primary)]">{newV}</span>}
                 </span>
               </div>
             );
@@ -2235,7 +2235,7 @@ export const VouchersPage: React.FC = () => {
 
             {selectedVoucher.flightDetails?.allowFlightInfo && (
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                <span className="font-bold text-[#0e2c4c] uppercase text-[11px]">Flight Details</span>
+                <span className="font-bold text-[var(--theme-primary)] uppercase text-[11px]">Flight Details</span>
                 <div className="grid grid-cols-2 gap-2 text-slate-700">
                   <div><strong>Departure:</strong> {selectedVoucher.flightDetails.departureFlight.airline?.name || ''} {selectedVoucher.flightDetails.departureFlight.flightNo} ({selectedVoucher.flightDetails.departureFlight.date})</div>
                   <div><strong>Return:</strong> {selectedVoucher.flightDetails.returnFlight.airline?.name || ''} {selectedVoucher.flightDetails.returnFlight.flightNo} ({selectedVoucher.flightDetails.returnFlight.date})</div>

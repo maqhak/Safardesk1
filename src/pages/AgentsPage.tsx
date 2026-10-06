@@ -447,7 +447,7 @@ Please keep these credentials safe and change password after first login.`;
 
         <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Live Receivables (SAR)</span>
-          <span className="text-2xl font-bold font-mono text-[#0e2c4c] mt-1 block">
+          <span className="text-2xl font-bold font-mono text-[var(--theme-primary)] mt-1 block">
             {formatMoney(totalReceivableSAR, 'SAR')}
           </span>
           <span className="text-[11px] text-slate-500 font-mono">
@@ -542,7 +542,7 @@ Please keep these credentials safe and change password after first login.`;
                       <tr key={agent.id} className="hover:bg-slate-50/70 transition">
                         {/* Agent Code */}
                         <td className="py-3.5 px-4">
-                          <span className="font-mono font-bold text-xs text-[#0e2c4c] bg-navy-50/80 px-2 py-1 rounded border border-navy-100">
+                          <span className="font-mono font-bold text-xs text-[var(--theme-primary)] bg-navy-50/80 px-2 py-1 rounded border border-navy-100">
                             {agent.agentCode}
                           </span>
                         </td>
@@ -617,7 +617,7 @@ Please keep these credentials safe and change password after first login.`;
                             <Button
                               variant="outline"
                               size="sm"
-                              leftIcon={<FileText className="w-3.5 h-3.5 text-[#0e2c4c]" />}
+                              leftIcon={<FileText className="w-3.5 h-3.5 text-[var(--theme-primary)]" />}
                               onClick={() => openLedgerModal(agent)}
                               title="View Live Sub-Ledger Statement"
                             >
@@ -694,11 +694,11 @@ Please keep these credentials safe and change password after first login.`;
       >
         <form onSubmit={handleAddAgent} className="space-y-4">
           <div className="p-3 bg-navy-50/70 border border-navy-100 rounded-lg text-xs text-slate-700 flex items-center justify-between">
-            <span className="flex items-center gap-1.5 font-semibold text-[#0e2c4c]">
+            <span className="flex items-center gap-1.5 font-semibold text-[var(--theme-primary)]">
               <Sparkles className="w-3.5 h-3.5 text-[#c9a227]" />
               <span>Assigned Agent Code:</span>
             </span>
-            <span className="font-mono font-bold text-sm text-[#0e2c4c] bg-white px-2 py-0.5 rounded border border-navy-200">
+            <span className="font-mono font-bold text-sm text-[var(--theme-primary)] bg-white px-2 py-0.5 rounded border border-navy-200">
               {nextCodePreview}
             </span>
           </div>
@@ -826,7 +826,7 @@ Please keep these credentials safe and change password after first login.`;
             <div className="p-4 bg-slate-100 rounded-xl border border-slate-300 font-mono text-xs space-y-2 select-all">
               <div className="flex justify-between border-b border-slate-200 pb-1.5 font-sans">
                 <span className="text-slate-500 font-medium">Agent Code:</span>
-                <span className="font-bold text-[#0e2c4c] font-mono">{createdAgentInfo.agentCode}</span>
+                <span className="font-bold text-[var(--theme-primary)] font-mono">{createdAgentInfo.agentCode}</span>
               </div>
               <div className="flex justify-between border-b border-slate-200 pb-1.5 font-sans">
                 <span className="text-slate-500 font-medium">Portal URL:</span>
@@ -1000,7 +1000,7 @@ Please keep these credentials safe and change password after first login.`;
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                 <span className="text-[11px] text-slate-500 block uppercase font-medium">Outstanding Balance (SAR)</span>
-                <span className="text-lg font-bold font-mono text-[#0e2c4c] mt-0.5 block">
+                <span className="text-lg font-bold font-mono text-[var(--theme-primary)] mt-0.5 block">
                   {formatMoney(selectedAgentBalance.balanceSAR, 'SAR')}
                 </span>
                 <span className="text-[10px] text-slate-400 font-mono">

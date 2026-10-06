@@ -103,7 +103,7 @@ export const LicensePill: React.FC = () => {
 
           <div className="p-3 bg-navy-50 border border-navy-100 rounded-xl flex items-center justify-between">
             <div className="flex items-center gap-2 text-slate-700">
-              <Phone className="w-4 h-4 text-[#0e2c4c]" />
+              <Phone className="w-4 h-4 text-[var(--theme-primary)]" />
               <span>Renewal & billing support: <strong>{license.supportContact || 'support@safardesk.com'}</strong></span>
             </div>
           </div>

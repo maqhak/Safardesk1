@@ -246,7 +246,7 @@ export const MovementReportsPage: React.FC = () => {
       <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-black text-[#0e2c4c] tracking-tight">{company.companyName}</h1>
+            <h1 className="text-2xl font-black text-[var(--theme-primary)] tracking-tight">{company.companyName}</h1>
             <p className="text-xs text-slate-600 mt-0.5">{company.legalName || 'Hajj & Umrah Operations Management'}</p>
             <p className="text-[11px] text-slate-500">{company.address}, {company.city} • Tel: {company.phone}</p>
           </div>
@@ -299,13 +299,13 @@ export const MovementReportsPage: React.FC = () => {
         <div className="flex flex-col xl:flex-row items-stretch xl:items-end gap-3">
           <div className="w-full xl:w-80 shrink-0">
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-              <Compass className="w-3.5 h-3.5 text-[#0e2c4c]" />
+              <Compass className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
               <span>Report</span>
             </label>
             <select
               value={selectedReportType}
               onChange={(e) => setSelectedReportType(e.target.value as MovementReportType)}
-              className="w-full px-3 py-2 bg-slate-50 border-2 border-[#0e2c4c] rounded-xl text-sm font-bold text-[#0e2c4c] focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20 shadow-xs cursor-pointer"
+              className="w-full px-3 py-2 bg-slate-50 border-2 border-[#0e2c4c] rounded-xl text-sm font-bold text-[var(--theme-primary)] focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20 shadow-xs cursor-pointer"
             >
               {MOVEMENT_REPORT_TYPES.map((type) => (
                 <option key={type} value={type} className="font-semibold text-slate-800">
@@ -322,21 +322,21 @@ export const MovementReportsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setDateMode('all')}
-                  className={`px-2.5 py-1.5 rounded-md transition cursor-pointer ${dateMode === 'all' ? 'bg-white text-[#0e2c4c] shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                  className={`px-2.5 py-1.5 rounded-md transition cursor-pointer ${dateMode === 'all' ? 'bg-white text-[var(--theme-primary)] shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
                 >
                   All
                 </button>
                 <button
                   type="button"
                   onClick={() => setDateMode('single')}
-                  className={`px-2.5 py-1.5 rounded-md transition cursor-pointer ${dateMode === 'single' ? 'bg-white text-[#0e2c4c] shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                  className={`px-2.5 py-1.5 rounded-md transition cursor-pointer ${dateMode === 'single' ? 'bg-white text-[var(--theme-primary)] shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
                 >
                   Date
                 </button>
                 <button
                   type="button"
                   onClick={() => setDateMode('range')}
-                  className={`px-2.5 py-1.5 rounded-md transition cursor-pointer ${dateMode === 'range' ? 'bg-white text-[#0e2c4c] shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                  className={`px-2.5 py-1.5 rounded-md transition cursor-pointer ${dateMode === 'range' ? 'bg-white text-[var(--theme-primary)] shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
                 >
                   Range
                 </button>
@@ -385,7 +385,7 @@ export const MovementReportsPage: React.FC = () => {
 
           <div className="flex items-center gap-2 shrink-0">
             <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
-              <strong className="text-[#0e2c4c]">{filteredRecords.length}</strong> rows
+              <strong className="text-[var(--theme-primary)]">{filteredRecords.length}</strong> rows
             </span>
             <Button
               variant="outline"
@@ -436,8 +436,8 @@ export const MovementReportsPage: React.FC = () => {
           {/* Panel (a): Sector-wise summary */}
           <Card padding="none" className="border-slate-200 shadow-xs flex flex-col">
             <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-              <span className="font-bold text-xs text-[#0e2c4c] flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-[#0e2c4c]" />
+              <span className="font-bold text-xs text-[var(--theme-primary)] flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
                 <span>(a) Sector-wise Summary</span>
               </span>
               <Badge variant="navy">{summaries.sectorSummary.length} Sectors</Badge>
@@ -453,7 +453,7 @@ export const MovementReportsPage: React.FC = () => {
                       <span className="font-mono text-slate-700">
                         {item.paidPax} / {item.infantPax} / {item.woBusPax}
                       </span>
-                      <span className="font-mono font-bold text-[#0e2c4c] ml-2 text-xs">
+                      <span className="font-mono font-bold text-[var(--theme-primary)] ml-2 text-xs">
                         = {item.totalPax}
                       </span>
                     </div>
@@ -466,8 +466,8 @@ export const MovementReportsPage: React.FC = () => {
           {/* Panel (b): Flight-wise summary */}
           <Card padding="none" className="border-slate-200 shadow-xs flex flex-col">
             <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-              <span className="font-bold text-xs text-[#0e2c4c] flex items-center gap-1.5">
-                <Plane className="w-3.5 h-3.5 text-[#0e2c4c]" />
+              <span className="font-bold text-xs text-[var(--theme-primary)] flex items-center gap-1.5">
+                <Plane className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
                 <span>(b) Flight-wise Summary</span>
               </span>
               <Badge variant="navy">{summaries.flightSummary.length} Flights</Badge>
@@ -483,7 +483,7 @@ export const MovementReportsPage: React.FC = () => {
                       <span className="font-mono text-slate-700">
                         {item.paidPax} / {item.infantPax} / {item.woBusPax}
                       </span>
-                      <span className="font-mono font-bold text-[#0e2c4c] ml-2 text-xs">
+                      <span className="font-mono font-bold text-[var(--theme-primary)] ml-2 text-xs">
                         = {item.totalPax}
                       </span>
                     </div>
@@ -496,8 +496,8 @@ export const MovementReportsPage: React.FC = () => {
           {/* Panel (c): Voucher & Hotel-wise summary */}
           <Card padding="none" className="border-slate-200 shadow-xs flex flex-col">
             <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-              <span className="font-bold text-xs text-[#0e2c4c] flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-[#0e2c4c]" />
+              <span className="font-bold text-xs text-[var(--theme-primary)] flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
                 <span>(c) Voucher & Hotel Summary</span>
               </span>
               <Badge variant="navy">{summaries.voucherHotelSummary.length} Stays</Badge>
@@ -513,7 +513,7 @@ export const MovementReportsPage: React.FC = () => {
                       <span className="font-mono text-slate-700">
                         {item.paidPax} / {item.infantPax} / {item.woBusPax}
                       </span>
-                      <span className="font-mono font-bold text-[#0e2c4c] ml-2 text-xs">
+                      <span className="font-mono font-bold text-[var(--theme-primary)] ml-2 text-xs">
                         = {item.totalPax}
                       </span>
                     </div>
@@ -526,8 +526,8 @@ export const MovementReportsPage: React.FC = () => {
           {/* Panel (d): Hotel-wise summary */}
           <Card padding="none" className="border-slate-200 shadow-xs flex flex-col">
             <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-              <span className="font-bold text-xs text-[#0e2c4c] flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-[#0e2c4c]" />
+              <span className="font-bold text-xs text-[var(--theme-primary)] flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
                 <span>(d) Hotel-wise Summary</span>
               </span>
               <Badge variant="navy">{summaries.hotelSummary.length} Hotels</Badge>
@@ -543,7 +543,7 @@ export const MovementReportsPage: React.FC = () => {
                       <span className="font-mono text-slate-700">
                         {item.paidPax} / {item.infantPax} / {item.woBusPax}
                       </span>
-                      <span className="font-mono font-bold text-[#0e2c4c] ml-2 text-xs">
+                      <span className="font-mono font-bold text-[var(--theme-primary)] ml-2 text-xs">
                         = {item.totalPax}
                       </span>
                     </div>
@@ -635,7 +635,7 @@ export const MovementReportsPage: React.FC = () => {
                     key={r.id} 
                     className={`hover:bg-slate-50/80 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}
                   >
-                    <td className="py-2.5 px-3 font-mono font-bold text-[#0e2c4c] whitespace-nowrap">
+                    <td className="py-2.5 px-3 font-mono font-bold text-[var(--theme-primary)] whitespace-nowrap">
                       {r.groupNo}
                     </td>
                     <td className="py-2.5 px-3 text-slate-800 whitespace-nowrap">
@@ -647,14 +647,14 @@ export const MovementReportsPage: React.FC = () => {
                     <td className="py-2.5 px-3 font-mono font-semibold text-slate-700 whitespace-nowrap">
                       {r.from}
                     </td>
-                    <td className="py-2.5 px-3 font-bold text-[#0e2c4c] whitespace-nowrap">
+                    <td className="py-2.5 px-3 font-bold text-[var(--theme-primary)] whitespace-nowrap">
                       {r.flightOrBusNo}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">
                       <div>{r.time}</div>
                       <div className="text-[10px] text-slate-400">{r.date}</div>
                     </td>
-                    <td className="py-2.5 px-3 font-mono font-semibold text-[#0e2c4c] whitespace-nowrap">
+                    <td className="py-2.5 px-3 font-mono font-semibold text-[var(--theme-primary)] whitespace-nowrap">
                       {r.voucherNo}
                     </td>
                     <td className="py-2.5 px-3 whitespace-nowrap">
@@ -668,7 +668,7 @@ export const MovementReportsPage: React.FC = () => {
                         <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200 font-semibold" title="Without Bus">
                           W: {r.woBusPax}
                         </span>
-                        <span className="font-bold text-[#0e2c4c] ml-1">
+                        <span className="font-bold text-[var(--theme-primary)] ml-1">
                           ({r.totalPax})
                         </span>
                       </div>

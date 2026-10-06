@@ -154,7 +154,7 @@ export const QaReportPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              leftIcon={<Printer className="w-3.5 h-3.5 text-[#0e2c4c]" />}
+              leftIcon={<Printer className="w-3.5 h-3.5 text-[var(--theme-primary)]" />}
               onClick={() => window.print()}
             >
               Print Audit Report

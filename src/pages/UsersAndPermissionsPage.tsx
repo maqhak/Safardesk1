@@ -379,7 +379,7 @@ export const UsersAndPermissionsPage: React.FC = () => {
         </div>
         <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-xs">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">Staff Members</span>
-          <span className="text-2xl font-bold text-[#0e2c4c] mt-1 block">
+          <span className="text-2xl font-bold text-[var(--theme-primary)] mt-1 block">
             {users.filter((u) => u.role === 'staff').length}
           </span>
           <span className="text-[11px] text-slate-500">Internal operations & ticketing</span>
@@ -454,7 +454,7 @@ export const UsersAndPermissionsPage: React.FC = () => {
                   <tr key={u.uid} className="hover:bg-slate-50/70 transition">
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-navy-50 text-[#0e2c4c] font-bold text-xs flex items-center justify-center border border-navy-100">
+                        <div className="w-8 h-8 rounded-full bg-navy-50 text-[var(--theme-primary)] font-bold text-xs flex items-center justify-center border border-navy-100">
                           {u.name.substring(0, 2).toUpperCase()}
                         </div>
                         <div>
@@ -512,7 +512,7 @@ export const UsersAndPermissionsPage: React.FC = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            leftIcon={<Sliders className="w-3.5 h-3.5 text-[#0e2c4c]" />}
+                            leftIcon={<Sliders className="w-3.5 h-3.5 text-[var(--theme-primary)]" />}
                             onClick={() => openEditPermissions(u)}
                           >
                             Permissions
@@ -638,7 +638,7 @@ export const UsersAndPermissionsPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => toggleColumnAll(action, false)}
-                          className="hover:text-[#0e2c4c] underline cursor-pointer"
+                          className="hover:text-[var(--theme-primary)] underline cursor-pointer"
                           title={`Toggle all ${action} permissions`}
                         >
                           {action}
@@ -664,7 +664,7 @@ export const UsersAndPermissionsPage: React.FC = () => {
                               type="checkbox"
                               checked={perms[action]}
                               onChange={() => toggleCreatePermission(mod, action)}
-                              className="w-4 h-4 rounded border-slate-300 text-[#0e2c4c] focus:ring-[#0e2c4c] cursor-pointer"
+                              className="w-4 h-4 rounded border-slate-300 text-[var(--theme-primary)] focus:ring-[#0e2c4c] cursor-pointer"
                             />
                           </td>
                         ))}
@@ -733,7 +733,7 @@ export const UsersAndPermissionsPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => toggleColumnAll(action, true)}
-                        className="hover:text-[#0e2c4c] underline cursor-pointer"
+                        className="hover:text-[var(--theme-primary)] underline cursor-pointer"
                         title={`Toggle all ${action} permissions`}
                       >
                         {action}
@@ -759,7 +759,7 @@ export const UsersAndPermissionsPage: React.FC = () => {
                             type="checkbox"
                             checked={perms[action]}
                             onChange={() => toggleEditPermission(mod, action)}
-                            className="w-4 h-4 rounded border-slate-300 text-[#0e2c4c] focus:ring-[#0e2c4c] cursor-pointer"
+                            className="w-4 h-4 rounded border-slate-300 text-[var(--theme-primary)] focus:ring-[#0e2c4c] cursor-pointer"
                           />
                         </td>
                       ))}

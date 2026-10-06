@@ -66,7 +66,7 @@ export const VoucherQuickModal: React.FC<VoucherQuickModalProps> = ({
             </div>
             <div>
               <span className="text-[10px] text-slate-400 uppercase font-bold block">Gross SAR</span>
-              <span className="font-mono font-bold text-[#0e2c4c]">SAR {voucher.totals?.totalSAR?.toLocaleString()}</span>
+              <span className="font-mono font-bold text-[var(--theme-primary)]">SAR {voucher.totals?.totalSAR?.toLocaleString()}</span>
             </div>
             <div>
               <span className="text-[10px] text-slate-400 uppercase font-bold block">Total PKR</span>
@@ -77,7 +77,7 @@ export const VoucherQuickModal: React.FC<VoucherQuickModalProps> = ({
           {/* Passenger Manifest */}
           <div>
             <h5 className="font-bold text-slate-900 mb-2 flex items-center gap-1.5 text-xs">
-              <Users className="w-3.5 h-3.5 text-[#0e2c4c]" />
+              <Users className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
               <span>Pilgrim Manifest ({voucher.passengers?.length || 0} Pax)</span>
             </h5>
             <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100">
@@ -100,7 +100,7 @@ export const VoucherQuickModal: React.FC<VoucherQuickModalProps> = ({
           {/* Hotel Stays */}
           <div>
             <h5 className="font-bold text-slate-900 mb-2 flex items-center gap-1.5 text-xs">
-              <Building2 className="w-3.5 h-3.5 text-[#0e2c4c]" />
+              <Building2 className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
               <span>Hotel Accommodation</span>
             </h5>
             <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100">
@@ -108,7 +108,7 @@ export const VoucherQuickModal: React.FC<VoucherQuickModalProps> = ({
                 voucher.hotelStays.map((h, idx) => (
                   <div key={idx} className="p-2.5 flex items-center justify-between bg-white">
                     <div>
-                      <div className="font-bold text-[#0e2c4c]">{h.hotelName} ({h.city})</div>
+                      <div className="font-bold text-[var(--theme-primary)]">{h.hotelName} ({h.city})</div>
                       <div className="text-slate-500 text-[11px]">
                         Check-in: {h.checkInDate} • Check-out: {h.checkOutDate} ({h.nights} nights, {h.bedType})
                       </div>
@@ -126,7 +126,7 @@ export const VoucherQuickModal: React.FC<VoucherQuickModalProps> = ({
           {voucher.sectors && voucher.sectors.length > 0 && (
             <div>
               <h5 className="font-bold text-slate-900 mb-2 flex items-center gap-1.5 text-xs">
-                <MapPin className="w-3.5 h-3.5 text-[#0e2c4c]" />
+                <MapPin className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
                 <span>Transportation & Sectors</span>
               </h5>
               <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100">

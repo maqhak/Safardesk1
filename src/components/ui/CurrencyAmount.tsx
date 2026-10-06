@@ -77,7 +77,7 @@ export const CurrencyAmount: React.FC<CurrencyAmountProps> = ({
   if (layout === 'dual-badge') {
     return (
       <div className={cn('inline-flex items-center gap-1.5', className)}>
-        <span className="px-2 py-0.5 rounded bg-navy-50 text-[#0e2c4c] border border-navy-100 font-mono font-semibold text-xs tabular-nums">
+        <span className="px-2 py-0.5 rounded bg-navy-50 text-[var(--theme-primary)] border border-navy-100 font-mono font-semibold text-xs tabular-nums">
           {sar}
         </span>
         <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 font-mono text-xs tabular-nums">

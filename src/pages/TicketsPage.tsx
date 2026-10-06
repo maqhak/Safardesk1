@@ -219,7 +219,7 @@ export const TicketsPage: React.FC = () => {
       key: 'pnr',
       header: 'PNR Reference',
       sortable: true,
-      render: (row) => <span className="font-mono font-bold text-[#0e2c4c]">{row.pnr}</span>,
+      render: (row) => <span className="font-mono font-bold text-[var(--theme-primary)]">{row.pnr}</span>,
     },
     {
       key: 'flight',
@@ -256,7 +256,7 @@ export const TicketsPage: React.FC = () => {
       key: 'salePriceSAR',
       header: 'Sale (SAR)',
       sortable: true,
-      render: (row) => <span className="font-mono font-bold text-[#0e2c4c]">SAR {row.salePriceSAR.toLocaleString()}</span>,
+      render: (row) => <span className="font-mono font-bold text-[var(--theme-primary)]">SAR {row.salePriceSAR.toLocaleString()}</span>,
     },
     {
       key: 'marginSAR',
@@ -297,13 +297,13 @@ export const TicketsPage: React.FC = () => {
             <div className="flex bg-slate-100 p-1 rounded-lg">
               <button
                 onClick={() => setActiveTab('tickets')}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition cursor-pointer ${activeTab === 'tickets' ? 'bg-white text-[#0e2c4c] shadow-xs' : 'text-slate-600'}`}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition cursor-pointer ${activeTab === 'tickets' ? 'bg-white text-[var(--theme-primary)] shadow-xs' : 'text-slate-600'}`}
               >
                 All Tickets
               </button>
               <button
                 onClick={() => setActiveTab('manifest')}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition cursor-pointer ${activeTab === 'manifest' ? 'bg-white text-[#0e2c4c] shadow-xs' : 'text-slate-600'}`}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition cursor-pointer ${activeTab === 'manifest' ? 'bg-white text-[var(--theme-primary)] shadow-xs' : 'text-slate-600'}`}
               >
                 Flight Manifest
               </button>
@@ -383,7 +383,7 @@ export const TicketsPage: React.FC = () => {
                   <div key={t.id} className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-[#0e2c4c]/10 flex items-center justify-center text-[#0e2c4c] font-bold">
+                        <div className="w-10 h-10 rounded-xl bg-[#0e2c4c]/10 flex items-center justify-center text-[var(--theme-primary)] font-bold">
                           {t.airline?.iataCode}
                         </div>
                         <div>
@@ -682,7 +682,7 @@ export const TicketsPage: React.FC = () => {
               </div>
               <div>
                 <span className="text-slate-500 block">Buyer</span>
-                <span className="font-bold text-[#0e2c4c] text-sm">{selectedTicket.buyerName}</span>
+                <span className="font-bold text-[var(--theme-primary)] text-sm">{selectedTicket.buyerName}</span>
               </div>
             </div>
 
@@ -696,7 +696,7 @@ export const TicketsPage: React.FC = () => {
                       <div className="font-bold text-slate-800">{p.name}</div>
                       <div className="text-slate-500 font-mono">Passport: {p.passportNumber}</div>
                     </div>
-                    <span className="font-mono font-bold text-[#0e2c4c]">Ticket: {p.ticketNo || 'TBD'}</span>
+                    <span className="font-mono font-bold text-[var(--theme-primary)]">Ticket: {p.ticketNo || 'TBD'}</span>
                   </div>
                 ))}
               </div>

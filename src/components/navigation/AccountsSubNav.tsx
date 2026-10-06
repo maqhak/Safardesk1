@@ -36,7 +36,7 @@ export default function AccountsSubNav() {
             to={path}
             aria-current={active ? 'page' : undefined}
             className={`relative flex items-center gap-2 px-3 sm:px-4 py-3 text-xs sm:text-sm font-semibold whitespace-nowrap transition-colors ${
-              active ? 'text-[#0e2c4c]' : 'text-slate-500 hover:text-slate-800'
+              active ? 'text-[var(--theme-primary)]' : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             <Icon className={`w-4 h-4 ${active ? 'text-[#c9a227]' : 'text-slate-400'}`} />

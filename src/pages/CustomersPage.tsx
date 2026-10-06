@@ -246,7 +246,7 @@ export const CustomersPage: React.FC = () => {
       render: (row) => (
         <div>
           <div className="font-bold text-slate-900 text-xs">{row.fullName}</div>
-          <div className="text-[11px] font-mono text-[#0e2c4c] font-semibold">{row.passportNumber}</div>
+          <div className="text-[11px] font-mono text-[var(--theme-primary)] font-semibold">{row.passportNumber}</div>
         </div>
       ),
     },
@@ -478,7 +478,7 @@ export const CustomersPage: React.FC = () => {
               </div>
               <div>
                 <span className="text-slate-500 font-semibold block">Passport Number</span>
-                <span className="font-mono font-bold text-[#0e2c4c]">{selectedCustomer.passportNumber}</span>
+                <span className="font-mono font-bold text-[var(--theme-primary)]">{selectedCustomer.passportNumber}</span>
               </div>
               <div>
                 <span className="text-slate-500 font-semibold block">Mobile</span>
@@ -504,7 +504,7 @@ export const CustomersPage: React.FC = () => {
             <div>
               <h4 className="font-bold text-slate-900 text-sm mb-3 flex items-center justify-between">
                 <span className="flex items-center gap-2">
-                  <FileCheck className="w-4 h-4 text-[#0e2c4c]" />
+                  <FileCheck className="w-4 h-4 text-[var(--theme-primary)]" />
                   <span>Client Activity & Booking Live Timeline</span>
                 </span>
                 <span className="text-[11px] font-mono text-slate-500">

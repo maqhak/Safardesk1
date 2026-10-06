@@ -345,7 +345,7 @@ export const BalancesSummaryPage: React.FC = () => {
       <Card padding="none" className="border-slate-200 shadow-xs overflow-hidden">
         <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-[#0e2c4c]" />
+            <Users className="w-4 h-4 text-[var(--theme-primary)]" />
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
               Sub-Agents — Trade Receivables ({filteredAgents.length})
             </h3>
@@ -387,7 +387,7 @@ export const BalancesSummaryPage: React.FC = () => {
                         : 'hover:bg-slate-50'
                     }`}
                   >
-                    <td className="py-2.5 px-3 font-mono font-bold text-[#0e2c4c] whitespace-nowrap">
+                    <td className="py-2.5 px-3 font-mono font-bold text-[var(--theme-primary)] whitespace-nowrap">
                       {r.account.accountCode}
                     </td>
                     <td className="py-2.5 px-3">
@@ -419,7 +419,7 @@ export const BalancesSummaryPage: React.FC = () => {
                       )}
                     </td>
                     <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0e2c4c] hover:underline">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--theme-primary)] hover:underline">
                         <span>Ledger</span>
                         <ChevronRight className="w-3 h-3" />
                       </span>
@@ -436,7 +436,7 @@ export const BalancesSummaryPage: React.FC = () => {
       <Card padding="none" className="border-slate-200 shadow-xs overflow-hidden">
         <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-[#0e2c4c]" />
+            <Building2 className="w-4 h-4 text-[var(--theme-primary)]" />
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
               Hotels & Ground Vendors — Trade Payables ({filteredHotelsVendors.length})
             </h3>
@@ -474,7 +474,7 @@ export const BalancesSummaryPage: React.FC = () => {
                     onClick={() => handleOpenLedger(r.account.id)}
                     className="hover:bg-slate-50 transition-colors cursor-pointer"
                   >
-                    <td className="py-2.5 px-3 font-mono font-bold text-[#0e2c4c] whitespace-nowrap">
+                    <td className="py-2.5 px-3 font-mono font-bold text-[var(--theme-primary)] whitespace-nowrap">
                       {r.account.accountCode}
                     </td>
                     <td className="py-2.5 px-3">
@@ -498,7 +498,7 @@ export const BalancesSummaryPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0e2c4c] hover:underline">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--theme-primary)] hover:underline">
                         <span>Ledger</span>
                         <ChevronRight className="w-3 h-3" />
                       </span>
@@ -517,7 +517,7 @@ export const BalancesSummaryPage: React.FC = () => {
         <Card padding="none" className="border-slate-200 shadow-xs overflow-hidden">
           <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Landmark className="w-4 h-4 text-[#0e2c4c]" />
+              <Landmark className="w-4 h-4 text-[var(--theme-primary)]" />
               <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
                 Bank Accounts ({filteredBanks.length})
               </h3>
@@ -555,7 +555,7 @@ export const BalancesSummaryPage: React.FC = () => {
                       PKR {r.balancePKR.toLocaleString(undefined, { minimumFractionDigits: 0 })}
                     </td>
                     <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0e2c4c] hover:underline">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--theme-primary)] hover:underline">
                         <span>Ledger</span>
                         <ChevronRight className="w-3 h-3" />
                       </span>
@@ -571,7 +571,7 @@ export const BalancesSummaryPage: React.FC = () => {
         <Card padding="none" className="border-slate-200 shadow-xs overflow-hidden">
           <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Wallet className="w-4 h-4 text-[#0e2c4c]" />
+              <Wallet className="w-4 h-4 text-[var(--theme-primary)]" />
               <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
                 Cash Drawers & Branch Tills ({filteredCash.length})
               </h3>
@@ -609,7 +609,7 @@ export const BalancesSummaryPage: React.FC = () => {
                       PKR {r.balancePKR.toLocaleString(undefined, { minimumFractionDigits: 0 })}
                     </td>
                     <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0e2c4c] hover:underline">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--theme-primary)] hover:underline">
                         <span>Ledger</span>
                         <ChevronRight className="w-3 h-3" />
                       </span>
@@ -626,7 +626,7 @@ export const BalancesSummaryPage: React.FC = () => {
       <Card padding="none" className="border-slate-200 shadow-xs overflow-hidden">
         <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-[#0e2c4c]" />
+            <Users className="w-4 h-4 text-[var(--theme-primary)]" />
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
               Direct Clients & B2C Customers ({filteredCustomers.length})
             </h3>
@@ -663,7 +663,7 @@ export const BalancesSummaryPage: React.FC = () => {
                     onClick={() => handleOpenLedger(r.account.id)}
                     className="hover:bg-slate-50 transition-colors cursor-pointer"
                   >
-                    <td className="py-2.5 px-3 font-mono font-bold text-[#0e2c4c] whitespace-nowrap">
+                    <td className="py-2.5 px-3 font-mono font-bold text-[var(--theme-primary)] whitespace-nowrap">
                       {r.account.accountCode}
                     </td>
                     <td className="py-2.5 px-3 font-semibold text-slate-900">
@@ -679,7 +679,7 @@ export const BalancesSummaryPage: React.FC = () => {
                       PKR {r.balancePKR.toLocaleString(undefined, { minimumFractionDigits: 0 })}
                     </td>
                     <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0e2c4c] hover:underline">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--theme-primary)] hover:underline">
                         <span>Ledger</span>
                         <ChevronRight className="w-3 h-3" />
                       </span>

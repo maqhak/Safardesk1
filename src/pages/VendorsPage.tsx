@@ -281,14 +281,14 @@ export const VendorsPage: React.FC = () => {
                 return (
                   <tr key={v.id} className="hover:bg-slate-50/70 transition">
                     <td className="py-3.5 px-4">
-                      <span className="font-mono font-bold text-xs text-[#0e2c4c] bg-navy-50 px-2 py-1 rounded border border-navy-100">
+                      <span className="font-mono font-bold text-xs text-[var(--theme-primary)] bg-navy-50 px-2 py-1 rounded border border-navy-100">
                         {v.vendorCode}
                       </span>
                     </td>
                     <td className="py-3.5 px-4">
                       <span className="font-semibold text-slate-900 block">{v.name}</span>
                       {(v.shirkas || []).length > 0 && (
-                        <span className="text-[10px] font-bold text-[#0e2c4c] bg-[#0e2c4c]/10 px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] font-bold text-[var(--theme-primary)] bg-[#0e2c4c]/10 px-1.5 py-0.5 rounded">
                           {(v.shirkas || []).length} Shirka{(v.shirkas || []).length > 1 ? 's' : ''}: {(v.shirkas || []).map((s) => s.name).join(', ')}
                         </span>
                       )}
@@ -312,7 +312,7 @@ export const VendorsPage: React.FC = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          leftIcon={<FileText className="w-3.5 h-3.5 text-[#0e2c4c]" />}
+                          leftIcon={<FileText className="w-3.5 h-3.5 text-[var(--theme-primary)]" />}
                           onClick={() => openLedger(v)}
                         >
                           Ledger
@@ -550,7 +550,7 @@ export const VendorsPage: React.FC = () => {
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
               <div>
                 <span className="text-xs text-slate-500 uppercase font-medium block">Payable Balance (SAR)</span>
-                <span className="text-xl font-bold font-mono text-[#0e2c4c]">
+                <span className="text-xl font-bold font-mono text-[var(--theme-primary)]">
                   {formatMoney(selectedLedger.currentBalanceSAR, 'SAR')}
                 </span>
               </div>

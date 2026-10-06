@@ -160,7 +160,7 @@ export const ReportsPage: React.FC = () => {
             <Card key={i} hoverEffect padding="md" className="flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <div className="w-9 h-9 rounded-lg bg-navy-50 text-[#0e2c4c] flex items-center justify-center border border-navy-100">
+                  <div className="w-9 h-9 rounded-lg bg-navy-50 text-[var(--theme-primary)] flex items-center justify-center border border-navy-100">
                     <Icon className="w-5 h-5" />
                   </div>
                   <Badge variant="navy" size="sm">

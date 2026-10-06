@@ -36,7 +36,7 @@ export const StatCard: React.FC<StatCardProps> = ({
   };
 
   const iconBgStyles = {
-    default: 'bg-navy-50 text-[#0e2c4c]',
+    default: 'bg-navy-50 text-[var(--theme-primary)]',
     navy: 'bg-white/10 text-white',
     gold: 'bg-white/20 text-white',
   };

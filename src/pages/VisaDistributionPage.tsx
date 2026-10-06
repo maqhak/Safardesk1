@@ -413,7 +413,7 @@ export const VisaDistributionPage: React.FC = () => {
       <Card padding="md" className="border-slate-200 shadow-xs space-y-4 bg-slate-50/50">
         <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-[#0e2c4c]" />
+            <Building2 className="w-4 h-4 text-[var(--theme-primary)]" />
             <span>Step 1: Source Shirka Vendor</span>
           </h3>
           <span className="text-[11px] text-slate-500 font-medium">Buying rate is entered per group below</span>
@@ -475,7 +475,7 @@ export const VisaDistributionPage: React.FC = () => {
       <Card padding="md" className="border-slate-200 shadow-xs space-y-4">
         <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
-            <Users className="w-4 h-4 text-[#0e2c4c]" />
+            <Users className="w-4 h-4 text-[var(--theme-primary)]" />
             <span>Step 2: Assign Undistributed Groups to B2B Agents & Add Optional Commission</span>
           </h3>
           <span className="text-[11px] text-slate-500 font-medium">
@@ -511,13 +511,13 @@ export const VisaDistributionPage: React.FC = () => {
                       </button>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-[#0e2c4c] text-sm">{group.groupCode}</span>
+                          <span className="font-mono font-bold text-[var(--theme-primary)] text-sm">{group.groupCode}</span>
                           <span className="text-xs font-bold text-slate-800">{group.groupName}</span>
                           <Badge variant="navy" size="sm">{group.visaCount} Visas</Badge>
                         </div>
                         <p className="text-xs text-slate-600 mt-0.5">
                           Applicants: <span className="font-medium">{group.sampleNames}</span> • Issued: {group.dateRange}
-                          {selectedVendorName && (<> • Vendor: <span className="font-bold text-[#0e2c4c]">{selectedVendorName}</span></>)}
+                          {selectedVendorName && (<> • Vendor: <span className="font-bold text-[var(--theme-primary)]">{selectedVendorName}</span></>)}
                         </p>
                       </div>
                     </div>
@@ -586,7 +586,7 @@ export const VisaDistributionPage: React.FC = () => {
                         type="checkbox"
                         checked={Boolean(selection.commissionEnabled)}
                         onChange={(e) => handleGroupSelectionChange(group.groupCode, 'commissionEnabled', e.target.checked)}
-                        className="rounded text-[#0e2c4c] focus:ring-0"
+                        className="rounded text-[var(--theme-primary)] focus:ring-0"
                       />
                       <span>Add optional commission for this distribution</span>
                     </label>
@@ -668,7 +668,7 @@ export const VisaDistributionPage: React.FC = () => {
                                 type="checkbox"
                                 checked={!excluded}
                                 onChange={() => toggleVisaExcluded(v.id)}
-                                className="rounded text-[#0e2c4c] focus:ring-0 shrink-0"
+                                className="rounded text-[var(--theme-primary)] focus:ring-0 shrink-0"
                               />
                               <div className="flex-1 min-w-0">
                                 <div className="font-bold text-slate-900 truncate">{v.pilgrimName}</div>

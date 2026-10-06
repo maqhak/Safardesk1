@@ -205,7 +205,7 @@ export const ExchangeRatesPage: React.FC = () => {
       key: 'pair',
       header: 'Currency Pair',
       sortable: true,
-      render: (row) => <span className="font-mono font-bold text-[#0e2c4c]">{row.pair}</span>,
+      render: (row) => <span className="font-mono font-bold text-[var(--theme-primary)]">{row.pair}</span>,
     },
     {
       key: 'rate',
@@ -274,12 +274,12 @@ export const ExchangeRatesPage: React.FC = () => {
         <Card className="p-4 border-slate-200 flex items-center justify-between">
           <div>
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">SAR / PKR Current Benchmark</div>
-            <div className="text-3xl font-bold font-mono text-[#0e2c4c] mt-1">
+            <div className="text-3xl font-bold font-mono text-[var(--theme-primary)] mt-1">
               {currentRates['SAR/PKR'] ? currentRates['SAR/PKR'].toFixed(2) : '74.50'}
             </div>
             <div className="text-[11px] text-emerald-600 font-medium mt-1">1 Saudi Riyal = PKR</div>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-[#0e2c4c]/10 flex items-center justify-center text-[#0e2c4c]">
+          <div className="w-12 h-12 rounded-xl bg-[#0e2c4c]/10 flex items-center justify-center text-[var(--theme-primary)]">
             <TrendingUp className="w-6 h-6" />
           </div>
         </Card>
@@ -287,7 +287,7 @@ export const ExchangeRatesPage: React.FC = () => {
         <Card className="p-4 border-slate-200 flex items-center justify-between">
           <div>
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">USD / PKR Current Benchmark</div>
-            <div className="text-3xl font-bold font-mono text-[#0e2c4c] mt-1">
+            <div className="text-3xl font-bold font-mono text-[var(--theme-primary)] mt-1">
               {currentRates['USD/PKR'] ? currentRates['USD/PKR'].toFixed(2) : '278.50'}
             </div>
             <div className="text-[11px] text-emerald-600 font-medium mt-1">1 US Dollar = PKR</div>
@@ -300,7 +300,7 @@ export const ExchangeRatesPage: React.FC = () => {
         <Card className="p-4 border-slate-200 flex items-center justify-between">
           <div>
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">AED / PKR Current Benchmark</div>
-            <div className="text-3xl font-bold font-mono text-[#0e2c4c] mt-1">
+            <div className="text-3xl font-bold font-mono text-[var(--theme-primary)] mt-1">
               {currentRates['AED/PKR'] ? currentRates['AED/PKR'].toFixed(2) : '75.80'}
             </div>
             <div className="text-[11px] text-emerald-600 font-medium mt-1">1 UAE Dirham = PKR</div>

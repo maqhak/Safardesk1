@@ -390,7 +390,7 @@ export const VisasPage: React.FC = () => {
       sortable: true,
       render: (row) => (
         <div>
-          <span className="font-mono font-bold text-[#0e2c4c]">{row.groupCode}</span>
+          <span className="font-mono font-bold text-[var(--theme-primary)]">{row.groupCode}</span>
           <span className="text-xs text-slate-500 block">{row.groupName || 'Umrah Group'}</span>
         </div>
       ),
@@ -456,7 +456,7 @@ export const VisasPage: React.FC = () => {
               variant="primary"
               size="sm"
               onClick={() => navigate('/visas/distribution')}
-              className="bg-[#c9a227] hover:bg-[#b8941f] text-[#0e2c4c] font-bold"
+              className="bg-[#c9a227] hover:bg-[#b8941f] text-[var(--theme-primary)] font-bold"
               title="Group-code-wise manual distribution to B2B agents"
             >
               Distribute to Agents
@@ -606,7 +606,7 @@ export const VisasPage: React.FC = () => {
       >
         {importStep === 'upload' && (
           <div className="p-8 text-center space-y-4 border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50">
-            <div className="w-16 h-16 bg-navy-50 text-[#0e2c4c] rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+            <div className="w-16 h-16 bg-navy-50 text-[var(--theme-primary)] rounded-2xl flex items-center justify-center mx-auto shadow-inner">
               <UploadCloud className="w-8 h-8" />
             </div>
             <div className="space-y-1">
@@ -683,10 +683,10 @@ export const VisasPage: React.FC = () => {
 
             {/* Group-wise Counts Summary */}
             <div className="flex items-center gap-2 flex-wrap bg-navy-50 p-3 rounded-xl border border-navy-100">
-              <span className="text-xs font-bold text-[#0e2c4c] uppercase tracking-wider">Group-Wise Counts:</span>
+              <span className="text-xs font-bold text-[var(--theme-primary)] uppercase tracking-wider">Group-Wise Counts:</span>
               {previewGroupSummary.map(g => (
                 <span key={g.code} className="text-xs font-mono bg-white text-slate-800 px-2 py-1 rounded-lg border border-slate-200 shadow-2xs font-semibold">
-                  {g.code}: <strong className="text-[#0e2c4c]">{g.count - g.skipped}</strong> valid ({g.skipped} skipped)
+                  {g.code}: <strong className="text-[var(--theme-primary)]">{g.count - g.skipped}</strong> valid ({g.skipped} skipped)
                 </span>
               ))}
             </div>
@@ -719,7 +719,7 @@ export const VisasPage: React.FC = () => {
                           </span>
                         )}
                       </td>
-                      <td className="p-2.5 font-mono text-[#0e2c4c] font-bold">{row.groupCode}</td>
+                      <td className="p-2.5 font-mono text-[var(--theme-primary)] font-bold">{row.groupCode}</td>
                       <td className="p-2.5 font-semibold text-slate-900">{row.pilgrimName}</td>
                       <td className="p-2.5 font-mono text-slate-700">{row.passportNumber}</td>
                       <td className="p-2.5">

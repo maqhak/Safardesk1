@@ -352,15 +352,15 @@ export const AccountsPage: React.FC = () => {
   return (
     <div className="space-y-6 print:space-y-3">
       {/* Branded Statement Header for Print/PDF View */}
-      <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-4">
+      <div className="hidden print:block border-b-2 pb-4 mb-4" style={{ borderColor: 'var(--theme-primary)' }}>
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-black text-[#0e2c4c] tracking-tight">{company.companyName}</h1>
+            <h1 className="text-2xl font-black text-[var(--theme-primary)] tracking-tight">{company.companyName}</h1>
             <p className="text-xs text-slate-700 font-semibold">{company.legalName || 'Hajj & Umrah Tour Operations'}</p>
             <p className="text-[11px] text-slate-500">{company.address}, {company.city} • Tel: {company.phone} • Email: {company.email}</p>
           </div>
           <div className="text-right">
-            <span className="inline-block bg-[#0e2c4c] text-white px-3 py-1 rounded text-xs font-bold uppercase tracking-wider">
+            <span className="inline-block text-white px-3 py-1 rounded text-xs font-bold uppercase tracking-wider" style={{ backgroundColor: 'var(--theme-primary)' }}>
               STATEMENT OF ACCOUNT
             </span>
             <div className="text-xs text-slate-600 mt-1">
@@ -384,7 +384,7 @@ export const AccountsPage: React.FC = () => {
               <span className="text-slate-500 text-[10px] uppercase font-bold block">Statement Period:</span>
               <strong className="text-slate-900">{statement?.periodLabel || 'All Time'}</strong>
               <div className="text-[11px] mt-0.5">
-                Closing Balance: <strong className="font-mono text-[#0e2c4c]">{currency} {statement?.closingBalance.toFixed(2)}</strong>
+                Closing Balance: <strong className="font-mono text-[var(--theme-primary)]">{currency} {statement?.closingBalance.toFixed(2)}</strong>
               </div>
             </div>
           </div>
@@ -558,13 +558,13 @@ export const AccountsPage: React.FC = () => {
           {/* Account Dropdown */}
           <div className="md:col-span-2">
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-              <Calculator className="w-3.5 h-3.5 text-[#0e2c4c]" />
+              <Calculator className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
               <span>Select Ledger Account</span>
             </label>
             <select
               value={selectedAccountId}
               onChange={(e) => setSelectedAccountId(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-[#0e2c4c] rounded-xl text-sm font-bold text-[#0e2c4c] focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20 shadow-xs cursor-pointer"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-[#0e2c4c] rounded-xl text-sm font-bold text-[var(--theme-primary)] focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20 shadow-xs cursor-pointer"
             >
               {filteredAccounts.map((acc) => (
                 <option key={acc.id} value={acc.id} className="text-slate-900 font-semibold">
@@ -583,28 +583,28 @@ export const AccountsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => applyPeriodPreset('all')}
-                className={`flex-1 py-1 rounded transition cursor-pointer text-center ${periodPreset === 'all' ? 'bg-white text-[#0e2c4c] shadow-xs' : 'text-slate-600'}`}
+                className={`flex-1 py-1 rounded transition cursor-pointer text-center ${periodPreset === 'all' ? 'bg-white text-[var(--theme-primary)] shadow-xs' : 'text-slate-600'}`}
               >
                 All Time
               </button>
               <button
                 type="button"
                 onClick={() => applyPeriodPreset('this_month')}
-                className={`flex-1 py-1 rounded transition cursor-pointer text-center ${periodPreset === 'this_month' ? 'bg-white text-[#0e2c4c] shadow-xs' : 'text-slate-600'}`}
+                className={`flex-1 py-1 rounded transition cursor-pointer text-center ${periodPreset === 'this_month' ? 'bg-white text-[var(--theme-primary)] shadow-xs' : 'text-slate-600'}`}
               >
                 This Month
               </button>
               <button
                 type="button"
                 onClick={() => applyPeriodPreset('last_month')}
-                className={`flex-1 py-1 rounded transition cursor-pointer text-center ${periodPreset === 'last_month' ? 'bg-white text-[#0e2c4c] shadow-xs' : 'text-slate-600'}`}
+                className={`flex-1 py-1 rounded transition cursor-pointer text-center ${periodPreset === 'last_month' ? 'bg-white text-[var(--theme-primary)] shadow-xs' : 'text-slate-600'}`}
               >
                 Last Month
               </button>
               <button
                 type="button"
                 onClick={() => applyPeriodPreset('this_year')}
-                className={`flex-1 py-1 rounded transition cursor-pointer text-center ${periodPreset === 'this_year' ? 'bg-white text-[#0e2c4c] shadow-xs' : 'text-slate-600'}`}
+                className={`flex-1 py-1 rounded transition cursor-pointer text-center ${periodPreset === 'this_year' ? 'bg-white text-[var(--theme-primary)] shadow-xs' : 'text-slate-600'}`}
               >
                 This Year
               </button>
@@ -652,7 +652,7 @@ export const AccountsPage: React.FC = () => {
           )}
 
           <div className="ml-auto text-xs text-slate-500">
-            Account Code: <strong className="font-mono text-[#0e2c4c]">{selectedAccount?.accountCode}</strong>
+            Account Code: <strong className="font-mono text-[var(--theme-primary)]">{selectedAccount?.accountCode}</strong>
             <span className="mx-2">•</span>
             Type: <span className="capitalize font-semibold text-slate-700">{selectedAccount?.accountType}</span>
           </div>
@@ -706,7 +706,7 @@ export const AccountsPage: React.FC = () => {
         <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div>
             <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <FileText className="w-4 h-4 text-[#0e2c4c]" />
+              <FileText className="w-4 h-4 text-[var(--theme-primary)]" />
               <span>Statement of Account — {selectedAccount?.title}</span>
               <Badge variant="navy">{selectedAccount?.accountCode}</Badge>
             </h4>
@@ -756,7 +756,7 @@ export const AccountsPage: React.FC = () => {
                 {currency === 'PKR' && <td className="py-2.5 px-3 text-slate-400 font-mono">—</td>}
                 <td className="py-2.5 px-3 text-right text-slate-400 font-mono">0.00</td>
                 <td className="py-2.5 px-3 text-right text-slate-400 font-mono">0.00</td>
-                <td className="py-2.5 px-3 text-right font-mono font-bold text-[#0e2c4c]">
+                <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--theme-primary)]">
                   {statement ? statement.previousBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
                 </td>
                 {isOwner && <td className="py-2.5 px-3 print:hidden"></td>}
@@ -785,10 +785,11 @@ export const AccountsPage: React.FC = () => {
                   return (
                     <tr
                       key={e.id || idx}
+                      style={!isVoid && idx % 2 === 1 ? { backgroundColor: 'color-mix(in srgb, var(--theme-primary) 8%, #ffffff)' } : undefined}
                       className={`transition-colors ${
                         isVoid 
                           ? 'bg-rose-50/40 text-slate-400 line-through opacity-70' 
-                          : idx % 2 === 0 ? 'bg-white hover:bg-slate-50' : 'bg-slate-50/30 hover:bg-slate-50'
+                          : idx % 2 === 0 ? 'bg-white hover:bg-slate-50' : 'hover:bg-slate-50'
                       }`}
                     >
                       <td className="py-2.5 px-3 font-mono text-slate-700 whitespace-nowrap">
@@ -806,7 +807,7 @@ export const AccountsPage: React.FC = () => {
                           {e.entryType}
                         </Badge>
                       </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-[#0e2c4c] whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono font-bold text-[var(--theme-primary)] whitespace-nowrap">
                         {e.transNo || '—'}
                       </td>
                       <td className="py-2.5 px-3 max-w-[340px]">
@@ -822,7 +823,7 @@ export const AccountsPage: React.FC = () => {
                                 ev.stopPropagation();
                                 setActiveVoucherNo(e.voucherNo!);
                               }}
-                              className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-[#0e2c4c] bg-amber-50 hover:bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded cursor-pointer transition no-underline shrink-0"
+                              className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-[var(--theme-primary)] bg-amber-50 hover:bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded cursor-pointer transition no-underline shrink-0"
                               title="Click to view voucher"
                             >
                               <FileText className="w-3 h-3 text-[#c9a227]" />
@@ -916,7 +917,7 @@ export const AccountsPage: React.FC = () => {
                         ) : '—'}
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono font-bold whitespace-nowrap">
-                        <span className={isVoid ? 'text-slate-400' : 'text-[#0e2c4c]'}>
+                        <span className={isVoid ? 'text-slate-400' : 'text-[var(--theme-primary)]'}>
                           {row.runningBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </td>
@@ -957,7 +958,7 @@ export const AccountsPage: React.FC = () => {
                   <td className="py-3 px-3 text-right font-mono text-emerald-700">
                     {statement.totalCredit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td className="py-3 px-3 text-right font-mono text-[#0e2c4c] text-sm">
+                  <td className="py-3 px-3 text-right font-mono text-[var(--theme-primary)] text-sm">
                     {statement.closingBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   {isOwner && <td className="print:hidden"></td>}
@@ -967,13 +968,13 @@ export const AccountsPage: React.FC = () => {
                     <div className="flex flex-wrap items-center justify-between gap-4">
                       <div className="flex items-center gap-6">
                         <span>
-                          Total Mofa PAX: <strong className="font-mono text-[#0e2c4c] text-xs font-bold">{statement.totalMofaPax}</strong>
+                          Total Mofa PAX: <strong className="font-mono text-[var(--theme-primary)] text-xs font-bold">{statement.totalMofaPax}</strong>
                         </span>
                         <span>
-                          Total Hotel PAX: <strong className="font-mono text-[#0e2c4c] text-xs font-bold">{statement.totalHotelPax}</strong>
+                          Total Hotel PAX: <strong className="font-mono text-[var(--theme-primary)] text-xs font-bold">{statement.totalHotelPax}</strong>
                         </span>
                       </div>
-                      <div className="font-bold text-[#0e2c4c]">
+                      <div className="font-bold text-[var(--theme-primary)]">
                         Closing Net Balance: {currency} {statement.closingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </div>
                     </div>
@@ -1104,7 +1105,7 @@ export const AccountsPage: React.FC = () => {
 
           {/* Double Entry Pairing */}
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-            <div className="font-bold text-[#0e2c4c] text-xs">Double-Entry Account Allocation</div>
+            <div className="font-bold text-[var(--theme-primary)] text-xs">Double-Entry Account Allocation</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-rose-700 mb-1">
@@ -1158,7 +1159,7 @@ export const AccountsPage: React.FC = () => {
                 onChange={(e) => setNewAmountSAR(parseFloat(e.target.value) || 0)}
                 placeholder="0.00"
                 required
-                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[#0e2c4c]"
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[var(--theme-primary)]"
               />
             </div>
             <div>

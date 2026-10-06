@@ -36,7 +36,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     },
     primary: {
       icon: Info,
-      color: 'text-[#0e2c4c]',
+      color: 'text-[var(--theme-primary)]',
       bg: 'bg-navy-50 border-navy-100',
       buttonVariant: 'primary' as ButtonVariant,
     },

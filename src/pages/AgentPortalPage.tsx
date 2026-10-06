@@ -291,7 +291,7 @@ export const AgentPortalPage: React.FC = () => {
           onClick={() => setActiveTab('statement')}
           className={`py-2 px-4 border-b-2 font-bold text-sm transition cursor-pointer flex items-center gap-2 ${
             activeTab === 'statement'
-              ? 'border-[#0e2c4c] text-[#0e2c4c]'
+              ? 'border-[#0e2c4c] text-[var(--theme-primary)]'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -302,7 +302,7 @@ export const AgentPortalPage: React.FC = () => {
           onClick={() => setActiveTab('visas')}
           className={`py-2 px-4 border-b-2 font-bold text-sm transition cursor-pointer flex items-center gap-2 ${
             activeTab === 'visas'
-              ? 'border-[#0e2c4c] text-[#0e2c4c]'
+              ? 'border-[#0e2c4c] text-[var(--theme-primary)]'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -313,7 +313,7 @@ export const AgentPortalPage: React.FC = () => {
           onClick={() => setActiveTab('flights')}
           className={`py-2 px-4 border-b-2 font-bold text-sm transition cursor-pointer flex items-center gap-2 ${
             activeTab === 'flights'
-              ? 'border-[#0e2c4c] text-[#0e2c4c]'
+              ? 'border-[#0e2c4c] text-[var(--theme-primary)]'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -372,7 +372,7 @@ export const AgentPortalPage: React.FC = () => {
                   <td className="py-2.5 px-3 text-slate-400 font-mono">—</td>
                   <td className="py-2.5 px-3 text-right text-slate-400 font-mono">0.00</td>
                   <td className="py-2.5 px-3 text-right text-slate-400 font-mono">0.00</td>
-                  <td className="py-2.5 px-3 text-right font-mono font-bold text-[#0e2c4c]">
+                  <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--theme-primary)]">
                     {statement ? statement.previousBalance.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00'}
                   </td>
                 </tr>
@@ -394,14 +394,14 @@ export const AgentPortalPage: React.FC = () => {
                           {e.entryType}
                         </Badge>
                       </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-[#0e2c4c]">{e.transNo}</td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-[var(--theme-primary)]">{e.transNo}</td>
                       <td className="py-2.5 px-3">
                         <div className="font-medium text-slate-900">{e.particulars}</div>
                         {e.voucherNo && (
                           <button
                             type="button"
                             onClick={() => setActiveVoucherNo(e.voucherNo!)}
-                            className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-mono font-bold text-[#0e2c4c] bg-amber-50 hover:bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded cursor-pointer"
+                            className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-mono font-bold text-[var(--theme-primary)] bg-amber-50 hover:bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded cursor-pointer"
                           >
                             <FileText className="w-3 h-3 text-[#c9a227]" />
                             <span>{e.voucherNo}</span>
@@ -464,7 +464,7 @@ export const AgentPortalPage: React.FC = () => {
                       <td className="py-2.5 px-3 text-right font-mono font-semibold text-emerald-700">
                         {credit > 0 ? credit.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—'}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-[#0e2c4c]">
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--theme-primary)]">
                         {row.runningBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                     </tr>
@@ -484,7 +484,7 @@ export const AgentPortalPage: React.FC = () => {
                     <td className="py-3 px-3 text-right font-mono text-emerald-700">
                       {statement.totalCredit.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="py-3 px-3 text-right font-mono text-[#0e2c4c] text-sm">
+                    <td className="py-3 px-3 text-right font-mono text-[var(--theme-primary)] text-sm">
                       {statement.closingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
@@ -494,7 +494,7 @@ export const AgentPortalPage: React.FC = () => {
                         <div>
                           Mofa PAX: <strong>{statement.totalMofaPax}</strong> • Hotel PAX: <strong>{statement.totalHotelPax}</strong>
                         </div>
-                        <div className="font-bold text-[#0e2c4c]">
+                        <div className="font-bold text-[var(--theme-primary)]">
                           Net Due: {currency} {statement.closingBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </div>
                       </div>
@@ -566,7 +566,7 @@ export const AgentPortalPage: React.FC = () => {
                   {agentVouchers.flatMap((v) =>
                     (v.sectors || []).map((s, i) => (
                       <tr key={`${v.id}-${i}`} className="hover:bg-slate-50/60">
-                        <td className="px-3 py-2 font-mono font-bold text-[#0e2c4c] whitespace-nowrap">{v.voucherNo}</td>
+                        <td className="px-3 py-2 font-mono font-bold text-[var(--theme-primary)] whitespace-nowrap">{v.voucherNo}</td>
                         <td className="px-3 py-2 font-semibold">{s.type}</td>
                         <td className="px-3 py-2 font-mono whitespace-nowrap">{s.date ? formatDate(s.date) : '—'}</td>
                         <td className="px-3 py-2 font-mono whitespace-nowrap">

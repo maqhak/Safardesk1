@@ -610,7 +610,7 @@ export const CompanyProfilePage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleTestNextNumber('voucher')}
-                        className="text-[#0e2c4c] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                        className="text-[var(--theme-primary)] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                       >
                         <Play className="w-3 h-3" /> Test Increment
                       </button>
@@ -629,7 +629,7 @@ export const CompanyProfilePage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleTestNextNumber('invoice')}
-                        className="text-[#0e2c4c] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                        className="text-[var(--theme-primary)] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                       >
                         <Play className="w-3 h-3" /> Test Increment
                       </button>
@@ -648,7 +648,7 @@ export const CompanyProfilePage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleTestNextNumber('payment')}
-                        className="text-[#0e2c4c] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                        className="text-[var(--theme-primary)] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                       >
                         <Play className="w-3 h-3" /> Test Increment
                       </button>
@@ -667,7 +667,7 @@ export const CompanyProfilePage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleTestNextNumber('jv')}
-                        className="text-[#0e2c4c] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                        className="text-[var(--theme-primary)] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
                       >
                         <Play className="w-3 h-3" /> Test Increment
                       </button>
@@ -780,7 +780,7 @@ export const CompanyProfilePage: React.FC = () => {
               <div>
                 <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4 mb-4">
                   <div className="space-y-1 max-w-[65%]">
-                    <h2 className="text-base font-extrabold text-[#0e2c4c] tracking-tight uppercase">
+                    <h2 className="text-base font-extrabold text-[var(--theme-primary)] tracking-tight uppercase">
                       {formData.companyName || 'SAFARDESK TRAVEL & TOURS'}
                     </h2>
                     {formData.legalName && (
@@ -798,7 +798,7 @@ export const CompanyProfilePage: React.FC = () => {
                       Phone: {formData.phone || '+966 12 558 7890'} | Email: {formData.email || 'operations@safardesk.com'}
                     </p>
                     {formData.taxRegNo && (
-                      <p className="text-[10px] font-mono font-semibold text-[#0e2c4c]">
+                      <p className="text-[10px] font-mono font-semibold text-[var(--theme-primary)]">
                         Tax / VAT Reg: {formData.taxRegNo}
                       </p>
                     )}
@@ -825,7 +825,7 @@ export const CompanyProfilePage: React.FC = () => {
                 <div className="bg-slate-100 p-2.5 rounded border border-slate-200 flex items-center justify-between mb-4">
                   <div>
                     <span className="text-[10px] font-bold uppercase text-slate-500 block">Document Type</span>
-                    <span className="text-xs font-bold text-[#0e2c4c] uppercase">
+                    <span className="text-xs font-bold text-[var(--theme-primary)] uppercase">
                       {previewDocType === 'voucher' ? 'Umrah Hotel & Transfer Voucher' : 'Sub-Agent Statement of Account'}
                     </span>
                   </div>
@@ -900,7 +900,7 @@ export const CompanyProfilePage: React.FC = () => {
               </div>
 
               <div className="p-3 bg-navy-50/70 border border-navy-100 rounded-lg text-[11px] text-slate-600 flex items-start gap-2">
-                <Server className="w-4 h-4 text-[#0e2c4c] shrink-0 mt-0.5" />
+                <Server className="w-4 h-4 text-[var(--theme-primary)] shrink-0 mt-0.5" />
                 <p>
                   To change client tenants on fresh deployment, modify <code className="font-mono bg-white px-1 py-0.5 rounded border border-slate-200">src/config.ts</code>. The app will sync automatically with the corresponding Firebase backend.
                 </p>

@@ -136,7 +136,7 @@ export const AirportSelect: React.FC<AirportSelectProps> = ({
           <Plane className="w-4 h-4 text-[#c9a227] shrink-0" />
           {value ? (
             <span className="font-medium truncate">
-              <span className="font-bold text-[#0e2c4c]">{value.iata}</span> — {value.city} ({value.name})
+              <span className="font-bold text-[var(--theme-primary)]">{value.iata}</span> — {value.city} ({value.name})
             </span>
           ) : (
             <span className="text-slate-400">{placeholder}</span>
@@ -200,16 +200,16 @@ export const AirportSelect: React.FC<AirportSelectProps> = ({
                     onMouseEnter={() => setHighlightedIndex(index)}
                     className={cn(
                       'px-3.5 py-2.5 cursor-pointer flex items-center justify-between text-sm transition-colors',
-                      isHighlighted ? 'bg-navy-50 text-[#0e2c4c]' : 'hover:bg-slate-50 text-slate-700',
+                      isHighlighted ? 'bg-navy-50 text-[var(--theme-primary)]' : 'hover:bg-slate-50 text-slate-700',
                       isSelected && 'font-semibold'
                     )}
                   >
                     <div>
-                      <span className="font-bold text-[#0e2c4c] tracking-wide">{airport.iata}</span>
+                      <span className="font-bold text-[var(--theme-primary)] tracking-wide">{airport.iata}</span>
                       <span className="font-semibold text-slate-800 ml-2">{airport.city}</span>
                       <span className="text-slate-500 text-xs ml-1.5">({airport.name}, {airport.country})</span>
                     </div>
-                    {isSelected && <Check className="w-4 h-4 text-[#0e2c4c] shrink-0" />}
+                    {isSelected && <Check className="w-4 h-4 text-[var(--theme-primary)] shrink-0" />}
                   </div>
                 );
               })

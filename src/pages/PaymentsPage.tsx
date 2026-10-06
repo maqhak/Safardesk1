@@ -581,7 +581,7 @@ export const PaymentsPage: React.FC = () => {
               to="/accounts"
               className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition flex items-center gap-1.5"
             >
-              <FileText className="w-3.5 h-3.5 text-[#0e2c4c]" />
+              <FileText className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
               <span>Per-Account Ledgers</span>
             </Link>
 
@@ -946,7 +946,7 @@ export const PaymentsPage: React.FC = () => {
                       }`}
                     >
                       {/* Manual No */}
-                      <td className="py-2.5 px-3 font-mono font-bold text-[#0e2c4c] whitespace-nowrap">
+                      <td className="py-2.5 px-3 font-mono font-bold text-[var(--theme-primary)] whitespace-nowrap">
                         {p.paymentNo}
                       </td>
 
@@ -1062,7 +1062,7 @@ export const PaymentsPage: React.FC = () => {
                               setViewerAiNotes(p.aiNotes || null);
                               setViewerEntryAccountId(p.fromAccountId);
                             }}
-                            className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 hover:bg-amber-100 text-[#0e2c4c] border border-amber-300 rounded font-semibold text-[11px] cursor-pointer transition shadow-2xs"
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 hover:bg-amber-100 text-[var(--theme-primary)] border border-amber-300 rounded font-semibold text-[11px] cursor-pointer transition shadow-2xs"
                             title="Inspect Receipt Document"
                           >
                             <Eye className="w-3 h-3 text-[#c9a227]" />
@@ -1458,7 +1458,7 @@ export const PaymentsPage: React.FC = () => {
                 onChange={(e) => setEnteredAmount(parseFloat(e.target.value) || 0)}
                 placeholder={`0.00 (${amountCurrency})`}
                 required
-                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[#0e2c4c]"
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[var(--theme-primary)]"
               />
               <div className="text-[10px] text-slate-500 mt-1 font-mono">
                 = SAR {amountSAR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

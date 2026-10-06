@@ -22,7 +22,7 @@ interface BadgeProps {
 
 const variantStyles: Record<BadgeVariant, { container: string; dot: string }> = {
   navy: {
-    container: 'bg-[#0e2c4c]/10 text-[#0e2c4c] border-[#0e2c4c]/20',
+    container: 'bg-[#0e2c4c]/10 text-[var(--theme-primary)] border-[#0e2c4c]/20',
     dot: 'bg-[#0e2c4c]',
   },
   gold: {

@@ -194,7 +194,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
             </div>
           ) : !query.trim() ? (
             <div className="p-6 text-center space-y-3">
-              <div className="w-10 h-10 bg-navy-50 text-[#0e2c4c] rounded-xl flex items-center justify-center mx-auto">
+              <div className="w-10 h-10 bg-navy-50 text-[var(--theme-primary)] rounded-xl flex items-center justify-center mx-auto">
                 <Command className="w-5 h-5" />
               </div>
               <div className="space-y-1">
@@ -241,7 +241,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-[#0e2c4c] text-sm group-hover:underline">
+                      <span className="font-mono font-bold text-[var(--theme-primary)] text-sm group-hover:underline">
                         {voucher.voucherNo}
                       </span>
                       <Badge variant="navy" size="sm">{groupCode || '—'}</Badge>
@@ -258,7 +258,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-[#0e2c4c]">
+                  <div className="flex items-center gap-2 text-slate-400 group-hover:text-[var(--theme-primary)]">
                     <span className="text-xs font-bold">Open Voucher</span>
                     <ArrowRight className="w-4 h-4" />
                   </div>

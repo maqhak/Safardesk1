@@ -264,7 +264,7 @@ const ProfileTimeline: React.FC<ProfileTimelineProps> = ({
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1 justify-end text-[#0e2c4c] font-bold mt-0.5">
+            <div className="flex items-center gap-1 justify-end text-[var(--theme-primary)] font-bold mt-0.5">
               <span>Open</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </div>

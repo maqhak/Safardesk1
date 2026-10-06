@@ -256,7 +256,7 @@ export const LoginPage: React.FC = () => {
                 <input
                   type="checkbox"
                   defaultChecked
-                  className="rounded border-slate-300 text-[#0e2c4c] focus:ring-[#0e2c4c]"
+                  className="rounded border-slate-300 text-[var(--theme-primary)] focus:ring-[#0e2c4c]"
                 />
                 <span>Remember terminal</span>
               </label>
@@ -267,7 +267,7 @@ export const LoginPage: React.FC = () => {
                   setResetSent(false);
                   setForgotModalOpen(true);
                 }}
-                className="text-xs font-semibold text-[#0e2c4c] hover:underline cursor-pointer"
+                className="text-xs font-semibold text-[var(--theme-primary)] hover:underline cursor-pointer"
               >
                 Forgot password?
               </button>
@@ -308,7 +308,7 @@ export const LoginPage: React.FC = () => {
                 className="p-2.5 rounded-lg border border-slate-200 hover:border-[#0e2c4c] hover:bg-navy-50/50 text-left transition group cursor-pointer"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#0e2c4c] group-hover:text-[#163b63]">Owner</span>
+                  <span className="text-xs font-bold text-[var(--theme-primary)] group-hover:text-[#163b63]">Owner</span>
                   <Badge variant="gold" size="sm">All</Badge>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1 truncate">Unrestricted</p>
@@ -321,7 +321,7 @@ export const LoginPage: React.FC = () => {
                 className="p-2.5 rounded-lg border border-slate-200 hover:border-[#0e2c4c] hover:bg-navy-50/50 text-left transition group cursor-pointer"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 group-hover:text-[#0e2c4c]">Staff</span>
+                  <span className="text-xs font-bold text-slate-800 group-hover:text-[var(--theme-primary)]">Staff</span>
                   <Badge variant="navy" size="sm">Matrix</Badge>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1 truncate">Gated access</p>
@@ -334,7 +334,7 @@ export const LoginPage: React.FC = () => {
                 className="p-2.5 rounded-lg border border-slate-200 hover:border-[#0e2c4c] hover:bg-navy-50/50 text-left transition group cursor-pointer"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 group-hover:text-[#0e2c4c]">Agent</span>
+                  <span className="text-xs font-bold text-slate-800 group-hover:text-[var(--theme-primary)]">Agent</span>
                   <Badge variant="success" size="sm">Portal</Badge>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1 truncate">B2B view</p>

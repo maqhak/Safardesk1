@@ -171,7 +171,7 @@ export const AirlinesPage: React.FC = () => {
       header: 'IATA Code',
       sortable: true,
       render: (row) => (
-        <span className="font-mono font-bold text-[#0e2c4c] bg-slate-100 px-2 py-1 rounded text-xs">
+        <span className="font-mono font-bold text-[var(--theme-primary)] bg-slate-100 px-2 py-1 rounded text-xs">
           {row.iataCode}
         </span>
       ),
@@ -265,10 +265,10 @@ export const AirlinesPage: React.FC = () => {
         <Card className="p-4 flex items-center justify-between border-slate-200">
           <div>
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Operating Airlines</div>
-            <div className="text-2xl font-bold text-[#0e2c4c] mt-1">{airlines.length}</div>
+            <div className="text-2xl font-bold text-[var(--theme-primary)] mt-1">{airlines.length}</div>
             <div className="text-[11px] text-emerald-600 font-medium mt-0.5">Seeded with IATA validation</div>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-[#0e2c4c]/10 flex items-center justify-center text-[#0e2c4c]">
+          <div className="w-12 h-12 rounded-xl bg-[#0e2c4c]/10 flex items-center justify-center text-[var(--theme-primary)]">
             <Compass className="w-6 h-6" />
           </div>
         </Card>
@@ -276,7 +276,7 @@ export const AirlinesPage: React.FC = () => {
         <Card className="p-4 flex items-center justify-between border-slate-200">
           <div>
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Worldwide Airports Dataset</div>
-            <div className="text-2xl font-bold text-[#0e2c4c] mt-1">{airportsCount}</div>
+            <div className="text-2xl font-bold text-[var(--theme-primary)] mt-1">{airportsCount}</div>
             <div className="text-[11px] text-emerald-600 font-medium mt-0.5">Lazy search enabled with 50 cap</div>
           </div>
           <div className="w-12 h-12 rounded-xl bg-[#c9a227]/10 flex items-center justify-center text-[#c9a227]">

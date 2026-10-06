@@ -123,9 +123,9 @@ export function DataTable<T extends Record<string, any>>({
                       {col.sortable && (
                         <span className="text-slate-400">
                           {isSorted && sortDirection === 'asc' ? (
-                            <ChevronUp className="w-3.5 h-3.5 text-[#0e2c4c]" />
+                            <ChevronUp className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
                           ) : isSorted && sortDirection === 'desc' ? (
-                            <ChevronDown className="w-3.5 h-3.5 text-[#0e2c4c]" />
+                            <ChevronDown className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
                           ) : (
                             <ChevronsUpDown className="w-3.5 h-3.5 opacity-40 hover:opacity-100" />
                           )}
@@ -169,10 +169,10 @@ export function DataTable<T extends Record<string, any>>({
                   <tr
                     key={rowKey}
                     onClick={() => onRowClick && onRowClick(row)}
+                    style={striped && index % 2 === 1 ? { backgroundColor: 'color-mix(in srgb, var(--theme-primary) 8%, #ffffff)' } : undefined}
                     className={cn(
                       'transition-colors duration-150',
-                      onRowClick ? 'cursor-pointer hover:bg-slate-50/90' : 'hover:bg-slate-50/50',
-                      striped && index % 2 === 1 && 'bg-slate-50/40'
+                      onRowClick ? 'cursor-pointer hover:bg-slate-50/90' : 'hover:bg-slate-50/50'
                     )}
                   >
                     {columns.map((col) => {

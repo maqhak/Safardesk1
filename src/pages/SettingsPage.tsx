@@ -219,7 +219,7 @@ export const SettingsPage: React.FC = () => {
           href="/settings/users"
           className="flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 transition"
         >
-          <Users className="w-3.5 h-3.5 text-[#0e2c4c]" />
+          <Users className="w-3.5 h-3.5 text-[var(--theme-primary)]" />
           <span>Users & Permissions (Owner)</span>
         </a>
       </div>
@@ -425,7 +425,7 @@ export const SettingsPage: React.FC = () => {
                     </div>
 
                     <div className="p-2.5 bg-white border border-slate-200 rounded-lg text-[11px] text-slate-600 flex items-center gap-2">
-                      <FolderTree className="w-4 h-4 text-[#0e2c4c]" />
+                      <FolderTree className="w-4 h-4 text-[var(--theme-primary)]" />
                       <span>
                         Automatic subfolder routing: Inward cash/bank receipts → <strong>Receipt/Received</strong>; Outward payments → <strong>Receipt/Sent</strong>.
                       </span>
@@ -562,7 +562,7 @@ export const SettingsPage: React.FC = () => {
               </div>
 
               <div className="p-3 bg-navy-50/80 rounded-lg border border-navy-100 text-xs text-slate-600 space-y-1">
-                <span className="font-semibold text-[#0e2c4c] block">Phase 0 Status:</span>
+                <span className="font-semibold text-[var(--theme-primary)] block">Phase 0 Status:</span>
                 <p>Scaffolding, horizontal top navbar, design tokens, formatters, and Firestore collections catalog documented.</p>
               </div>
             </div>

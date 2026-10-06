@@ -201,7 +201,7 @@ export const VehiclesPage: React.FC = () => {
               ) : (
                 filteredVehicles.map((v) => (
                   <tr key={v.id} className="hover:bg-slate-50/80 transition">
-                    <td className="p-4 font-bold text-[#0e2c4c] flex items-center gap-2">
+                    <td className="p-4 font-bold text-[var(--theme-primary)] flex items-center gap-2">
                       <Bus className="w-4 h-4 text-slate-400" />
                       {v.vehicleType}
                     </td>
@@ -225,7 +225,7 @@ export const VehiclesPage: React.FC = () => {
                         <>
                           <button
                             onClick={() => handleOpenEdit(v)}
-                            className="p-1.5 text-slate-500 hover:text-[#0e2c4c] hover:bg-slate-100 rounded-lg transition"
+                            className="p-1.5 text-slate-500 hover:text-[var(--theme-primary)] hover:bg-slate-100 rounded-lg transition"
                             title="Edit Vehicle"
                           >
                             <Edit3 className="w-4 h-4" />
