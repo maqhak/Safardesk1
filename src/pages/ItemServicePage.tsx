@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Package, Search } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Plus, Package, Search, Upload, Download, CheckCircle2, AlertCircle } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -29,6 +29,34 @@ interface ItemServiceRow {
   sellingSAR: number;
   voided: boolean;
 }
+
+interface ImportPreviewRow {
+  idx: number;
+  date: string;
+  itemName: string;
+  supplierInput: string;
+  customerInput: string;
+  supplierId: string | null;
+  supplierName: string | null;
+  customerId: string | null;
+  customerName: string | null;
+  buyingSAR: number;
+  sellingSAR: number;
+  rate: number;
+  description: string;
+  errors: string[];
+}
+
+const TEMPLATE_HEADERS = [
+  'Date',
+  'Item/Service Name',
+  'Supplier (Code or Name)',
+  'Customer (Code or Name)',
+  'Buying Price (SAR)',
+  'Selling Price (SAR)',
+  'Rate (SAR-PKR)',
+  'Description',
+];
 
 function stripPrefix(particulars: string): string {
   return particulars.replace(/^(Sale|Purchase):\s*/, '');
@@ -64,6 +92,12 @@ export const ItemServicePage: React.FC = () => {
   const [itemSellingSAR, setItemSellingSAR] = useState<number>(0);
   const [itemRate, setItemRate] = useState<number>(0);
   const [itemDescription, setItemDescription] = useState<string>('');
+
+  // Bulk import
+  const [importModalOpen, setImportModalOpen] = useState<boolean>(false);
+  const [importing, setImporting] = useState<boolean>(false);
+  const [importRows, setImportRows] = useState<ImportPreviewRow[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (itemRate === 0) setItemRate(masterRate);
@@ -231,6 +265,197 @@ export const ItemServicePage: React.FC = () => {
     }
   };
 
+  // ---------- Bulk import ----------
+
+  const matchAccount = (input: string, pool: LedgerAccountDoc[]): LedgerAccountDoc | null => {
+    const q = (input || '').trim().toLowerCase();
+    if (!q) return null;
+    // 1) exact account code
+    let found = pool.find((a) => a.accountCode.toLowerCase() === q);
+    if (found) return found;
+    // 2) exact title
+    found = pool.find((a) => a.title.toLowerCase() === q);
+    if (found) return found;
+    // 3) title contains
+    found = pool.find((a) => a.title.toLowerCase().includes(q));
+    return found || null;
+  };
+
+  const parseNum = (v: any): number => {
+    if (v === null || v === undefined || v === '') return 0;
+    const n = parseFloat(String(v).replace(/,/g, ''));
+    return isNaN(n) ? 0 : Math.round(n * 100) / 100;
+  };
+
+  const parseDate = (v: any): string => {
+    if (v === null || v === undefined || v === '') return new Date().toISOString().split('T')[0];
+    // Excel serial date
+    if (typeof v === 'number' && v > 20000 && v < 80000) {
+      const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+      return d.toISOString().split('T')[0];
+    }
+    const s = String(v).trim();
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    const m2 = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+    if (m2) return `${m2[3]}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}`;
+    return new Date().toISOString().split('T')[0];
+  };
+
+  const downloadTemplate = async () => {
+    const XLSX = await import('xlsx');
+    const today = new Date().toISOString().split('T')[0];
+    const sampleSupplier = supplierAccounts[0];
+    const sampleCustomer = customerAccounts[0];
+    const rows = [
+      TEMPLATE_HEADERS,
+      [
+        today,
+        'Visa Service',
+        sampleSupplier ? `[${sampleSupplier.accountCode}] ${sampleSupplier.title}` : 'VND-001',
+        sampleCustomer ? `[${sampleCustomer.accountCode}] ${sampleCustomer.title}` : 'AGT-001',
+        1050,
+        1200,
+        masterRate || 74.5,
+        'Sheraz bhai se Visa service li, customer ko charge ki',
+      ],
+      [
+        today,
+        'Hotel Room - Double',
+        sampleSupplier ? sampleSupplier.accountCode : '',
+        sampleCustomer ? sampleCustomer.accountCode : '',
+        1500,
+        2000,
+        masterRate || 74.5,
+        'Walk-in guest, 3 nights',
+      ],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 30 }, { wch: 30 }, { wch: 18 }, { wch: 19 }, { wch: 14 }, { wch: 40 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'ItemService');
+    XLSX.writeFile(wb, 'ItemService-Template.xlsx');
+    success('Template downloaded — fill it and upload it back.');
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const XLSX = await import('xlsx');
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' });
+      if (json.length < 2) {
+        showError('File has no data rows.');
+        return;
+      }
+      // Map columns by header name (case-insensitive); fallback to position
+      const headerRow = (json[0] as any[]).map((h) => String(h).trim().toLowerCase());
+      const colIdx = (names: string[], fallback: number) => {
+        for (const n of names) {
+          const i = headerRow.findIndex((h) => h.includes(n));
+          if (i !== -1) return i;
+        }
+        return fallback;
+      };
+      const cDate = colIdx(['date'], 0);
+      const cItem = colIdx(['item'], 1);
+      const cSup = colIdx(['supplier', 'party from', 'from'], 2);
+      const cCus = colIdx(['customer', 'party to', 'to'], 3);
+      const cBuy = colIdx(['buying'], 4);
+      const cSell = colIdx(['selling'], 5);
+      const cRate = colIdx(['rate'], 6);
+      const cDesc = colIdx(['description', 'desc'], 7);
+
+      const preview: ImportPreviewRow[] = [];
+      for (let i = 1; i < json.length; i++) {
+        const r = json[i] as any[];
+        const itemName = String(r[cItem] || '').trim();
+        if (!itemName && !r[cSup] && !r[cCus] && !r[cBuy] && !r[cSell]) continue; // skip blank rows
+        const supplierInput = String(r[cSup] || '').trim();
+        const customerInput = String(r[cCus] || '').trim();
+        const sup = matchAccount(supplierInput, supplierAccounts);
+        const cus = matchAccount(customerInput, customerAccounts);
+        const buyingSAR = parseNum(r[cBuy]);
+        const sellingSAR = parseNum(r[cSell]);
+        const errors: string[] = [];
+        if (!itemName) errors.push('Item/Service name missing');
+        if (!supplierInput && !customerInput) errors.push('Supplier or Customer required');
+        if (supplierInput && !sup) errors.push(`Supplier not found: "${supplierInput}"`);
+        if (customerInput && !cus) errors.push(`Customer not found: "${customerInput}"`);
+        if (sup && buyingSAR <= 0) errors.push('Buying price must be > 0 for supplier');
+        if (cus && sellingSAR <= 0) errors.push('Selling price must be > 0 for customer');
+        if (buyingSAR <= 0 && sellingSAR <= 0) errors.push('Buying or Selling price required');
+        preview.push({
+          idx: i,
+          date: parseDate(r[cDate]),
+          itemName,
+          supplierInput,
+          customerInput,
+          supplierId: sup?.id || null,
+          supplierName: sup?.title || null,
+          customerId: cus?.id || null,
+          customerName: cus?.title || null,
+          buyingSAR,
+          sellingSAR,
+          rate: parseNum(r[cRate]) || masterRate,
+          description: String(r[cDesc] || '').trim(),
+          errors,
+        });
+      }
+      if (preview.length === 0) {
+        showError('No valid rows found in the file.');
+        return;
+      }
+      setImportRows(preview);
+      setImportModalOpen(true);
+    } catch (err) {
+      showError('Could not read the file. Use the downloaded template.');
+    }
+  };
+
+  const handleImport = async () => {
+    const valid = importRows.filter((r) => r.errors.length === 0);
+    if (valid.length === 0) {
+      showError('No valid rows to import. Fix the errors first.');
+      return;
+    }
+    setImporting(true);
+    let done = 0;
+    let failed = 0;
+    try {
+      for (const r of valid) {
+        try {
+          const transNo = `ITM-${Date.now().toString().slice(-6)}${done}`;
+          await postItemServiceEntry({
+            date: r.date,
+            transNo,
+            itemName: r.itemName,
+            description: r.description,
+            supplierAccountId: r.supplierId,
+            customerAccountId: r.customerId,
+            buyingSAR: r.buyingSAR,
+            sellingSAR: r.sellingSAR,
+            rate: r.rate || masterRate,
+            createdBy: userProfile?.name || 'Operator',
+          });
+          done++;
+        } catch {
+          failed++;
+        }
+      }
+      success(`Imported ${done} entries${failed > 0 ? `, ${failed} failed` : ''}.`);
+      setImportModalOpen(false);
+      setImportRows([]);
+      await loadData();
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const supplierAccounts = accounts.filter((a) => ['vendor', 'hotel', 'agent', 'customer'].includes(a.accountType));
   const customerAccounts = accounts.filter((a) => ['agent', 'customer', 'vendor', 'hotel'].includes(a.accountType));
 
@@ -252,17 +477,42 @@ export const ItemServicePage: React.FC = () => {
               />
             </div>
             {canCreate && !isAgent && (
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={<Plus className="w-4 h-4" />}
-                onClick={() => {
-                  setItemRate(masterRate);
-                  setModalOpen(true);
-                }}
-              >
-                New Entry
-              </Button>
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Download className="w-4 h-4" />}
+                  onClick={downloadTemplate}
+                >
+                  Template
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Upload className="w-4 h-4" />}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Upload Excel/CSV
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<Plus className="w-4 h-4" />}
+                  onClick={() => {
+                    setItemRate(masterRate);
+                    setModalOpen(true);
+                  }}
+                >
+                  New Entry
+                </Button>
+              </>
             )}
           </div>
         }
@@ -504,6 +754,92 @@ export const ItemServicePage: React.FC = () => {
             Posting: Dr Customer (selling) / Cr Item-Service Income + Dr Item-Service Cost (buying) / Cr Supplier — one trans # for both.
           </div>
         </form>
+      </Modal>
+
+      {/* Bulk Import Preview Modal */}
+      <Modal
+        isOpen={importModalOpen}
+        onClose={() => { setImportModalOpen(false); setImportRows([]); }}
+        title="Bulk Import Preview"
+        subtitle={`${importRows.length} rows found — ${importRows.filter((r) => r.errors.length === 0).length} valid, ${importRows.filter((r) => r.errors.length > 0).length} with errors.`}
+        size="xl"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => { setImportModalOpen(false); setImportRows([]); }}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleImport}
+              loading={importing}
+              disabled={importRows.filter((r) => r.errors.length === 0).length === 0}
+            >
+              Import {importRows.filter((r) => r.errors.length === 0).length} Valid Rows
+            </Button>
+          </>
+        }
+      >
+        <div className="overflow-x-auto text-xs">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-100 text-slate-600 uppercase text-[10px] tracking-wider">
+                <th className="py-2 px-2 font-bold">#</th>
+                <th className="py-2 px-2 font-bold">Date</th>
+                <th className="py-2 px-2 font-bold">Item</th>
+                <th className="py-2 px-2 font-bold">Supplier</th>
+                <th className="py-2 px-2 font-bold">Customer</th>
+                <th className="py-2 px-2 font-bold text-right">Buy</th>
+                <th className="py-2 px-2 font-bold text-right">Sell</th>
+                <th className="py-2 px-2 font-bold">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {importRows.map((r) => (
+                <tr key={r.idx} className={`border-t border-slate-100 ${r.errors.length > 0 ? 'bg-rose-50/50' : ''}`}>
+                  <td className="py-2 px-2 font-mono text-slate-500">{r.idx}</td>
+                  <td className="py-2 px-2 font-mono whitespace-nowrap">{r.date}</td>
+                  <td className="py-2 px-2 font-semibold">{r.itemName || <span className="text-slate-400">—</span>}</td>
+                  <td className="py-2 px-2">
+                    {r.supplierName ? (
+                      <span className="text-emerald-700 font-semibold">{r.supplierName}</span>
+                    ) : r.supplierInput ? (
+                      <span className="text-rose-600">"{r.supplierInput}" ✗</span>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </td>
+                  <td className="py-2 px-2">
+                    {r.customerName ? (
+                      <span className="text-emerald-700 font-semibold">{r.customerName}</span>
+                    ) : r.customerInput ? (
+                      <span className="text-rose-600">"{r.customerInput}" ✗</span>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </td>
+                  <td className="py-2 px-2 text-right font-mono">{r.buyingSAR > 0 ? r.buyingSAR.toLocaleString() : '—'}</td>
+                  <td className="py-2 px-2 text-right font-mono">{r.sellingSAR > 0 ? r.sellingSAR.toLocaleString() : '—'}</td>
+                  <td className="py-2 px-2">
+                    {r.errors.length === 0 ? (
+                      <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> OK
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-start gap-1 text-rose-600">
+                        <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                        <span>{r.errors.join('; ')}</span>
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="text-[11px] text-slate-500 mt-3 bg-slate-50 border border-slate-200 rounded-lg p-2">
+          Supplier/Customer match by <strong>account code</strong> (e.g. VND-003) or <strong>name</strong>. Only valid rows will be imported — each gets its own trans #.
+        </div>
       </Modal>
     </div>
   );

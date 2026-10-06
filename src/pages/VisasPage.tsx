@@ -105,6 +105,24 @@ export const VisasPage: React.FC = () => {
     );
   }, [visas, search, statusTab]);
 
+  // Simple 8-column template for users WITHOUT the Nusuk file — same columns the importer reads
+  const downloadVisaTemplate = async () => {
+    const XLSX = await import('xlsx');
+    const today = new Date().toISOString().split('T')[0];
+    const rows = [
+      ['Group Number', 'Group Name', 'Mutamer Name', 'Nationality', 'Gender', 'Passport Number', 'Mutamer Age', 'Visa Issue Date'],
+      ['GRP-001', 'Karachi Group A', 'Muhammad Ahmed', 'Pakistani', 'Male', 'AB1234567', 35, today],
+      ['GRP-001', 'Karachi Group A', 'Fatima Khan', 'Pakistani', 'Female', 'CD7654321', 28, today],
+      ['GRP-002', 'Lahore Group B', 'Ali Raza', 'Pakistani', 'Male', 'EF1122334', 42, ''],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 14 }, { wch: 18 }, { wch: 20 }, { wch: 12 }, { wch: 8 }, { wch: 16 }, { wch: 12 }, { wch: 16 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Visas');
+    XLSX.writeFile(wb, 'Visa-Import-Template.xlsx');
+    success('Template downloaded — fill it and upload via Nusuk Excel Import.');
+  };
+
   // Handle Excel File Upload & Parsing with In-File Duplicate Detection & Auto-Skip
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -447,6 +465,15 @@ export const VisasPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
+              leftIcon={<Download className="w-4 h-4" />}
+              onClick={downloadVisaTemplate}
+              title="Simple 8-column template — for uploads without the Nusuk file"
+            >
+              Visa Template
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               leftIcon={<Plus className="w-4 h-4" />}
               onClick={() => { setManualVendorId(''); setManualShirkaId(''); setModalOpen(true); }}
             >
@@ -613,6 +640,15 @@ export const VisasPage: React.FC = () => {
               <h3 className="text-sm font-bold text-slate-900">Upload Nusuk Excel Workbook (.xlsx / .xls)</h3>
               <p className="text-xs text-slate-500 max-w-md mx-auto">
                 Duplicates within file or database are automatically skipped and counted.
+                No Nusuk file?{' '}
+                <button
+                  type="button"
+                  onClick={downloadVisaTemplate}
+                  className="text-[var(--theme-primary)] font-bold hover:underline"
+                >
+                  Download the simple 8-column template
+                </button>{' '}
+                instead — same upload works.
               </p>
             </div>
             <div className="max-w-md mx-auto text-left">
