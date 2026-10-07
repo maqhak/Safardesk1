@@ -339,16 +339,30 @@ export const AccountsPage: React.FC = () => {
 
   // Download detailed CSV
   const handleExportExcel = () => {
-    if (!statement) return;
-    exportLedgerDetailedCSV(statement, company.companyName);
-    success(`Statement for ${statement.account.accountCode} downloaded as CSV.`);
+    if (!statement) {
+      showError('Please select an account first.');
+      return;
+    }
+    try {
+      exportLedgerDetailedCSV(statement, company.companyName);
+      success(`Statement for ${statement.account.accountCode} downloaded as CSV.`);
+    } catch (e: any) {
+      showError('CSV export failed: ' + (e.message || 'Unknown error'));
+    }
   };
 
   // Download PDF
   const handleExportPDF = () => {
-    if (!statement) return;
-    exportLedgerToPDF(statement, company.companyName, (company as any).city || '');
-    success(`Statement for ${statement.account.accountCode} downloaded as PDF.`);
+    if (!statement) {
+      showError('Please select an account first.');
+      return;
+    }
+    try {
+      exportLedgerToPDF(statement, company.companyName, (company as any).city || '');
+      success(`Statement for ${statement.account.accountCode} downloaded as PDF.`);
+    } catch (e: any) {
+      showError('PDF export failed: ' + (e.message || 'Unknown error'));
+    }
   };
 
   // Print view

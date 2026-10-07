@@ -10,6 +10,8 @@ import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { aoaToCSV, downloadCSVText } from '../utils/csv';
 import { getCurrentRate } from './exchangeRateService';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 
 const ACCOUNTS_COLLECTION = 'ledger_accounts';
 const ENTRIES_COLLECTION = 'ledger_entries';
@@ -1203,10 +1205,6 @@ function fmtBalCrDr(n: number): string {
  * ~35 rows per portrait A4 page.
  */
 export function exportLedgerToPDF(statement: LedgerStatementSummary, companyName: string, companyCity?: string): void {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { jsPDF } = require('jspdf');
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  require('jspdf-autotable');
   const c = statement.currency;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = 210;

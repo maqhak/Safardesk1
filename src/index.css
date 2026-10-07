@@ -50,13 +50,27 @@
 /* Compact ledger statement for print/PDF — fits many more rows per page */
 @media print {
   @page { size: A4; margin: 10mm 8mm; }
-  .ledger-print-compact table { font-size: 9.5px !important; }
-  .ledger-print-compact thead th {
-    padding: 5px 6px !important;
-    font-size: 8.5px !important;
+  .ledger-print-compact { overflow: visible !important; }
+  .ledger-print-compact table { 
+    font-size: 8.5px !important; 
+    table-layout: fixed !important;
+    width: 100% !important;
   }
-  .ledger-print-compact tbody td { padding: 3px 6px !important; }
-  .ledger-print-compact .badge, .ledger-print-compact [class*="Badge"] { font-size: 8px !important; }
+  .ledger-print-compact thead th {
+    padding: 4px 5px !important;
+    font-size: 7.5px !important;
+    white-space: nowrap !important;
+  }
+  .ledger-print-compact tbody td { 
+    padding: 3px 5px !important; 
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+  .ledger-print-compact tbody td:nth-child(4) {
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
+  .ledger-print-compact .badge, .ledger-print-compact [class*="Badge"] { font-size: 7px !important; }
 }
 
 /* ===== Soft Dark Mode (theme-dark) — applied when night mode is on ===== */
