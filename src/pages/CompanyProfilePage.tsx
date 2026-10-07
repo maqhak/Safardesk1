@@ -56,7 +56,6 @@ export const CompanyProfilePage: React.FC = () => {
     mobile: '',
     email: '',
     website: '',
-    taxRegNo: '',
     voucherPrefix: 'UV-',
     invoicePrefix: 'INV-',
     paymentPrefix: 'PAY-',
@@ -325,14 +324,6 @@ export const CompanyProfilePage: React.FC = () => {
                     placeholder="e.g. SafarDesk Global Pvt. Ltd."
                   />
                 </div>
-
-                <Input
-                  label="Tax / VAT Registration No."
-                  value={formData.taxRegNo}
-                  onChange={(e) => handleInputChange('taxRegNo', e.target.value)}
-                  placeholder="e.g. VAT-300189201940003 or NTN-1829012-4"
-                  helperText="Printed prominently on invoices and official statements"
-                />
 
                 {/* Logo Upload Box */}
                 <div>
@@ -795,13 +786,8 @@ export const CompanyProfilePage: React.FC = () => {
                       {[formData.city, formData.country].filter(Boolean).join(', ')}
                     </p>
                     <p className="text-[10px] font-mono text-slate-700">
-                      Phone: {formData.phone || '+966 12 558 7890'} | Email: {formData.email || 'operations@safardesk.com'}
+                      Phone: {formData.phone || ''} | Email: {formData.email || ''}
                     </p>
-                    {formData.taxRegNo && (
-                      <p className="text-[10px] font-mono font-semibold text-[var(--theme-primary)]">
-                        Tax / VAT Reg: {formData.taxRegNo}
-                      </p>
-                    )}
                   </div>
 
                   {/* Logo or fallback emblem */}

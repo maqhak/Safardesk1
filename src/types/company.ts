@@ -11,7 +11,7 @@ export interface CompanyProfile {
   mobile: string;
   email: string;
   website: string;
-  taxRegNo: string;
+  taxRegNo?: string; // Optional, deprecated — tax number field removed from UI
   voucherPrefix: string; // e.g. "UV-"
   invoicePrefix: string; // e.g. "INV-"
   paymentPrefix: string; // e.g. "PAY-"
