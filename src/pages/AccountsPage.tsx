@@ -140,6 +140,7 @@ export const AccountsPage: React.FC = () => {
   const [newDebitAccountId, setNewDebitAccountId] = useState<string>('');
   const [newCreditAccountId, setNewCreditAccountId] = useState<string>('');
   const [newAmountSAR, setNewAmountSAR] = useState<number>(0);
+  const [newTransCurrency, setNewTransCurrency] = useState<'SAR' | 'PKR'>('SAR');
   const [newMofaPax, setNewMofaPax] = useState<number>(0);
   const [newHotelPax, setNewHotelPax] = useState<number>(0);
   const [newDriveUrl, setNewDriveUrl] = useState<string>('');
@@ -283,6 +284,9 @@ export const AccountsPage: React.FC = () => {
       showError('Amount must be greater than zero.');
       return;
     }
+    const postAmountSAR = newTransCurrency === 'PKR' && newRate > 0
+      ? Math.round((newAmountSAR / newRate) * 100) / 100
+      : newAmountSAR;
 
     setSavingTrans(true);
     try {
@@ -296,7 +300,7 @@ export const AccountsPage: React.FC = () => {
         rate: newRate,
         debitAccountId: newDebitAccountId,
         creditAccountId: newCreditAccountId,
-        amountSAR: newAmountSAR,
+        amountSAR: postAmountSAR,
         mofaPax: newMofaPax,
         hotelPax: newHotelPax,
         driveFileUrl: newDriveUrl || undefined,
@@ -1150,9 +1154,20 @@ export const AccountsPage: React.FC = () => {
           </div>
 
           {/* Financial Amounts & Rates */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Amount (SAR) *</label>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Currency *</label>
+              <select
+                value={newTransCurrency}
+                onChange={(e) => setNewTransCurrency(e.target.value as 'SAR' | 'PKR')}
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[var(--theme-primary)]"
+              >
+                <option value="SAR">SAR — Saudi Riyal</option>
+                <option value="PKR">PKR — Pakistani Rupee</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Amount ({newTransCurrency}) *</label>
               <input
                 type="number"
                 min="0.01"
@@ -1174,7 +1189,9 @@ export const AccountsPage: React.FC = () => {
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
               />
               <div className="text-[10px] text-slate-500 mt-0.5">
-                Calculated PKR: <strong>PKR {Math.round(newAmountSAR * newRate).toLocaleString()}</strong>
+                {newTransCurrency === 'PKR'
+                  ? <>Ledger SAR: <strong>SAR {newRate > 0 ? (Math.round((newAmountSAR / newRate) * 100) / 100).toLocaleString() : '—'}</strong></>
+                  : <>Calculated PKR: <strong>PKR {Math.round(newAmountSAR * newRate).toLocaleString()}</strong></>}
               </div>
             </div>
           </div>

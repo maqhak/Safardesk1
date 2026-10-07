@@ -16,7 +16,7 @@ import {
   voidLedgerEntry,
 } from '../services/accountingService';
 import { formatMoney } from '../utils/formatters';
-const formatSAR = (n: number) => formatMoney(n, 'SAR');
+const formatPKR = (n: number) => formatMoney(n, 'PKR');
 
 interface ItemServiceRow {
   transNo: string;
@@ -25,8 +25,8 @@ interface ItemServiceRow {
   description: string;
   supplierName: string | null;
   customerName: string | null;
-  buyingSAR: number;
-  sellingSAR: number;
+  buyingPKR: number;
+  sellingPKR: number;
   voided: boolean;
 }
 
@@ -40,8 +40,8 @@ interface ImportPreviewRow {
   supplierName: string | null;
   customerId: string | null;
   customerName: string | null;
-  buyingSAR: number;
-  sellingSAR: number;
+  buyingPKR: number;
+  sellingPKR: number;
   rate: number;
   description: string;
   errors: string[];
@@ -52,8 +52,8 @@ const TEMPLATE_HEADERS = [
   'Item/Service Name',
   'Supplier (Code or Name)',
   'Customer (Code or Name)',
-  'Buying Price (SAR)',
-  'Selling Price (SAR)',
+  'Buying Price (PKR)',
+  'Selling Price (PKR)',
   'Rate (SAR-PKR)',
   'Description',
 ];
@@ -88,8 +88,9 @@ export const ItemServicePage: React.FC = () => {
   const [itemName, setItemName] = useState<string>('');
   const [itemSupplierId, setItemSupplierId] = useState<string>('');
   const [itemCustomerId, setItemCustomerId] = useState<string>('');
-  const [itemBuyingSAR, setItemBuyingSAR] = useState<number>(0);
-  const [itemSellingSAR, setItemSellingSAR] = useState<number>(0);
+  const [itemBuyingPKR, setItemBuyingPKR] = useState<number>(0);
+  const [itemSellingPKR, setItemSellingPKR] = useState<number>(0);
+  const [itemCurrency, setItemCurrency] = useState<'SAR' | 'PKR'>('PKR');
   const [itemRate, setItemRate] = useState<number>(0);
   const [itemDescription, setItemDescription] = useState<string>('');
 
@@ -138,17 +139,17 @@ export const ItemServicePage: React.FC = () => {
       const first = list[0];
       const base = stripPrefix(first.particulars || '');
       const { itemName: name, description } = splitItemDesc(base);
-      let buyingSAR = 0;
-      let sellingSAR = 0;
+      let buyingPKR = 0;
+      let sellingPKR = 0;
       let supplierName: string | null = null;
       let customerName: string | null = null;
       for (const e of list) {
         if (e.isVoid) continue;
         const isSale = (e.particulars || '').startsWith('Sale:');
         const isPurchase = (e.particulars || '').startsWith('Purchase:');
-        if (isSale && e.creditSAR > 0) sellingSAR += e.creditSAR;
+        if (isSale && e.creditPKR > 0) sellingPKR += e.creditPKR;
         if (isSale && e.debitSAR > 0) customerName = accountName(e.accountId) || customerName;
-        if (isPurchase && e.debitSAR > 0) buyingSAR += e.debitSAR;
+        if (isPurchase && e.debitPKR > 0) buyingPKR += e.debitPKR;
         if (isPurchase && e.creditSAR > 0) supplierName = accountName(e.accountId) || supplierName;
       }
       out.push({
@@ -158,8 +159,8 @@ export const ItemServicePage: React.FC = () => {
         description,
         supplierName,
         customerName,
-        buyingSAR: Math.round(buyingSAR * 100) / 100,
-        sellingSAR: Math.round(sellingSAR * 100) / 100,
+        buyingPKR: Math.round(buyingPKR * 100) / 100,
+        sellingPKR: Math.round(sellingPKR * 100) / 100,
         voided: list.every((e) => e.isVoid),
       });
     });
@@ -183,8 +184,8 @@ export const ItemServicePage: React.FC = () => {
   const totals = useMemo(() => {
     return filtered.reduce(
       (acc, r) => ({
-        buying: acc.buying + (r.voided ? 0 : r.buyingSAR),
-        selling: acc.selling + (r.voided ? 0 : r.sellingSAR),
+        buying: acc.buying + (r.voided ? 0 : r.buyingPKR),
+        selling: acc.selling + (r.voided ? 0 : r.sellingPKR),
       }),
       { buying: 0, selling: 0 }
     );
@@ -200,18 +201,26 @@ export const ItemServicePage: React.FC = () => {
       showError('Please select a Supplier (party from) or a Customer (party to).');
       return;
     }
-    if (itemSupplierId && itemBuyingSAR <= 0) {
+    if (itemSupplierId && itemBuyingPKR <= 0) {
       showError('Buying price must be greater than zero when a Supplier is selected.');
       return;
     }
-    if (itemCustomerId && itemSellingSAR <= 0) {
+    if (itemCustomerId && itemSellingPKR <= 0) {
       showError('Selling price must be greater than zero when a Customer is selected.');
       return;
     }
-    if (itemBuyingSAR <= 0 && itemSellingSAR <= 0) {
+    if (itemBuyingPKR <= 0 && itemSellingPKR <= 0) {
       showError('Enter a Buying price or a Selling price.');
       return;
     }
+    const rate = itemRate || masterRate;
+    if (!rate || rate <= 0) {
+      showError('Please enter a valid exchange rate (1 SAR = ? PKR).');
+      return;
+    }
+    // Entered currency -> SAR derived for ledger (same as Tickets)
+    const buyingSAR = itemCurrency === 'PKR' ? Math.round((itemBuyingPKR / rate) * 100) / 100 : Math.round(itemBuyingPKR * 100) / 100;
+    const sellingSAR = itemCurrency === 'PKR' ? Math.round((itemSellingPKR / rate) * 100) / 100 : Math.round(itemSellingPKR * 100) / 100;
 
     setSaving(true);
     try {
@@ -223,19 +232,19 @@ export const ItemServicePage: React.FC = () => {
         description: itemDescription,
         supplierAccountId: itemSupplierId || null,
         customerAccountId: itemCustomerId || null,
-        buyingSAR: itemBuyingSAR,
-        sellingSAR: itemSellingSAR,
-        rate: itemRate || masterRate,
+        buyingSAR,
+        sellingSAR,
+        rate,
         createdBy: userProfile?.name || 'Operator',
       });
-      const margin = Math.round((itemSellingSAR - itemBuyingSAR) * 100) / 100;
-      success(`Item/Service entry ${transNo} posted.${margin !== 0 ? ` Margin: SAR ${margin.toLocaleString()}` : ''}`);
+      const marginEntered = Math.round((itemSellingPKR - itemBuyingPKR) * 100) / 100;
+      success(`Item/Service entry ${transNo} posted.${marginEntered !== 0 ? ` Margin: ${itemCurrency} ${marginEntered.toLocaleString()}` : ''}`);
       setModalOpen(false);
       setItemName('');
       setItemSupplierId('');
       setItemCustomerId('');
-      setItemBuyingSAR(0);
-      setItemSellingSAR(0);
+      setItemBuyingPKR(0);
+      setItemSellingPKR(0);
       setItemDescription('');
       setItemDate(new Date().toISOString().split('T')[0]);
       await loadData();
@@ -314,8 +323,8 @@ export const ItemServicePage: React.FC = () => {
         'Visa Service',
         sampleSupplier ? `[${sampleSupplier.accountCode}] ${sampleSupplier.title}` : 'VND-001',
         sampleCustomer ? `[${sampleCustomer.accountCode}] ${sampleCustomer.title}` : 'AGT-001',
-        1050,
-        1200,
+        78000,
+        89500,
         masterRate || 74.5,
         'Sheraz bhai se Visa service li, customer ko charge ki',
       ],
@@ -324,8 +333,8 @@ export const ItemServicePage: React.FC = () => {
         'Hotel Room - Double',
         sampleSupplier ? sampleSupplier.accountCode : '',
         sampleCustomer ? sampleCustomer.accountCode : '',
-        1500,
-        2000,
+        112000,
+        149000,
         masterRate || 74.5,
         'Walk-in guest, 3 nights',
       ],
@@ -379,16 +388,16 @@ export const ItemServicePage: React.FC = () => {
         const customerInput = String(r[cCus] || '').trim();
         const sup = matchAccount(supplierInput, supplierAccounts);
         const cus = matchAccount(customerInput, customerAccounts);
-        const buyingSAR = parseNum(r[cBuy]);
-        const sellingSAR = parseNum(r[cSell]);
+        const buyingPKR = parseNum(r[cBuy]);
+        const sellingPKR = parseNum(r[cSell]);
         const errors: string[] = [];
         if (!itemName) errors.push('Item/Service name missing');
         if (!supplierInput && !customerInput) errors.push('Supplier or Customer required');
         if (supplierInput && !sup) errors.push(`Supplier not found: "${supplierInput}"`);
         if (customerInput && !cus) errors.push(`Customer not found: "${customerInput}"`);
-        if (sup && buyingSAR <= 0) errors.push('Buying price must be > 0 for supplier');
-        if (cus && sellingSAR <= 0) errors.push('Selling price must be > 0 for customer');
-        if (buyingSAR <= 0 && sellingSAR <= 0) errors.push('Buying or Selling price required');
+        if (sup && buyingPKR <= 0) errors.push('Buying price must be > 0 for supplier');
+        if (cus && sellingPKR <= 0) errors.push('Selling price must be > 0 for customer');
+        if (buyingPKR <= 0 && sellingPKR <= 0) errors.push('Buying or Selling price required');
         preview.push({
           idx: i,
           date: parseDate(r[cDate]),
@@ -399,8 +408,8 @@ export const ItemServicePage: React.FC = () => {
           supplierName: sup?.title || null,
           customerId: cus?.id || null,
           customerName: cus?.title || null,
-          buyingSAR,
-          sellingSAR,
+          buyingPKR,
+          sellingPKR,
           rate: parseNum(r[cRate]) || masterRate,
           description: String(r[cDesc] || '').trim(),
           errors,
@@ -437,8 +446,8 @@ export const ItemServicePage: React.FC = () => {
             description: r.description,
             supplierAccountId: r.supplierId,
             customerAccountId: r.customerId,
-            buyingSAR: r.buyingSAR,
-            sellingSAR: r.sellingSAR,
+            buyingSAR: Math.round((r.buyingPKR / (r.rate || masterRate)) * 100) / 100,
+            sellingSAR: Math.round((r.sellingPKR / (r.rate || masterRate)) * 100) / 100,
             rate: r.rate || masterRate,
             createdBy: userProfile?.name || 'Operator',
           });
@@ -521,17 +530,17 @@ export const ItemServicePage: React.FC = () => {
       {/* Totals */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card padding="sm">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Buying (SAR)</div>
-          <div className="text-xl font-bold font-mono text-amber-700">{formatSAR(totals.buying)}</div>
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Buying (PKR)</div>
+          <div className="text-xl font-bold font-mono text-amber-700">{formatPKR(totals.buying)}</div>
         </Card>
         <Card padding="sm">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Selling (SAR)</div>
-          <div className="text-xl font-bold font-mono text-emerald-700">{formatSAR(totals.selling)}</div>
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Selling (PKR)</div>
+          <div className="text-xl font-bold font-mono text-emerald-700">{formatPKR(totals.selling)}</div>
         </Card>
         <Card padding="sm">
-          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Margin (SAR)</div>
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Margin (PKR)</div>
           <div className={`text-xl font-bold font-mono ${totals.selling - totals.buying >= 0 ? 'text-[var(--theme-primary)]' : 'text-rose-700'}`}>
-            {formatSAR(totals.selling - totals.buying)}
+            {formatPKR(totals.selling - totals.buying)}
           </div>
         </Card>
       </div>
@@ -547,8 +556,8 @@ export const ItemServicePage: React.FC = () => {
                 <th className="py-3 px-3 font-bold">Item / Service</th>
                 <th className="py-3 px-3 font-bold">Supplier (From)</th>
                 <th className="py-3 px-3 font-bold">Customer (To)</th>
-                <th className="py-3 px-3 font-bold text-right">Buying (SAR)</th>
-                <th className="py-3 px-3 font-bold text-right">Selling (SAR)</th>
+                <th className="py-3 px-3 font-bold text-right">Buying (PKR)</th>
+                <th className="py-3 px-3 font-bold text-right">Selling (PKR)</th>
                 <th className="py-3 px-3 font-bold text-right">Margin</th>
                 {isOwner && <th className="py-3 px-3 font-bold text-center">Action</th>}
               </tr>
@@ -569,7 +578,7 @@ export const ItemServicePage: React.FC = () => {
                 </tr>
               ) : (
                 filtered.map((r, idx) => {
-                  const margin = Math.round((r.sellingSAR - r.buyingSAR) * 100) / 100;
+                  const margin = Math.round((r.sellingPKR - r.buyingPKR) * 100) / 100;
                   return (
                     <tr
                       key={r.transNo}
@@ -584,10 +593,10 @@ export const ItemServicePage: React.FC = () => {
                       </td>
                       <td className="py-2.5 px-3">{r.supplierName || <span className="text-slate-400">—</span>}</td>
                       <td className="py-2.5 px-3">{r.customerName || <span className="text-slate-400">—</span>}</td>
-                      <td className="py-2.5 px-3 text-right font-mono">{r.buyingSAR > 0 ? formatSAR(r.buyingSAR) : <span className="text-slate-400">—</span>}</td>
-                      <td className="py-2.5 px-3 text-right font-mono">{r.sellingSAR > 0 ? formatSAR(r.sellingSAR) : <span className="text-slate-400">—</span>}</td>
+                      <td className="py-2.5 px-3 text-right font-mono">{r.buyingPKR > 0 ? formatPKR(r.buyingPKR) : <span className="text-slate-400">—</span>}</td>
+                      <td className="py-2.5 px-3 text-right font-mono">{r.sellingPKR > 0 ? formatPKR(r.sellingPKR) : <span className="text-slate-400">—</span>}</td>
                       <td className={`py-2.5 px-3 text-right font-mono font-bold ${margin >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                        {formatSAR(margin)}
+                        {formatPKR(margin)}
                       </td>
                       {isOwner && (
                         <td className="py-2.5 px-3 text-center whitespace-nowrap">
@@ -695,35 +704,61 @@ export const ItemServicePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Buying Price (SAR)</label>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Currency</label>
+              <select
+                value={itemCurrency}
+                onChange={(e) => setItemCurrency(e.target.value as 'SAR' | 'PKR')}
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[var(--theme-primary)]"
+              >
+                <option value="PKR">PKR — Pakistani Rupee</option>
+                <option value="SAR">SAR — Saudi Riyal</option>
+              </select>
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                Margin: <strong className={itemSellingPKR - itemBuyingPKR >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                  {itemCurrency} {(Math.round((itemSellingPKR - itemBuyingPKR) * 100) / 100).toLocaleString()}
+                </strong>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Buying Price ({itemCurrency})</label>
               <input
                 type="number"
                 min="0"
                 step="0.01"
-                value={itemBuyingSAR || ''}
-                onChange={(e) => setItemBuyingSAR(parseFloat(e.target.value) || 0)}
+                value={itemBuyingPKR || ''}
+                onChange={(e) => setItemBuyingPKR(parseFloat(e.target.value) || 0)}
                 placeholder="0.00"
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold"
               />
-              <div className="text-[10px] text-slate-500 mt-0.5">Supplier ko dena hai</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                Supplier ko dena hai
+                {itemCurrency === 'PKR' && (itemRate || masterRate) > 0 && itemBuyingPKR > 0 && (
+                  <span className="block">≈ SAR {(Math.round((itemBuyingPKR / (itemRate || masterRate)) * 100) / 100).toLocaleString()} ledger</span>
+                )}
+              </div>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Selling Price (SAR)</label>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Selling Price ({itemCurrency})</label>
               <input
                 type="number"
                 min="0"
                 step="0.01"
-                value={itemSellingSAR || ''}
-                onChange={(e) => setItemSellingSAR(parseFloat(e.target.value) || 0)}
+                value={itemSellingPKR || ''}
+                onChange={(e) => setItemSellingPKR(parseFloat(e.target.value) || 0)}
                 placeholder="0.00"
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[var(--theme-primary)]"
               />
-              <div className="text-[10px] text-slate-500 mt-0.5">Customer se lena hai</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">
+                Customer se lena hai
+                {itemCurrency === 'PKR' && (itemRate || masterRate) > 0 && itemSellingPKR > 0 && (
+                  <span className="block">≈ SAR {(Math.round((itemSellingPKR / (itemRate || masterRate)) * 100) / 100).toLocaleString()} ledger</span>
+                )}
+              </div>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Rate (SAR→PKR)</label>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Rate (1 SAR = ? PKR)</label>
               <input
                 type="number"
                 step="0.01"
@@ -732,9 +767,7 @@ export const ItemServicePage: React.FC = () => {
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
               />
               <div className="text-[10px] text-slate-500 mt-0.5">
-                Margin: <strong className={itemSellingSAR - itemBuyingSAR >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
-                  SAR {(Math.round((itemSellingSAR - itemBuyingSAR) * 100) / 100).toLocaleString()}
-                </strong>
+                Ledger posts SAR equivalents
               </div>
             </div>
           </div>
@@ -818,8 +851,8 @@ export const ItemServicePage: React.FC = () => {
                       <span className="text-slate-400">—</span>
                     )}
                   </td>
-                  <td className="py-2 px-2 text-right font-mono">{r.buyingSAR > 0 ? r.buyingSAR.toLocaleString() : '—'}</td>
-                  <td className="py-2 px-2 text-right font-mono">{r.sellingSAR > 0 ? r.sellingSAR.toLocaleString() : '—'}</td>
+                  <td className="py-2 px-2 text-right font-mono">{r.buyingPKR > 0 ? r.buyingPKR.toLocaleString() : '—'}</td>
+                  <td className="py-2 px-2 text-right font-mono">{r.sellingPKR > 0 ? r.sellingPKR.toLocaleString() : '—'}</td>
                   <td className="py-2 px-2">
                     {r.errors.length === 0 ? (
                       <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">

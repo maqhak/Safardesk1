@@ -104,6 +104,7 @@ export const JournalVouchersPage: React.FC = () => {
   const [tag, setTag] = useState<JournalVoucherTag>('Adjustment');
   const masterRate = useCurrentRate('SAR-PKR');
   const [exchangeRate, setExchangeRate] = useState<number>(masterRate);
+  const [entryCurrency, setEntryCurrency] = useState<'SAR' | 'PKR'>('SAR');
 
   useEffect(() => {
     setExchangeRate(masterRate);
@@ -280,7 +281,7 @@ export const JournalVouchersPage: React.FC = () => {
     e.preventDefault();
 
     if (!isBalanced) {
-      showError(`LIVE BALANCE ERROR: Total Debit must equal Total Credit. Difference is SAR ${difference.toFixed(2)}.`);
+      showError(`LIVE BALANCE ERROR: Total Debit must equal Total Credit. Difference is ${entryCurrency} ${difference.toFixed(2)}.`);
       return;
     }
 
@@ -300,10 +301,18 @@ export const JournalVouchersPage: React.FC = () => {
 
     setSavingJv(true);
     try {
+      // Convert entered amounts to SAR for posting (ledger is SAR-based)
+      const postLines = entryCurrency === 'PKR' && exchangeRate > 0
+        ? lines.map((l) => ({
+            ...l,
+            debitSAR: Math.round(((l.debitSAR || 0) / exchangeRate) * 100) / 100,
+            creditSAR: Math.round(((l.creditSAR || 0) / exchangeRate) * 100) / 100,
+          }))
+        : lines;
       const created = await createJournalVoucher({
         date,
         tag,
-        lines,
+        lines: postLines,
         exchangeRate,
         detailsBox: detailsBox.trim() || `${tag} voucher posted`,
         attachment: attachmentDataUrl
@@ -953,6 +962,23 @@ export const JournalVouchersPage: React.FC = () => {
 
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Entry Currency *
+              </label>
+              <select
+                value={entryCurrency}
+                onChange={(e) => setEntryCurrency(e.target.value as 'SAR' | 'PKR')}
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[var(--theme-primary)]"
+              >
+                <option value="SAR">SAR — Saudi Riyal</option>
+                <option value="PKR">PKR — Pakistani Rupee</option>
+              </select>
+              <span className="text-[10px] text-slate-500 mt-1 block">
+                Amounts entered in {entryCurrency}; ledger posts SAR equivalents at this rate.
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Exchange Rate (SAR → PKR) *
               </label>
               <input
@@ -964,7 +990,7 @@ export const JournalVouchersPage: React.FC = () => {
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[var(--theme-primary)]"
               />
               <span className="text-[10px] text-slate-500 mt-1 block">
-                Amounts entered in SAR; ledger entries mirror to PKR at this rate.
+                1 SAR = {exchangeRate} PKR
               </span>
             </div>
           </div>
@@ -1005,8 +1031,8 @@ export const JournalVouchersPage: React.FC = () => {
             <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
               <div className="grid grid-cols-12 gap-2 bg-slate-100 p-2.5 text-[10px] font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200">
                 <div className="col-span-6">Ledger Account</div>
-                <div className="col-span-3 text-right">Debit (SAR)</div>
-                <div className="col-span-2 text-right">Credit (SAR)</div>
+                <div className="col-span-3 text-right">Debit ({entryCurrency})</div>
+                <div className="col-span-2 text-right">Credit ({entryCurrency})</div>
                 <div className="col-span-1 text-center"></div>
               </div>
 
