@@ -20,7 +20,7 @@ const LOCAL_STORAGE_COUNTERS_KEY = 'safardesk_sequence_counters';
 
 export const DEFAULT_COMPANY_PROFILE: CompanyProfile = {
   companyName: TENANT.companyName,
-  legalName: 'SafarDesk Tourism & Travel Management Pvt. Ltd.',
+  legalName: TENANT.companyName,
   logoUrl: '',
   stampUrl: '',
   faviconUrl: '',

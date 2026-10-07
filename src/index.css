@@ -49,7 +49,7 @@
 
 /* Compact ledger statement for print/PDF — fits many more rows per page */
 @media print {
-  @page { margin: 10mm 8mm; }
+  @page { size: A4; margin: 10mm 8mm; }
   .ledger-print-compact table { font-size: 9.5px !important; }
   .ledger-print-compact thead th {
     padding: 5px 6px !important;
