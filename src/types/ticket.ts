@@ -50,6 +50,8 @@ export interface TicketDoc {
   exchangeRateSARPKR: number;
   purchaseCostPKR: number;
   salePricePKR: number;
+  purchaseCurrency?: 'PKR' | 'SAR' | 'USD';
+  saleCurrency?: 'PKR' | 'SAR' | 'USD';
   commission: TicketCommission;
   createdBy: string;
   createdByName: string;

@@ -34,6 +34,7 @@ import {
 } from '../services/accountingService';
 import { LedgerAccountDoc, LedgerEntryDoc, BalancesSummaryData, AccountBalanceRow } from '../types/accounting';
 import { Link, useNavigate } from 'react-router-dom';
+import { useCurrentRate } from '../services/exchangeRateService';
 
 export const BalancesSummaryPage: React.FC = () => {
   const { profile: company } = useCompany();
@@ -45,7 +46,10 @@ export const BalancesSummaryPage: React.FC = () => {
   const [accounts, setAccounts] = useState<LedgerAccountDoc[]>([]);
   const [entries, setEntries] = useState<LedgerEntryDoc[]>([]);
   const [search, setSearch] = useState<string>('');
-  const [currency, setCurrency] = useState<'SAR' | 'PKR'>('SAR');
+  const [currency, setCurrency] = useState<'SAR' | 'PKR' | 'USD'>('SAR');
+  const usdSarRate = useCurrentRate('USD-SAR');
+  const sarPkrRate = useCurrentRate('SAR-PKR');
+  const toDisplay = (sar: number) => currency === 'SAR' ? sar : currency === 'PKR' ? sar * sarPkrRate : sar / (usdSarRate || 3.75);
 
   // Load accounts and entries, then compute balances
   const loadData = async (showToast = false) => {
@@ -197,6 +201,17 @@ export const BalancesSummaryPage: React.FC = () => {
                 <ArrowLeftRight className="w-3 h-3 text-[#c9a227]" />
                 <span>PKR</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setCurrency('USD')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  currency === 'USD' 
+                    ? 'bg-[#0e2c4c] text-white shadow-xs' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>USD</span>
+              </button>
             </div>
 
             <Button
@@ -262,8 +277,8 @@ export const BalancesSummaryPage: React.FC = () => {
             </div>
           </div>
           <div className="text-2xl font-mono font-bold text-emerald-700 mt-2">
-            {currency === 'SAR' ? 'SAR' : 'PKR'}{' '}
-            {(currency === 'SAR' ? summary.totalReceivableSAR : summary.totalReceivablePKR).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            {currency}{' '}
+            {toDisplay(summary.totalReceivableSAR).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </div>
           <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
             <span>Agents + Direct Clients</span>

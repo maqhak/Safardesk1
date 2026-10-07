@@ -65,7 +65,7 @@ export const AgentPortalPage: React.FC = () => {
   const [agentRequests, setAgentRequests] = useState<VisaRequestDoc[]>([]);
 
   // Ledger state for this agent
-  const [currency, setCurrency] = useState<'SAR' | 'PKR'>('SAR');
+  const [currency, setCurrency] = useState<'SAR' | 'PKR' | 'USD'>('SAR');
   const [agentAccount, setAgentAccount] = useState<LedgerAccountDoc | null>(null);
   const [agentEntries, setAgentEntries] = useState<LedgerEntryDoc[]>([]);
   const [activeVoucherNo, setActiveVoucherNo] = useState<string | null>(null);
@@ -242,6 +242,15 @@ export const AgentPortalPage: React.FC = () => {
               >
                 <ArrowLeftRight className="w-3 h-3 text-[#c9a227]" />
                 <span>PKR View</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrency('USD')}
+                className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                  currency === 'USD' ? 'bg-[#0e2c4c] text-white shadow-xs' : 'text-slate-600'
+                }`}
+              >
+                <span>USD View</span>
               </button>
             </div>
 

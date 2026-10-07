@@ -9,6 +9,7 @@ import {
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { aoaToCSV, downloadCSVText } from '../utils/csv';
+import { getCurrentRate } from './exchangeRateService';
 
 const ACCOUNTS_COLLECTION = 'ledger_accounts';
 const ENTRIES_COLLECTION = 'ledger_entries';
@@ -940,7 +941,7 @@ export async function voidLedgerEntry(
 export function computeLedgerStatement(
   account: LedgerAccountDoc,
   entries: LedgerEntryDoc[],
-  currency: 'SAR' | 'PKR',
+  currency: 'SAR' | 'PKR' | 'USD',
   startDate?: string,
   endDate?: string
 ): LedgerStatementSummary {
@@ -951,7 +952,10 @@ export function computeLedgerStatement(
   });
 
   // Calculate opening balance prior to startDate from all NON-VOID entries
-  let previousBalance = currency === 'SAR' ? (account.openingBalanceSAR || 0) : (account.openingBalancePKR || 0);
+  const usdRate = getCurrentRate('USD-SAR') || 3.75;
+  const toCurrency = (sarVal: number, pkrVal: number) =>
+    currency === 'SAR' ? sarVal : currency === 'PKR' ? pkrVal : sarVal / usdRate;
+  let previousBalance = toCurrency(account.openingBalanceSAR || 0, account.openingBalancePKR || 0);
 
   const periodRows: ComputedLedgerStatementRow[] = [];
   let totalDebit = 0;
@@ -962,8 +966,8 @@ export function computeLedgerStatement(
   let runningBalance = previousBalance;
 
   sorted.forEach((e) => {
-    const isDebit = currency === 'SAR' ? e.debitSAR : e.debitPKR;
-    const isCredit = currency === 'SAR' ? e.creditSAR : e.creditPKR;
+    const isDebit = toCurrency(e.debitSAR || 0, e.debitPKR || 0);
+    const isCredit = toCurrency(e.creditSAR || 0, e.creditPKR || 0);
 
     // Check if entry is strictly BEFORE the start period
     if (startDate && e.date < startDate) {
@@ -1451,7 +1455,7 @@ export async function cacheAccountBalancesSnapshot(summary: BalancesSummaryData)
 export function exportDayBookToCSV(
   entries: LedgerEntryDoc[],
   accounts: LedgerAccountDoc[],
-  currency: 'SAR' | 'PKR',
+  currency: 'SAR' | 'PKR' | 'USD',
   companyName: string
 ): void {
   const lines: string[] = [];
@@ -1471,8 +1475,9 @@ export function exportDayBookToCSV(
 
   entries.forEach((e) => {
     const acc = accMap.get(e.accountId);
-    const debit = currency === 'SAR' ? e.debitSAR : e.debitPKR;
-    const credit = currency === 'SAR' ? e.creditSAR : e.creditPKR;
+    const usdR = getCurrentRate('USD-SAR') || 3.75;
+    const debit = currency === 'SAR' ? e.debitSAR : currency === 'PKR' ? e.debitPKR : (e.debitSAR || 0) / usdR;
+    const credit = currency === 'SAR' ? e.creditSAR : currency === 'PKR' ? e.creditPKR : (e.creditSAR || 0) / usdR;
     if (!e.isVoid) {
       totalDebit += debit;
       totalCredit += credit;

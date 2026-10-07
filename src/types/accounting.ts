@@ -75,7 +75,7 @@ export interface ComputedLedgerStatementRow {
 
 export interface LedgerStatementSummary {
   account: LedgerAccountDoc;
-  currency: 'SAR' | 'PKR';
+  currency: 'SAR' | 'PKR' | 'USD';
   periodLabel: string;
   startDate?: string;
   endDate?: string;
