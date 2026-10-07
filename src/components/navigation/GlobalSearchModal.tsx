@@ -28,6 +28,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
   const [visaMeta, setVisaMeta] = useState<Map<string, { groupCode: string; shirka: string }>>(new Map());
   const [loading, setLoading] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [expanded, setExpanded] = useState(false);
   
   const navigate = useNavigate();
   const { userProfile, role } = useAuth();
@@ -35,6 +36,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
   useEffect(() => {
     if (isOpen) {
       setQuery('');
+      setExpanded(false);
       setLoading(true);
       // Agents get a server-side filtered query (unfiltered collection reads are
       // rejected by Firestore rules for the agent role)
@@ -153,6 +155,14 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
     onClose();
   };
 
+  // ESC closes from anywhere while the modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -164,7 +174,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
       />
 
       {/* Search Container */}
-      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-150">
+      <div className={`relative w-full ${expanded ? 'max-w-5xl' : 'max-w-2xl'} bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-150`}>
         {/* Input Bar */}
         <div className="flex items-center px-4 py-3.5 border-b border-slate-100 bg-slate-50/50">
           <Search className="w-5 h-5 text-slate-400 mr-3 shrink-0" />
@@ -172,7 +182,11 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
             autoFocus
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') { onClose(); return; }
+              if (e.key === 'Enter' && query.trim() && searchResults.length > 0) { setExpanded(true); }
+            }}
+            onChange={(e) => { setQuery(e.target.value); setExpanded(false); }}
             placeholder="Search vouchers by Voucher No, Passport Number, Group Code, Passenger Name, or Shirka..."
             className="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
           />
@@ -187,7 +201,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
         </div>
 
         {/* Results / Empty State */}
-        <div className="max-h-96 overflow-y-auto p-2 divide-y divide-slate-100">
+        <div className={`${expanded ? 'max-h-[70vh]' : 'max-h-96'} overflow-y-auto p-2 divide-y divide-slate-100`}>
           {loading ? (
             <div className="py-12 text-center text-slate-500 text-xs">
               Loading live Firestore vouchers directory...
@@ -228,12 +242,71 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                 No vouchers match "{query}". Please check your search parameters or passport number.
               </p>
             </div>
+          ) : expanded ? (
+            <div className="py-1">
+              <div className="px-3 py-2 flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Voucher Results ({searchResults.length})
+                </span>
+                <button
+                  onClick={() => setExpanded(false)}
+                  className="text-[11px] font-bold text-[var(--theme-primary)] hover:underline"
+                >
+                  ← Back to quick view
+                </button>
+              </div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-[10px] uppercase tracking-wider text-slate-400 border-y border-slate-100 bg-slate-50/60">
+                    <th className="py-2.5 px-3 font-bold">Voucher No</th>
+                    <th className="py-2.5 px-3 font-bold">Group</th>
+                    <th className="py-2.5 px-3 font-bold">Passenger</th>
+                    <th className="py-2.5 px-3 font-bold">Passport</th>
+                    <th className="py-2.5 px-3 font-bold">Shirka</th>
+                    <th className="py-2.5 px-3 font-bold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {searchResults.map(({ voucher, matchedPassenger, shirkaName, groupCode }, idx) => (
+                    <tr key={voucher.id || idx} className="hover:bg-slate-50 transition">
+                      <td className="py-2.5 px-3 font-mono font-bold text-[var(--theme-primary)] whitespace-nowrap">
+                        {voucher.voucherNo}
+                      </td>
+                      <td className="py-2.5 px-3"><Badge variant="navy" size="sm">{groupCode || '—'}</Badge></td>
+                      <td className="py-2.5 px-3 font-semibold text-slate-900">
+                        {matchedPassenger?.name || voucher.passengers?.[0]?.name || 'N/A'}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-slate-600">
+                        {matchedPassenger?.passportNumber || voucher.passengers?.[0]?.passportNumber || 'N/A'}
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-600">{shirkaName || '—'}</td>
+                      <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                        <button
+                          onClick={() => handleSelectVoucher(voucher.voucherNo)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--theme-primary)] text-white text-[11px] font-bold hover:opacity-90 transition"
+                        >
+                          Open Voucher <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <div className="space-y-1 py-1">
-              <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                Voucher Results ({searchResults.length})
+              <div className="px-3 py-1 flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Voucher Results ({searchResults.length})
+                </span>
+                <button
+                  onClick={() => setExpanded(true)}
+                  className="text-[11px] font-bold text-[var(--theme-primary)] hover:underline"
+                >
+                  View all on one page →
+                </button>
               </div>
-              {searchResults.map(({ voucher, matchedPassenger, shirkaName, groupCode }, idx) => (
+              {searchResults.slice(0, 8).map(({ voucher, matchedPassenger, shirkaName, groupCode }, idx) => (
                 <div
                   key={voucher.id || idx}
                   onClick={() => handleSelectVoucher(voucher.voucherNo)}
@@ -264,13 +337,21 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                   </div>
                 </div>
               ))}
+              {searchResults.length > 8 && (
+                <button
+                  onClick={() => setExpanded(true)}
+                  className="w-full py-2.5 text-xs font-bold text-[var(--theme-primary)] hover:bg-slate-50 rounded-xl transition"
+                >
+                  + {searchResults.length - 8} more — view all on one page
+                </button>
+              )}
             </div>
           )}
         </div>
 
         {/* Footer */}
         <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-          <span>Press ESC to close</span>
+          <span>Press <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-bold">ESC</kbd> to close · <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-bold">Enter</kbd> for full results</span>
           <span className="font-mono">{TENANT.companyName} Global Search</span>
         </div>
       </div>

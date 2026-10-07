@@ -133,6 +133,44 @@
   color: #64748b !important;
 }
 
+
+/* ===== Night-mode readability fixes ===== */
+/* Theme-primary text (page titles, headings) -> white in dark mode */
+.theme-dark [class*="text-[var(--theme-primary)]"] {
+  color: #f8fafc !important;
+}
+/* Navy text utilities -> light in dark mode */
+.theme-dark .text-navy-900,
+.theme-dark .text-navy-800,
+.theme-dark .text-navy-700 {
+  color: #e2e8f0 !important;
+}
+.theme-dark .text-navy-600,
+.theme-dark .text-navy-500 {
+  color: #cbd5e1 !important;
+}
+/* Navy backgrounds (badges, pills) -> keep dark bg, ensure light text */
+.theme-dark .bg-navy-900,
+.theme-dark .bg-navy-800 {
+  background-color: #1a2740 !important;
+  color: #e2e8f0 !important;
+}
+.theme-dark .bg-navy-50 {
+  background-color: #273449 !important;
+}
+/* Muted text that is too dim */
+.theme-dark .text-slate-500 {
+  color: #a8b8d1 !important;
+}
+/* Table headers */
+.theme-dark thead th {
+  color: #cbd5e1 !important;
+}
+/* Ensure strong/bold text stays bright */
+.theme-dark strong, .theme-dark b {
+  color: #f1f5f9 !important;
+}
+
 /* Login page animations */
 @keyframes fadeIn {
   from { opacity: 0; }
