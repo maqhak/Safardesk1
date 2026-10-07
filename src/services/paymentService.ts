@@ -8,6 +8,7 @@ import {
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { postBalancedTransaction, voidLedgerEntry, fetchLedgerEntries, fetchLedgerAccounts } from './accountingService';
+import { TENANT } from '../config';
 import { uploadReceipt, verifyReceiptWithAI } from './driveService';
 import { getCurrentRate } from './exchangeRateService';
 
@@ -50,7 +51,7 @@ export const INITIAL_BANKS: BankDoc[] = [
   {
     id: 'bnk-001',
     bankName: 'Al-Rajhi Bank (Saudi Arabia)',
-    accountTitle: 'SafarDesk Corporate Treasury',
+    accountTitle: `${TENANT.companyName} Corporate Treasury`,
     accountNumber: '482001928374',
     iban: 'SA4480000482001928374',
     branch: 'Al-Mansoor District, Makkah Mukarramah',
@@ -61,7 +62,7 @@ export const INITIAL_BANKS: BankDoc[] = [
   {
     id: 'bnk-002',
     bankName: 'Meezan Bank (Pakistan)',
-    accountTitle: 'SafarDesk Pakistan Operations',
+    accountTitle: `${TENANT.companyName} Pakistan Operations`,
     accountNumber: '01020109928381',
     iban: 'PK64MEZN0001020109928381',
     branch: 'Main Branch, I.I. Chundrigar Road, Karachi',
@@ -72,7 +73,7 @@ export const INITIAL_BANKS: BankDoc[] = [
   {
     id: 'bnk-003',
     bankName: 'Saudi National Bank (SNB / AlAhli)',
-    accountTitle: 'SafarDesk Ground Transport Ops',
+    accountTitle: `${TENANT.companyName} Ground Transport Ops`,
     accountNumber: '201994820194',
     iban: 'SA12100000201994820194',
     branch: 'King Abdulaziz Road, Jeddah',

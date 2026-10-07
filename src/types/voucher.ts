@@ -79,6 +79,12 @@ export interface VoucherCommission {
   isPaid: boolean;
 }
 
+export interface ZiaratInfo {
+  by?: string; // Who conducts the ziarat
+  costSAR?: number;
+  rateSAR?: number;
+}
+
 export interface VoucherDoc {
   id: string;
   voucherNo: string; // e.g. "UV-000123"
@@ -93,6 +99,19 @@ export interface VoucherDoc {
   makkahStaffPhone?: string;
   madinaStaffName?: string;
   madinaStaffPhone?: string;
+  // --- Oracle APEX legacy fields (added 2026-10-07, creation form only) ---
+  leaderName?: string;
+  leaderContact?: string;
+  leaderPassport?: string;
+  packageType?: string;
+  transportCompany?: string;
+  saudiCompany?: string;
+  pakCompany?: string;
+  makkahZiarat?: ZiaratInfo;
+  madinaZiarat?: ZiaratInfo;
+  totalNights?: number;
+  reference?: string;
+  remarks?: string;
   packageIncludes?: string[]; // Manually selected Package Includes checklist
   status: 'Draft' | 'Pending Approval' | 'Confirmed' | 'Cancelled';
   approvedBy?: string;
@@ -135,6 +154,18 @@ export interface VoucherEditPayload {
   makkahStaffPhone?: string;
   madinaStaffName?: string;
   madinaStaffPhone?: string;
+  leaderName?: string;
+  leaderContact?: string;
+  leaderPassport?: string;
+  packageType?: string;
+  transportCompany?: string;
+  saudiCompany?: string;
+  pakCompany?: string;
+  makkahZiarat?: ZiaratInfo;
+  madinaZiarat?: ZiaratInfo;
+  totalNights?: number;
+  reference?: string;
+  remarks?: string;
   packageIncludes?: string[];
   passengers: PassengerSnapshot[];
   sectors: SectorItem[];

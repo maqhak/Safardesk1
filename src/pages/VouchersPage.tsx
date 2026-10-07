@@ -134,6 +134,20 @@ export const VouchersPage: React.FC = () => {
   const [madinaStaffPhone, setMadinaStaffPhone] = useState('');
   // Package Includes checklist — manually selectable per voucher
   const [packageIncludes, setPackageIncludes] = useState<string[]>([...DEFAULT_PACKAGE_INCLUDES]);
+  // --- Oracle APEX legacy fields (creation form, added 2026-10-07) ---
+  const [leaderName, setLeaderName] = useState('');
+  const [leaderContact, setLeaderContact] = useState('');
+  const [leaderPassport, setLeaderPassport] = useState('');
+  const [packageType, setPackageType] = useState('');
+  const [transportCompany, setTransportCompany] = useState('');
+  const [saudiCompany, setSaudiCompany] = useState('');
+  const [pakCompany, setPakCompany] = useState('');
+  const [makkahZiaratBy, setMakkahZiaratBy] = useState('');
+  const [makkahZiaratCost, setMakkahZiaratCost] = useState('');
+  const [madinaZiaratBy, setMadinaZiaratBy] = useState('');
+  const [madinaZiaratCost, setMadinaZiaratCost] = useState('');
+  const [voucherReference, setVoucherReference] = useState('');
+  const [voucherRemarks, setVoucherRemarks] = useState('');
 
   // Compact hotel-stay entry modal (professional small box + description)
   const [stayModalOpen, setStayModalOpen] = useState<boolean>(false);
@@ -414,6 +428,19 @@ export const VouchersPage: React.FC = () => {
     setMadinaStaffName(company?.madinaStaffName || '');
     setMadinaStaffPhone(company?.madinaStaffPhone || '');
     setPackageIncludes([...DEFAULT_PACKAGE_INCLUDES]);
+    setLeaderName('');
+    setLeaderContact('');
+    setLeaderPassport('');
+    setPackageType('');
+    setTransportCompany('');
+    setSaudiCompany('');
+    setPakCompany('');
+    setMakkahZiaratBy('');
+    setMakkahZiaratCost('');
+    setMadinaZiaratBy('');
+    setMadinaZiaratCost('');
+    setVoucherReference('');
+    setVoucherRemarks('');
     setBuilderOpen(true);
   };
 
@@ -565,6 +592,24 @@ export const VouchersPage: React.FC = () => {
       shirkaVendorId: voucherVendorId || undefined,
       shirkaId: voucherShirkaId || undefined,
       shirkaName: voucherVendorId ? resolveShirkaName(voucherVendorId, voucherShirkaId) || undefined : undefined,
+      leaderName: leaderName.trim() || undefined,
+      leaderContact: leaderContact.trim() || undefined,
+      leaderPassport: leaderPassport.trim() || undefined,
+      packageType: packageType.trim() || undefined,
+      transportCompany: transportCompany.trim() || undefined,
+      saudiCompany: saudiCompany.trim() || undefined,
+      pakCompany: pakCompany.trim() || undefined,
+      makkahZiarat: (makkahZiaratBy.trim() || makkahZiaratCost) ? {
+        by: makkahZiaratBy.trim() || undefined,
+        costSAR: parseFloat(makkahZiaratCost) || 0,
+      } : undefined,
+      madinaZiarat: (madinaZiaratBy.trim() || madinaZiaratCost) ? {
+        by: madinaZiaratBy.trim() || undefined,
+        costSAR: parseFloat(madinaZiaratCost) || 0,
+      } : undefined,
+      totalNights: namedHotelStays.reduce((s, h) => s + (h.nights || 0), 0),
+      reference: voucherReference.trim() || undefined,
+      remarks: voucherRemarks.trim() || undefined,
       passengers,
       sectors: sectorsWithTransport,
       hotelStays: namedHotelStays,
@@ -681,6 +726,18 @@ export const VouchersPage: React.FC = () => {
         madinaStaffName: madinaStaffName.trim() || undefined,
         madinaStaffPhone: madinaStaffPhone.trim() || undefined,
         packageIncludes: [...packageIncludes],
+        leaderName: payload.leaderName,
+        leaderContact: payload.leaderContact,
+        leaderPassport: payload.leaderPassport,
+        packageType: payload.packageType,
+        transportCompany: payload.transportCompany,
+        saudiCompany: payload.saudiCompany,
+        pakCompany: payload.pakCompany,
+        makkahZiarat: payload.makkahZiarat,
+        madinaZiarat: payload.madinaZiarat,
+        totalNights: payload.totalNights,
+        reference: payload.reference,
+        remarks: payload.remarks,
       });
 
       success('Unified trip voucher created successfully and posted to ledger.');
@@ -1841,6 +1898,146 @@ export const VouchersPage: React.FC = () => {
                   </div>
                 </div>
               </Modal>
+
+              {/* Oracle APEX legacy fields — Additional Details */}
+              <div className="p-4 bg-amber-50/50 border border-amber-200/60 rounded-xl space-y-4">
+                <h4 className="font-bold text-slate-900 text-sm">📋 Additional Details</h4>
+                
+                {/* Leader Info */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Group Leader</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <input
+                      type="text"
+                      value={leaderName}
+                      onChange={(e) => setLeaderName(e.target.value)}
+                      placeholder="Leader name"
+                      className="p-2 bg-white border border-slate-300 rounded-lg text-sm"
+                    />
+                    <input
+                      type="text"
+                      value={leaderContact}
+                      onChange={(e) => setLeaderContact(e.target.value)}
+                      placeholder="Contact number"
+                      className="p-2 bg-white border border-slate-300 rounded-lg text-sm"
+                    />
+                    <input
+                      type="text"
+                      value={leaderPassport}
+                      onChange={(e) => setLeaderPassport(e.target.value)}
+                      placeholder="Passport number"
+                      className="p-2 bg-white border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Package & Companies */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Package Type</label>
+                    <input
+                      type="text"
+                      value={packageType}
+                      onChange={(e) => setPackageType(e.target.value)}
+                      placeholder="e.g. SHUMUKH / SHAZA BARKA (DOUBLE) PIA"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Reference</label>
+                    <input
+                      type="text"
+                      value={voucherReference}
+                      onChange={(e) => setVoucherReference(e.target.value)}
+                      placeholder="Reference number"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Transport Company</label>
+                    <input
+                      type="text"
+                      value={transportCompany}
+                      onChange={(e) => setTransportCompany(e.target.value)}
+                      placeholder="Transport company"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Saudi Company</label>
+                    <input
+                      type="text"
+                      value={saudiCompany}
+                      onChange={(e) => setSaudiCompany(e.target.value)}
+                      placeholder="Saudi company"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Pak Company</label>
+                    <input
+                      type="text"
+                      value={pakCompany}
+                      onChange={(e) => setPakCompany(e.target.value)}
+                      placeholder="Pakistan company"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Ziarat */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 bg-white border border-slate-200 rounded-lg">
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">🕌 Makkah Ziarat</label>
+                    <input
+                      type="text"
+                      value={makkahZiaratBy}
+                      onChange={(e) => setMakkahZiaratBy(e.target.value)}
+                      placeholder="Ziarat by"
+                      className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm mb-2"
+                    />
+                    <input
+                      type="number"
+                      value={makkahZiaratCost}
+                      onChange={(e) => setMakkahZiaratCost(e.target.value)}
+                      placeholder="Cost (SAR)"
+                      className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div className="p-3 bg-white border border-slate-200 rounded-lg">
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">🕌 Madina Ziarat</label>
+                    <input
+                      type="text"
+                      value={madinaZiaratBy}
+                      onChange={(e) => setMadinaZiaratBy(e.target.value)}
+                      placeholder="Ziarat by"
+                      className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm mb-2"
+                    />
+                    <input
+                      type="number"
+                      value={madinaZiaratCost}
+                      onChange={(e) => setMadinaZiaratCost(e.target.value)}
+                      placeholder="Cost (SAR)"
+                      className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Remarks */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Remarks</label>
+                  <textarea
+                    value={voucherRemarks}
+                    onChange={(e) => setVoucherRemarks(e.target.value)}
+                    rows={2}
+                    placeholder="Any special remarks..."
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm resize-none"
+                  />
+                </div>
+              </div>
             </div>
           )}
 
