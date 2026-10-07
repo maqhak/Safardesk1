@@ -315,20 +315,30 @@ export async function createAgentWithCredentials(
   };
 
   // 4. Auto-create agent's ledger account doc in ledgerAccounts
-  const ledgerDocData: LedgerAccountDoc = {
+  // MUST include accountCode (e.g. AGT-001) — required by Visa Distribution dropdown filter
+  // and all fields from the full LedgerAccountDoc type in types/accounting.ts
+  const ledgerDocData = {
     id: `ledger-${agentId}`,
-    accountType: 'agent',
-    linkedAgentId: agentId,
+    accountCode: agentCode,
+    accountType: 'agent' as const,
+    title: data.companyName.trim(),
+    accountName: data.companyName.trim(), // legacy field, kept for compatibility
+    linkedId: agentId,
+    linkedAgentId: agentId, // legacy field, kept for compatibility
     agentCode,
-    accountName: data.companyName.trim(),
-    openingBalance: 0,
+    isSystem: false,
+    isActive: true,
+    openingBalance: 0, // legacy field
+    openingBalanceSAR: 0,
+    openingBalancePKR: 0,
     currentBalanceSAR: 0,
     currency: 'SAR',
     createdAt: new Date().toISOString(),
     createdBy: actor.uid,
   };
 
-  // Write to Firestore
+  // Write to Firestore — ledger creation is MANDATORY, fail loudly if it fails
+  // (previously silently swallowed errors, leaving agents without ledgers)
   try {
     if (!isConfigPlaceholder) {
       await Promise.all([
@@ -338,7 +348,8 @@ export async function createAgentWithCredentials(
       ]);
     }
   } catch (err) {
-    console.warn('Firestore write failed for agent registration:', err);
+    // DO NOT silently continue — agent without ledger breaks Visa Distribution, reports, etc.
+    throw new Error(`Agent created but ledger account failed: ${err instanceof Error ? err.message : String(err)}. Please retry or contact support.`);
   }
 
   // Update local storage caches
@@ -542,4 +553,62 @@ export async function resetAgentPasswordByOwner(
   });
 
   return tempPass;
+}
+
+/**
+ * One-time repair: create missing ledger accounts for agents that don't have one.
+ * Called manually via "Repair Ledgers" button — NOT automatic.
+ * Fixes agents created before the ledger auto-provisioning fix (e.g. 6 Brothers AGT-001/002/003).
+ */
+export async function repairMissingAgentLedgers(actor: UserProfile): Promise<string[]> {
+  if (actor.role !== 'owner') {
+    throw new Error('Only the Owner can repair agent ledgers.');
+  }
+  const agents = await fetchAgents();
+  const ledgers = await fetchLedgerAccounts();
+  const existingLinkedIds = new Set(ledgers.map(l => (l as any).linkedAgentId || (l as any).linkedId));
+  const existingCodes = new Set(ledgers.map(l => (l as any).accountCode || (l as any).agentCode));
+  const missing = agents.filter(a => !existingLinkedIds.has(a.id) && !existingCodes.has(a.agentCode));
+  
+  const created: string[] = [];
+  for (const a of missing) {
+    const ledgerId = `ledger-${a.id}`;
+    const ledgerDoc = {
+      id: ledgerId,
+      accountCode: a.agentCode,
+      accountType: 'agent' as const,
+      title: a.companyName,
+      accountName: a.companyName,
+      linkedId: a.id,
+      linkedAgentId: a.id,
+      agentCode: a.agentCode,
+      isSystem: false,
+      isActive: true,
+      openingBalance: 0,
+      openingBalanceSAR: 0,
+      openingBalancePKR: 0,
+      currentBalanceSAR: 0,
+      currency: 'SAR',
+      createdAt: new Date().toISOString(),
+      createdBy: actor.uid,
+    };
+    if (!isConfigPlaceholder) {
+      await setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerId), ledgerDoc);
+    }
+    // Update local cache
+    const cached = await fetchLedgerAccounts();
+    localStorage.setItem(LOCAL_STORAGE_LEDGERS_KEY, JSON.stringify([ledgerDoc, ...cached]));
+    created.push(a.agentCode);
+  }
+
+  await logAuditEvent({
+    action: 'REPAIR_AGENT_LEDGERS',
+    userId: actor.uid,
+    userName: actor.name || 'Owner',
+    userEmail: actor.email,
+    userRole: actor.role,
+    details: { created },
+  });
+
+  return created;
 }

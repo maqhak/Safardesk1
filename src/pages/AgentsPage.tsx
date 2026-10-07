@@ -22,7 +22,8 @@ import {
   ShieldAlert,
   ArrowUpRight,
   Clock,
-  Sparkles
+  Sparkles,
+  Wrench
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card, CardHeader } from '../components/ui/Card';
@@ -57,7 +58,8 @@ import {
   toggleAgentStatus, 
   resetAgentPasswordByOwner, 
   getAgentBalance,
-  generateNextAgentCode
+  generateNextAgentCode,
+  repairMissingAgentLedgers
 } from '../services/agentService';
 import { TENANT } from '../config';
 import { getCurrentRate } from '../services/exchangeRateService';
@@ -423,6 +425,31 @@ Please keep these credentials safe and change password after first login.`;
             >
               Refresh
             </Button>
+            {isOwner && (
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<Wrench className="w-3.5 h-3.5" />}
+                onClick={async () => {
+                  if (!userProfile) return;
+                  if (!confirm('Create missing ledger accounts for agents that don\'t have one?')) return;
+                  try {
+                    const created = await repairMissingAgentLedgers(userProfile);
+                    if (created.length > 0) {
+                      success(`Repaired! Created ledgers for: ${created.join(', ')}`);
+                      loadData();
+                    } else {
+                      info('All agents already have ledger accounts. Nothing to repair.');
+                    }
+                  } catch (e: any) {
+                    showError(e.message || 'Repair failed');
+                  }
+                }}
+                title="One-time fix: create ledgers for agents missing them"
+              >
+                Repair Ledgers
+              </Button>
+            )}
             {isOwner && (
               <Button
                 variant="primary"
