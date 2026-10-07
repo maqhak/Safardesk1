@@ -19,7 +19,7 @@ export async function fetchTenantLicense(): Promise<LicenseDoc> {
     status: 'active',
     validUntil: '2027-12-31',
     plan: 'Enterprise Unlimited',
-    supportContact: '+966 12 558 7890 (support@safardesk.com)',
+    supportContact: `${TENANT.contact.phone} (${TENANT.contact.email})`,
   };
 
   try {
