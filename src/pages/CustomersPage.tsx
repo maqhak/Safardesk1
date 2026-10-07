@@ -28,6 +28,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { CustomerDoc } from '../types/customer';
+import { AgentsPage } from './AgentsPage';
 import { fetchCustomers, createCustomer, mergeCustomers } from '../services/customerService';
 import { fetchVisas } from '../services/visaService';
 import { fetchVouchers } from '../services/voucherService';
@@ -53,6 +54,7 @@ export const CustomersPage: React.FC = () => {
 
   // Add Customer Modal
   const [addModalOpen, setAddModalOpen] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<'customers' | 'agents'>('customers');
   const [creating, setCreating] = useState<boolean>(false);
   const [fullName, setFullName] = useState<string>('');
   const [passportNumber, setPassportNumber] = useState<string>('');
@@ -295,34 +297,65 @@ export const CustomersPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Direct B2C Customers & Pilgrims"
-        subtitle="Manage B2C direct customer profiles, passports, direct ledgers, and view unified booking activity timelines."
-        breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Customers' }]}
+        title="Customers & Agents"
+        subtitle="Manage B2C direct customers, pilgrim profiles, and B2B sub-agent partnerships."
+        breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Customers & Agents' }]}
         actions={
-          <div className="flex items-center gap-2">
-            {isOwner && (
+          activeTab === 'customers' ? (
+            <div className="flex items-center gap-2">
+              {isOwner && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Merge className="w-3.5 h-3.5" />}
+                  onClick={() => setMergeModalOpen(true)}
+                >
+                  Merge Duplicates
+                </Button>
+              )}
               <Button
-                variant="outline"
+                variant="primary"
                 size="sm"
-                leftIcon={<Merge className="w-3.5 h-3.5" />}
-                onClick={() => setMergeModalOpen(true)}
+                leftIcon={<Plus className="w-3.5 h-3.5" />}
+                onClick={() => setAddModalOpen(true)}
+                className="bg-[#0e2c4c] hover:bg-[#1a4473]"
               >
-                Merge Duplicates
+                + Add Customer
               </Button>
-            )}
-            <Button
-              variant="primary"
-              size="sm"
-              leftIcon={<Plus className="w-3.5 h-3.5" />}
-              onClick={() => setAddModalOpen(true)}
-              className="bg-[#0e2c4c] hover:bg-[#1a4473]"
-            >
-              + Add Customer
-            </Button>
-          </div>
+            </div>
+          ) : undefined
         }
       />
 
+      {/* Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
+        {[
+          { key: 'customers', label: 'Customers', icon: Users },
+          { key: 'agents', label: 'B2B Sub-Agents', icon: UserCheck },
+        ].map((t) => {
+          const Icon = t.icon;
+          const isActive = activeTab === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key as 'customers' | 'agents')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                isActive
+                  ? 'bg-[#0e2c4c] text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              <span>{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === 'agents' ? (
+        <AgentsPage />
+      ) : (
+      <>
       {/* Search Bar */}
       <Card padding="md" className="border-slate-200 shadow-xs">
         <div className="relative">
@@ -348,6 +381,9 @@ export const CustomersPage: React.FC = () => {
           emptyDescription="There are no customer profiles available in the directory."
         />
       </Card>
+
+      </>
+      )}
 
       {/* Add Customer Modal */}
       <Modal

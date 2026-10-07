@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Database, 
-  Users, 
   Building, 
   Plane, 
   MapPin, 
@@ -19,13 +18,12 @@ import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
-import { AgentsPage } from './AgentsPage';
 import { AirlinesPage } from './AirlinesPage';
 import { VehiclesPage } from './VehiclesPage';
 import { INITIAL_AIRLINES } from '../data/airlines';
 import { AIRPORTS_DATA } from '../data/airports';
 
-type MasterTab = 'agents' | 'airlines' | 'airports';
+type MasterTab = 'airlines' | 'airports';
 
 export const MastersPage: React.FC = () => {
   const { info, success } = useToast();
@@ -35,8 +33,6 @@ export const MastersPage: React.FC = () => {
 
   const tabs: { key: MasterTab; label: string; icon: any; count: number }[] = [
     { key: 'airlines', label: 'Airlines', icon: Plane, count: INITIAL_AIRLINES.length },
-    { key: 'agents', label: 'B2B Sub-Agents', icon: Users, count: 48 },
-
     { key: 'airports', label: 'Airports & Reference', icon: MapPin, count: AIRPORTS_DATA.length },
 
 
@@ -96,9 +92,9 @@ export const MastersPage: React.FC = () => {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Master Records & Directories"
-          subtitle="Manage foundational business master data: sub-agents, contracted hotel inventory, airline codes, and service suppliers."
-          breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
+          title="Flight Records & Directories"
+          subtitle="Manage flight master data: airline codes, airports and reference directories."
+          breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Flights' }]}
         />
         {renderQaBanner()}
         {renderTabsBar()}
@@ -107,27 +103,13 @@ export const MastersPage: React.FC = () => {
     );
   }
 
-  if (activeTab === 'agents') {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Master Records & Directories"
-          subtitle="Manage foundational business master data: sub-agents, contracted hotel inventory, airline codes, and service suppliers."
-          breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
-        />
-        {renderQaBanner()}
-        {renderTabsBar()}
-        <AgentsPage />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Master Records & Directories"
-        subtitle="Manage foundational business master data: sub-agents, contracted hotel inventory, airline codes, and service suppliers."
-        breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters' }]}
+        title="Flight Records & Directories"
+        subtitle="Manage flight master data: airline codes, airports and reference directories."
+        breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Flights' }]}
       />
       {renderQaBanner()}
       {renderTabsBar()}
