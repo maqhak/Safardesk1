@@ -470,14 +470,19 @@ export const VisaInvoicesPage: React.FC = () => {
             {/* Agent & Vendor Meta */}
             <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
               <div>
-                <span className="text-[10px] text-slate-500 uppercase font-bold block">B2B Agent (Client):</span>
                 <strong className="text-sm text-slate-900">{agentMap.get(selectedInvoice.agentId)?.title || 'Agent'}</strong>
                 <div className="font-mono text-xs text-slate-600">Code: {agentMap.get(selectedInvoice.agentId)?.accountCode}</div>
-                <div className="text-[11px] text-slate-500">Territory: {agentMap.get(selectedInvoice.agentId)?.notes || 'B2B Partner'}</div>
               </div>
               <div className="text-right">
                 <span className="text-[10px] text-slate-500 uppercase font-bold block">Source Shirka Vendor:</span>
-                <strong className="text-slate-900">{vendorMap.get(selectedInvoice.vendorId)?.name || 'Shirka'}</strong>
+                <strong className="text-slate-900">{(() => {
+                  const vendor = vendorMap.get(selectedInvoice.vendorId);
+                  if (selectedInvoice.shirkaId && vendor?.shirkas) {
+                    const sub = vendor.shirkas.find(s => s.id === selectedInvoice.shirkaId);
+                    if (sub) return sub.name;
+                  }
+                  return vendor?.name || 'Shirka';
+                })()}</strong>
                 <div className="text-[11px] text-slate-500">{vendorMap.get(selectedInvoice.vendorId)?.city}, {vendorMap.get(selectedInvoice.vendorId)?.country}</div>
                 <div className="text-[11px] font-mono text-slate-600 mt-1">Exchange Rate: 1 SAR = {selectedInvoice.exchangeRate} PKR</div>
               </div>

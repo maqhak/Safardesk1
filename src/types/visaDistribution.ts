@@ -59,6 +59,7 @@ export interface VisaInvoiceDoc {
   distributionId: string;
   agentId: string;
   vendorId: string;
+  shirkaId?: string; // Sub-Shirka of the vendor (empty = vendor itself)
   date: string;
   lines: InvoicePaxLine[];
   sellingTotalSAR: number;

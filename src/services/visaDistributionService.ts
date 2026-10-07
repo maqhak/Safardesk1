@@ -240,6 +240,7 @@ export async function createVisaDistributionBatch(params: {
       distributionId: distribId,
       agentId,
       vendorId: params.vendorId,
+      shirkaId: params.shirkaId || undefined,
       date: params.date,
       lines: invoiceLines,
       sellingTotalSAR: batch.sellingTotalSAR,
