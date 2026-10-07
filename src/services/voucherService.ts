@@ -156,12 +156,8 @@ export async function createVoucher(
     createdByName: actor.name || actor.email,
   };
 
-  try {
-    if (!isConfigPlaceholder) {
-      await setDoc(doc(db, VOUCHERS_COLLECTION, voucherId), newVoucher);
-    }
-  } catch (err) {
-    console.warn('Firestore write failed for voucher:', err);
+  if (!isConfigPlaceholder) {
+    await setDoc(doc(db, VOUCHERS_COLLECTION, voucherId), newVoucher);
   }
 
   const existing = await fetchVouchers();
