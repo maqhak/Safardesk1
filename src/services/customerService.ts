@@ -13,7 +13,7 @@ import { UserProfile } from '../types/auth';
 import { logAuditEvent } from './userService';
 
 const CUSTOMERS_COLLECTION = 'customers';
-const LEDGER_ACCOUNTS_COLLECTION = 'ledgerAccounts';
+const LEDGER_ACCOUNTS_COLLECTION = 'ledger_accounts';
 const LOCAL_STORAGE_CUSTOMERS_KEY = 'safardesk_customers_directory';
 
 const INITIAL_CUSTOMERS: CustomerDoc[] = [

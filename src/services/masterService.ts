@@ -19,7 +19,7 @@ const VENDORS_COLLECTION = 'vendors';
 const HOTELS_COLLECTION = 'hotels';
 const VEHICLES_COLLECTION = 'vehicles';
 const AIRLINES_COLLECTION = 'airlines';
-const LEDGER_ACCOUNTS_COLLECTION = 'ledgerAccounts';
+const LEDGER_ACCOUNTS_COLLECTION = 'ledger_accounts';
 
 const LOCAL_STORAGE_VENDORS_KEY = 'safardesk_vendors_directory';
 const LOCAL_STORAGE_HOTELS_KEY = 'safardesk_hotels_directory';
