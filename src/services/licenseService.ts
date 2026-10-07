@@ -1,4 +1,4 @@
-import { TENANT_KEY, LICENSE_FIREBASE_CONFIG } from '../config';
+import { TENANT_KEY, TENANT, LICENSE_FIREBASE_CONFIG } from '../config';
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 
@@ -15,7 +15,7 @@ const LICENSE_CACHE_TIME_KEY = 'safardesk_license_cache_time_v1';
 
 export async function fetchTenantLicense(): Promise<LicenseDoc> {
   const defaultLicense: LicenseDoc = {
-    companyName: 'SafarDesk Travel & Tours',
+    companyName: TENANT.companyName,
     status: 'active',
     validUntil: '2027-12-31',
     plan: 'Enterprise Unlimited',
