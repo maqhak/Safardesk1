@@ -26,7 +26,7 @@ import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { useDeepOpen } from '../hooks/useDeepOpen';
-import { fetchVisaInvoices, markCommissionPaid } from '../services/visaDistributionService';
+import { fetchVisaInvoices, markCommissionPaid, backfillInvoiceShirkaIds } from '../services/visaDistributionService';
 import { fetchVendors } from '../services/masterService';
 import { fetchLedgerAccounts, fetchLedgerEntries } from '../services/accountingService';
 import { VisaInvoiceDoc } from '../types/visaDistribution';
@@ -219,6 +219,27 @@ export const VisaInvoicesPage: React.FC = () => {
               onClick={() => success('Invoices exported to CSV.')}
             >
               Export CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                if (!confirm('Update old invoices with sub-shirka info from their distributions?')) return;
+                try {
+                  const count = await backfillInvoiceShirkaIds();
+                  if (count > 0) {
+                    success(`Updated ${count} old invoice(s) with sub-shirka!`);
+                    window.location.reload();
+                  } else {
+                    info('All invoices already have sub-shirka info.');
+                  }
+                } catch (e: any) {
+                  showError(e.message || 'Migration failed');
+                }
+              }}
+              title="One-time: copy sub-shirka from distributions to old invoices"
+            >
+              Fix Old Invoices
             </Button>
           </div>
         }

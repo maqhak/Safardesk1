@@ -453,3 +453,34 @@ export async function markCommissionPaid(
     details: { recipientName: inv.commission.recipientName, amountSAR: commSAR },
   });
 }
+
+/**
+ * One-time migration: backfill shirkaId on old invoices from their distributions.
+ * Old invoices were created before shirkaId was stored on VisaInvoiceDoc.
+ */
+export async function backfillInvoiceShirkaIds(): Promise<number> {
+  const [invoices, distributions] = await Promise.all([
+    fetchVisaInvoices(),
+    fetchVisaDistributions(),
+  ]);
+  const distMap = new Map(distributions.map(d => [d.id, d]));
+  let updated = 0;
+  
+  for (const inv of invoices) {
+    if (inv.shirkaId) continue; // Already has it
+    const dist = distMap.get(inv.distributionId);
+    if (dist?.shirkaId) {
+      const updatedInv = { ...inv, shirkaId: dist.shirkaId };
+      if (!isConfigPlaceholder) {
+        await setDoc(doc(db, INVOICES_COLLECTION, inv.id), updatedInv);
+      }
+      updated++;
+    }
+  }
+  // Refresh localStorage cache
+  if (updated > 0 && !isConfigPlaceholder) {
+    const fresh = await fetchVisaInvoices();
+    localStorage.setItem(LOCAL_STORAGE_INVOICES_KEY, JSON.stringify(fresh));
+  }
+  return updated;
+}
