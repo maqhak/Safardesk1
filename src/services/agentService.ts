@@ -18,7 +18,7 @@ import { UserProfile, UserDoc } from '../types/auth';
 import { logAuditEvent, fetchAllUsers } from './userService';
 
 const AGENTS_COLLECTION = 'agents';
-const LEDGER_ACCOUNTS_COLLECTION = 'ledgerAccounts';
+const LEDGER_ACCOUNTS_COLLECTION = 'ledger_accounts';
 const USERS_COLLECTION = 'users';
 
 const LOCAL_STORAGE_AGENTS_KEY = 'safardesk_agents_directory';
