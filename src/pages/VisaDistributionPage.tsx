@@ -29,6 +29,8 @@ import { fetchVendors } from '../services/masterService';
 import { fetchLedgerAccounts } from '../services/accountingService';
 import { createVisaDistributionBatch } from '../services/visaDistributionService';
 import { fetchAgents } from '../services/agentService';
+import { doc, setDoc } from 'firebase/firestore';
+import { db, isConfigPlaceholder } from '../services/firebase';
 import { getCurrentRate } from '../services/exchangeRateService';
 import { AgentDoc } from '../types/agent';
 import { VendorDoc } from '../types/master';
@@ -97,8 +99,48 @@ export const VisaDistributionPage: React.FC = () => {
 
       setVisas(vList);
       setVendors(vndList.filter(v => v.isActive));
-      setAgents(accList.filter(a => a.accountType === 'agent' || a.accountCode.startsWith('AGT')));
+      const agentLedgers = accList.filter(a => a.accountType === 'agent' || (a.accountCode && a.accountCode.startsWith('AGT')));
+      setAgents(agentLedgers);
       setAgentMasters(agList);
+
+      // Backfill: auto-create missing ledger accounts for agents that don't have one
+      // (fixes agents created before ledger auto-provisioning, e.g. 6 Brothers AGT-001/002/003)
+      if (!isConfigPlaceholder && agList.length > 0) {
+        const existingLinkedIds = new Set(agentLedgers.map(l => (l as any).linkedAgentId || (l as any).linkedId));
+        const missing = agList.filter(m => !existingLinkedIds.has(m.id) && !agentLedgers.some(l => l.accountCode === m.agentCode));
+        if (missing.length > 0) {
+          const newLedgers: any[] = [];
+          for (const m of missing) {
+            const ledgerId = `ledger-${m.id}`;
+            const ledgerDoc = {
+              id: ledgerId,
+              accountType: 'agent',
+              accountCode: m.agentCode,
+              agentCode: m.agentCode,
+              linkedAgentId: m.id,
+              accountName: m.companyName,
+              title: m.companyName,
+              openingBalance: 0,
+              openingBalanceSAR: 0,
+              openingBalancePKR: 0,
+              currentBalanceSAR: 0,
+              currency: 'SAR',
+              isActive: true,
+              createdAt: new Date().toISOString(),
+              createdBy: 'system-backfill',
+            };
+            try {
+              await setDoc(doc(db, 'ledgerAccounts', ledgerId), ledgerDoc);
+              newLedgers.push(ledgerDoc);
+            } catch (e) {
+              console.warn(`Backfill failed for agent ${m.agentCode}:`, e);
+            }
+          }
+          if (newLedgers.length > 0) {
+            setAgents([...agentLedgers, ...newLedgers]);
+          }
+        }
+      }
     } catch {
       showError('Failed to load undistributed visas and master lists.');
     } finally {
