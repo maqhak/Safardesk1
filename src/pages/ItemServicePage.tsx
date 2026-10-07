@@ -90,7 +90,7 @@ export const ItemServicePage: React.FC = () => {
   const [itemCustomerId, setItemCustomerId] = useState<string>('');
   const [itemBuyingPKR, setItemBuyingPKR] = useState<number>(0);
   const [itemSellingPKR, setItemSellingPKR] = useState<number>(0);
-  const [itemCurrency, setItemCurrency] = useState<'SAR' | 'PKR'>('PKR');
+  const [itemCurrency, setItemCurrency] = useState<'SAR' | 'PKR' | 'USD'>('PKR');
   const [itemRate, setItemRate] = useState<number>(0);
   const [itemDescription, setItemDescription] = useState<string>('');
 
@@ -709,11 +709,12 @@ export const ItemServicePage: React.FC = () => {
               <label className="block text-[11px] font-semibold text-slate-600 mb-1">Currency</label>
               <select
                 value={itemCurrency}
-                onChange={(e) => setItemCurrency(e.target.value as 'SAR' | 'PKR')}
+                onChange={(e) => setItemCurrency(e.target.value as 'SAR' | 'PKR' | 'USD')}
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[var(--theme-primary)]"
               >
                 <option value="PKR">PKR — Pakistani Rupee</option>
                 <option value="SAR">SAR — Saudi Riyal</option>
+                <option value="USD">USD — US Dollar</option>
               </select>
               <div className="text-[10px] text-slate-500 mt-0.5">
                 Margin: <strong className={itemSellingPKR - itemBuyingPKR >= 0 ? 'text-emerald-700' : 'text-rose-700'}>

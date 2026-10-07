@@ -82,8 +82,8 @@ export const AccountsPage: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [accountSearch, setAccountSearch] = useState<string>('');
 
-  // Currency Toggle: SAR ⇄ PKR
-  const [currency, setCurrency] = useState<'SAR' | 'PKR'>('SAR');
+  // Currency Toggle: SAR / PKR / USD
+  const [currency, setCurrency] = useState<'SAR' | 'PKR' | 'USD'>('SAR');
 
   // Period Filter
   const [periodPreset, setPeriodPreset] = useState<'all' | 'this_month' | 'last_month' | 'this_year' | 'custom'>('all');
@@ -132,6 +132,7 @@ export const AccountsPage: React.FC = () => {
   const [newInvRef, setNewInvRef] = useState<string>('');
   const [newVoucherNo, setNewVoucherNo] = useState<string>('');
   const masterRate = useCurrentRate('SAR-PKR');
+  const usdSarRate = useCurrentRate('USD-SAR');
   const [newRate, setNewRate] = useState<number>(masterRate);
 
   useEffect(() => {
@@ -140,7 +141,7 @@ export const AccountsPage: React.FC = () => {
   const [newDebitAccountId, setNewDebitAccountId] = useState<string>('');
   const [newCreditAccountId, setNewCreditAccountId] = useState<string>('');
   const [newAmountSAR, setNewAmountSAR] = useState<number>(0);
-  const [newTransCurrency, setNewTransCurrency] = useState<'SAR' | 'PKR'>('SAR');
+  const [newTransCurrency, setNewTransCurrency] = useState<'SAR' | 'PKR' | 'USD'>('SAR');
   const [newMofaPax, setNewMofaPax] = useState<number>(0);
   const [newHotelPax, setNewHotelPax] = useState<number>(0);
   const [newDriveUrl, setNewDriveUrl] = useState<string>('');
@@ -286,6 +287,8 @@ export const AccountsPage: React.FC = () => {
     }
     const postAmountSAR = newTransCurrency === 'PKR' && newRate > 0
       ? Math.round((newAmountSAR / newRate) * 100) / 100
+      : newTransCurrency === 'USD'
+      ? Math.round(newAmountSAR * (usdSarRate || 3.75) * 100) / 100
       : newAmountSAR;
 
     setSavingTrans(true);
@@ -427,6 +430,17 @@ export const AccountsPage: React.FC = () => {
                 >
                   <ArrowLeftRight className="w-3 h-3 text-[#c9a227]" />
                   <span>PKR View</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrency('USD')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    currency === 'USD' 
+                      ? 'bg-[#0e2c4c] text-white shadow-xs' 
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span>USD View</span>
                 </button>
               </div>
 
@@ -716,7 +730,7 @@ export const AccountsPage: React.FC = () => {
             </h4>
             <p className="text-[11px] text-slate-500">
               Showing statement in <strong>{currency}</strong>
-              {currency === 'PKR' ? ' — Rate column shows the SAR→PKR exchange rate applied per entry.' : ' — clean SAR amounts.'}
+              {currency === 'PKR' ? ' — Rate column shows the SAR→PKR exchange rate applied per entry.' : currency === 'USD' ? ' — USD amounts converted at settings USD→SAR rate.' : ' — clean SAR amounts.'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -783,8 +797,8 @@ export const AccountsPage: React.FC = () => {
                 statement.rows.map((row, idx) => {
                   const e = row.entry;
                   const isVoid = e.isVoid;
-                  const debit = currency === 'SAR' ? e.debitSAR : e.debitPKR;
-                  const credit = currency === 'SAR' ? e.creditSAR : e.creditPKR;
+                  const debit = currency === 'SAR' ? e.debitSAR : currency === 'PKR' ? e.debitPKR : (e.debitSAR || 0) / (usdSarRate || 3.75);
+                  const credit = currency === 'SAR' ? e.creditSAR : currency === 'PKR' ? e.creditPKR : (e.creditSAR || 0) / (usdSarRate || 3.75);
 
                   return (
                     <tr
@@ -1159,11 +1173,12 @@ export const AccountsPage: React.FC = () => {
               <label className="block text-[11px] font-semibold text-slate-600 mb-1">Currency *</label>
               <select
                 value={newTransCurrency}
-                onChange={(e) => setNewTransCurrency(e.target.value as 'SAR' | 'PKR')}
+                onChange={(e) => setNewTransCurrency(e.target.value as 'SAR' | 'PKR' | 'USD')}
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[var(--theme-primary)]"
               >
                 <option value="SAR">SAR — Saudi Riyal</option>
                 <option value="PKR">PKR — Pakistani Rupee</option>
+                <option value="USD">USD — US Dollar</option>
               </select>
             </div>
             <div>

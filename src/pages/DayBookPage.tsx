@@ -59,7 +59,7 @@ export const DayBookPage: React.FC = () => {
   const [entries, setEntries] = useState<LedgerEntryDoc[]>([]);
 
   // Filter states
-  const [currency, setCurrency] = useState<'SAR' | 'PKR'>('SAR');
+  const [currency, setCurrency] = useState<'SAR' | 'PKR' | 'USD'>('SAR');
   const [search, setSearch] = useState<string>('');
   const [entryTypeFilter, setEntryTypeFilter] = useState<string>('all');
   const [accountTypeFilter, setAccountTypeFilter] = useState<string>('all');
@@ -251,6 +251,17 @@ export const DayBookPage: React.FC = () => {
               >
                 <ArrowLeftRight className="w-3 h-3 text-[#c9a227]" />
                 <span>PKR</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrency('USD')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  currency === 'USD' 
+                    ? 'bg-[#0e2c4c] text-white shadow-xs' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>USD</span>
               </button>
             </div>
 

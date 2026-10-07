@@ -33,6 +33,13 @@ import { TicketDoc, TicketPassenger } from '../types/ticket';
 import { AirlineDoc, AirportRef } from '../types/master';
 import { fetchTickets, createTicket, refundTicket } from '../services/ticketService';
 import { getCurrentRate, useCurrentRate } from '../services/exchangeRateService';
+
+// Convert any supported currency amount to SAR using settings rates
+export function convertToSAR(amount: number, from: 'PKR' | 'SAR' | 'USD'): number {
+  if (from === 'SAR') return amount;
+  if (from === 'USD') return amount * getCurrentRate('USD-SAR');
+  return amount / getCurrentRate('SAR-PKR'); // PKR
+}
 import { fetchCustomers } from '../services/customerService';
 import { fetchLedgerEntries } from '../services/accountingService';
 import { downloadCSV } from '../utils/csv';
@@ -87,8 +94,10 @@ export const TicketsPage: React.FC = () => {
   const [purchaseSource, setPurchaseSource] = useState<'vendor' | 'airline' | 'customer'>('airline');
   const [vendorsCache, setVendorsCache] = useState<any[]>([]);
   const [purchaseCost, setPurchaseCost] = useState<string>('');
+  const [purchaseCurrency, setPurchaseCurrency] = useState<'PKR' | 'SAR' | 'USD'>('PKR');
   const [salePrice, setSalePrice] = useState<string>('');
   const [salePricePKR, setSalePricePKR] = useState<string>('');
+  const [saleCurrency, setSaleCurrency] = useState<'PKR' | 'SAR' | 'USD'>('PKR');
   // Fare breakdown (voucher-style)
   const [basicFare, setBasicFare] = useState<string>('');
   const [otherTaxes, setOtherTaxes] = useState<string>('');
@@ -175,9 +184,9 @@ export const TicketsPage: React.FC = () => {
     }
 
     const costNum = parseFloat(purchaseCost);
-    const pkrNum = parseFloat(salePricePKR);
+    const saleNum = parseFloat(salePricePKR);
     const rateNum = parseFloat(String(exchangeRate));
-    if (isNaN(costNum) || isNaN(pkrNum) || costNum < 0 || pkrNum < 0) {
+    if (isNaN(costNum) || isNaN(saleNum) || costNum < 0 || saleNum < 0) {
       showError('Please enter valid purchase and sale prices.');
       return;
     }
@@ -185,7 +194,9 @@ export const TicketsPage: React.FC = () => {
       showError('Please enter a valid exchange rate (1 SAR = ? PKR).');
       return;
     }
-    // Both purchase & sale entered in PKR (service derives SAR for ledger)
+    // Convert purchase & sale to PKR and SAR using selected currencies + settings rates
+    const costPKR = purchaseCurrency === 'PKR' ? costNum : purchaseCurrency === 'SAR' ? costNum * rateNum : costNum * getCurrentRate('USD-PKR');
+    const salePKR = saleCurrency === 'PKR' ? saleNum : saleCurrency === 'SAR' ? saleNum * rateNum : saleNum * getCurrentRate('USD-PKR');
 
     // Fare breakdown calculations
     const bfNum = parseFloat(basicFare) || 0;
@@ -224,8 +235,10 @@ export const TicketsPage: React.FC = () => {
         departureTime,
         arrivalTime,
         passengers,
-        purchaseCostPKR: costNum,
-        salePricePKR: pkrNum,
+        purchaseCostPKR: Math.round(costPKR * 100) / 100,
+        salePricePKR: Math.round(salePKR * 100) / 100,
+        purchaseCurrency,
+        saleCurrency,
         basicFareSAR: bfNum || undefined,
         otherTaxesSAR: txNum || undefined,
         psfPercent: psfPNum || undefined,
@@ -629,27 +642,52 @@ export const TicketsPage: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
             <div>
-              <Input
-                label="Purchase Cost (PKR)"
-                type="number"
-                step="0.01"
-                placeholder="e.g. 105000"
-                value={purchaseCost}
-                onChange={(e) => setPurchaseCost(e.target.value)}
-                required
-              />
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Purchase Cost</label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 105000"
+                  value={purchaseCost}
+                  onChange={(e) => setPurchaseCost(e.target.value)}
+                  required
+                />
+                <select
+                  value={purchaseCurrency}
+                  onChange={(e) => setPurchaseCurrency(e.target.value as any)}
+                  className="px-3 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-bold"
+                >
+                  <option value="PKR">PKR</option>
+                  <option value="SAR">SAR</option>
+                  <option value="USD">USD</option>
+                </select>
+              </div>
+              {purchaseCost && purchaseCurrency !== 'SAR' && (
+                <div className="text-[10px] text-slate-500 mt-1">= SAR {convertToSAR(parseFloat(purchaseCost) || 0, purchaseCurrency).toFixed(2)} (auto @ settings rate)</div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Input
-                  label="Sale Price (PKR)"
-                  type="number"
-                  step="0.01"
-                  placeholder="e.g. 150000"
-                  value={salePricePKR}
-                  onChange={(e) => setSalePricePKR(e.target.value)}
-                  required
-                />
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Sale Price</label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g. 150000"
+                    value={salePricePKR}
+                    onChange={(e) => setSalePricePKR(e.target.value)}
+                    required
+                  />
+                  <select
+                    value={saleCurrency}
+                    onChange={(e) => setSaleCurrency(e.target.value as any)}
+                    className="px-3 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-bold"
+                  >
+                    <option value="PKR">PKR</option>
+                    <option value="SAR">SAR</option>
+                    <option value="USD">USD</option>
+                  </select>
+                </div>
               </div>
               <div>
                 <Input
@@ -665,17 +703,23 @@ export const TicketsPage: React.FC = () => {
             </div>
           </div>
 
-          {salePricePKR && parseFloat(String(exchangeRate)) > 0 && (
+          {salePricePKR && (
             <div className="p-3 bg-sky-50 border border-sky-200 rounded-lg text-xs font-semibold text-sky-800 flex items-center justify-between">
               <span>Sale in SAR (posts to ledger):</span>
-              <span className="font-mono text-sm">SAR {(parseFloat(salePricePKR) / parseFloat(String(exchangeRate))).toFixed(2)}</span>
+              <span className="font-mono text-sm">SAR {convertToSAR(parseFloat(salePricePKR) || 0, saleCurrency).toFixed(2)}</span>
             </div>
           )}
 
           {purchaseCost && salePricePKR && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800 flex items-center justify-between">
               <span>Calculated Agency Margin:</span>
-              <span className="font-mono text-sm">PKR {(parseFloat(salePricePKR) - parseFloat(purchaseCost)).toFixed(2)}</span>
+              <span className="font-mono text-sm">PKR {(() => {
+                const c = parseFloat(purchaseCost) || 0;
+                const s = parseFloat(salePricePKR) || 0;
+                const cPKR = purchaseCurrency === 'PKR' ? c : purchaseCurrency === 'SAR' ? c * (parseFloat(String(exchangeRate)) || 0) : c * getCurrentRate('USD-PKR');
+                const sPKR = saleCurrency === 'PKR' ? s : saleCurrency === 'SAR' ? s * (parseFloat(String(exchangeRate)) || 0) : s * getCurrentRate('USD-PKR');
+                return (sPKR - cPKR).toFixed(2);
+              })()}</span>
             </div>
           )}
 

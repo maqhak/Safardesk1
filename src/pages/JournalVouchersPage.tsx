@@ -103,8 +103,9 @@ export const JournalVouchersPage: React.FC = () => {
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [tag, setTag] = useState<JournalVoucherTag>('Adjustment');
   const masterRate = useCurrentRate('SAR-PKR');
+  const usdSarRate = useCurrentRate('USD-SAR');
   const [exchangeRate, setExchangeRate] = useState<number>(masterRate);
-  const [entryCurrency, setEntryCurrency] = useState<'SAR' | 'PKR'>('SAR');
+  const [entryCurrency, setEntryCurrency] = useState<'SAR' | 'PKR' | 'USD'>('SAR');
 
   useEffect(() => {
     setExchangeRate(masterRate);
@@ -307,6 +308,12 @@ export const JournalVouchersPage: React.FC = () => {
             ...l,
             debitSAR: Math.round(((l.debitSAR || 0) / exchangeRate) * 100) / 100,
             creditSAR: Math.round(((l.creditSAR || 0) / exchangeRate) * 100) / 100,
+          }))
+        : entryCurrency === 'USD'
+        ? lines.map((l) => ({
+            ...l,
+            debitSAR: Math.round((l.debitSAR || 0) * (usdSarRate || 3.75) * 100) / 100,
+            creditSAR: Math.round((l.creditSAR || 0) * (usdSarRate || 3.75) * 100) / 100,
           }))
         : lines;
       const created = await createJournalVoucher({
@@ -966,11 +973,12 @@ export const JournalVouchersPage: React.FC = () => {
               </label>
               <select
                 value={entryCurrency}
-                onChange={(e) => setEntryCurrency(e.target.value as 'SAR' | 'PKR')}
+                onChange={(e) => setEntryCurrency(e.target.value as 'SAR' | 'PKR' | 'USD')}
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[var(--theme-primary)]"
               >
                 <option value="SAR">SAR — Saudi Riyal</option>
                 <option value="PKR">PKR — Pakistani Rupee</option>
+                <option value="USD">USD — US Dollar</option>
               </select>
               <span className="text-[10px] text-slate-500 mt-1 block">
                 Amounts entered in {entryCurrency}; ledger posts SAR equivalents at this rate.
