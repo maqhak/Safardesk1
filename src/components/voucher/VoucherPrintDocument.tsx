@@ -283,13 +283,14 @@ export const VoucherPrintDocument: React.FC<{
           <div className="fsv-mutwrap">
             {cols.map((col, ci) => (
               <table key={ci} className="fsv-vt fsv-mut">
-                <thead><tr><th>NO.</th><th>NAME</th><th>PP NO</th></tr></thead>
+                <thead><tr><th>NO.</th><th>NAME</th><th>PP NO</th><th>TRNS</th></tr></thead>
                 <tbody>
                   {col.map((m, i) => (
                     <tr key={i}>
                       <td>{ci * half + i + 1}</td>
                       <td className="fsv-nm">{m.name}</td>
                       <td>{m.passportNumber}</td>
+                      <td style={{ fontWeight: 'bold' }}>{m.trnsPaid ? 'YES' : 'XXXXX'}</td>
                     </tr>
                   ))}
                 </tbody>
