@@ -793,6 +793,30 @@ export const VoucherCreatePage: React.FC = () => {
           <Card><InlineLoader message="Loading voucher data..." /></Card>
         ) : (
           <>
+            {/* ===== STEP 1: SELECT AGENT (top of page) ===== */}
+            <div className="bg-[#0e2c4c] rounded-2xl p-4 flex flex-wrap items-center gap-4 shadow">
+              <div className="flex items-center gap-2">
+                <span className="w-7 h-7 rounded-full bg-white text-[#0e2c4c] font-bold flex items-center justify-center text-sm">1</span>
+                <label className="text-white font-bold text-sm tracking-wide">SELECT AGENT *</label>
+              </div>
+              <select
+                value={agentId}
+                onChange={(e) => setAgentId(e.target.value)}
+                disabled={isAgent}
+                className="flex-1 min-w-[220px] bg-white text-slate-900 font-semibold rounded-xl px-4 py-2.5 text-sm border-2 border-transparent focus:border-amber-400 outline-none"
+              >
+                <option value="">-- Select Agent --</option>
+                {agentsList.map((a: any) => (
+                  <option key={a.id} value={a.id}>{agentDisplayName(a, a.id)}</option>
+                ))}
+              </select>
+              {agentId && (
+                <span className="text-amber-300 text-xs font-semibold">
+                  Passports, Shirka & Group Head isi agent se filter hon ge
+                </span>
+              )}
+            </div>
+
             {/* ===== ROW 1: Pax QTY | Copy From | Date ===== */}
             <Card className="p-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -859,21 +883,7 @@ export const VoucherCreatePage: React.FC = () => {
 
             {/* ===== ROW 3: Agent | Group Head | Contact | Approved ===== */}
             <Card className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
-                <div>
-                  <label className={labelCls}>Agent <span className="text-red-500">*</span></label>
-                  <select
-                    value={agentId}
-                    onChange={(e) => setAgentId(e.target.value)}
-                    disabled={isAgent}
-                    className={`${inputCls} disabled:bg-slate-100 font-bold text-[#0e2c4c]`}
-                  >
-                    <option value="">-- Select Agent --</option>
-                    {agentsList.map((a: any) => (
-                      <option key={a.id} value={a.id}>{agentDisplayName(a, a.id)}</option>
-                    ))}
-                  </select>
-                </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 items-end">
                 <div>
                   <label className={labelCls}>Group Head</label>
                   <input type="text" value={leaderName} onChange={(e) => setLeaderName(e.target.value)} placeholder="Leader name" maxLength={50} className={inputCls} />
