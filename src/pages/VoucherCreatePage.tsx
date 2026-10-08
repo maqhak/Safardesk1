@@ -24,8 +24,9 @@ import { SectorItem, HotelStayItem, VoucherEditPayload, FlightBlockInfo } from '
 import { createVoucher, fetchVouchers } from '../services/voucherService';
 import { DEFAULT_PACKAGE_INCLUDES } from '../types/voucher';
 import { fetchVisas } from '../services/visaService';
-import { fetchVendors } from '../services/masterService';
+import { fetchHotels, fetchVendors } from '../services/masterService';
 import { fetchAgents } from '../services/agentService';
+import { HotelDoc } from '../types/master';
 import { AgentDoc } from '../types/agent';
 import { convert } from '../services/financeService';
 import { getCurrentRate } from '../services/exchangeRateService';
@@ -40,61 +41,8 @@ function addDays(dateStr: string, days: number): string {
 const todayStr = () => new Date().toISOString().split('T')[0];
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-/** Oracle APEX P172_UPACKAGE options (exact). */
-const PACKAGE_OPTIONS = [
-  'As Per Service',
-  'Umrah Visa',
-  'As per Package',
-  'SHUMUKH / SHAZA BARKA (DOUBLE) PIA',
-  'LULU IMAN / SHAZA BARKA (TRIPLE) PIA',
-  'SHUMUKH / SHAZA BARKA (QUAD) SV 15 DAYS',
-  'LULU IMAN / SHAZA BARKA (SHARING) SV 15 DAYS',
-  'LULU IMAN / SHAZA BARKA (QUAD) SV 15 DAYS',
-  'LULU IMAN / SHAZA BARKA (TRIPLE) SV 15 DAYS',
-  'CHILD PACKAGE WITHOUT BED',
-  'INFANT PACKAGE',
-  'SHUMUKH / SHAZA BARKA (DOUBLE) SV',
-  'LULU IMAN / SHAZA BARKA (QUAD) SV',
-  'SHUMUKH / SHAZA BARKA (QUAD) PIA',
-  'SHUMUKH / SHAZA BARKA (SHARING) PIA',
-  'LULU IMAN / SHAZA BARKA (SHARING) PIA',
-  'LULU IMAN / SHAZA BARKA (QUAD) PIA',
-  'SHUMUKH / SHAZA BARKA (SHARING) SV 15 DAYS',
-  'SHUMUKH / SHAZA BARKA (DOUBLE) SV 15 DAYS',
-  'LULU IMAN / SHAZA BARKA (DOUBLE) 15 DAYS',
-  'LULU IMAN / SHAZA BARKA (DOUBLE) SV',
-  'SHUMUKH / SHAZA BARKA (TRIPLE) PIA',
-  'LULU IMAN / SHAZA BARKA (DOUBLE) PIA',
-  'SHUMUKH / SHAZA BARKA (TRIPLE BED) SV 15 DAYS',
-  'SHUMUKH / SHAZA BARKA (SHARING) SV',
-  'SHUMUKH / SHAZA BARKA (QUAD) SV',
-  'SHUMUKH / SHAZA BARKA (TRIPLE) SV',
-  'LULU IMAN / SHAZA BARKA (SHARING) SV',
-  'LULU IMAN / SHAZA BARKA (TRIPLE) SV',
-  'Customised',
-];
-
+/** Package is free text — the agency's own packages, not a fixed list. */
 const TRANSPORT_TYPES = ['Car', 'Staria', 'Hiace', 'Coaster', 'Bus'];
-
-/** Oracle P172_TRANTRIP options (exact). */
-const TRIP_OPTIONS = [
-  'Jeddah-Madinah',
-  'Jeddah-Makkah',
-  'Jeddah-Makkah-Jeddah',
-  'Jeddah-Makkah-Madinah',
-  'Jeddah-Makkah-Madinah-Makkah',
-  'Jeddah-Makkah-Madinah-Makkah-Jeddah',
-  'Jeddah-Makkah-Madinah-Med_Airport',
-  'Madinah-Makkah',
-  'Madinah-Makkah-Jeddah',
-  'Madinah-Makkah-Madinah',
-  'Makkah-Madinah',
-  'Makkah-Madinah-Makkah',
-  'Makkah-Madinah-Makkah-Jeddah',
-  'Medinah_Airport-Madinah_Hotel',
-  'Med_Airport-Madinah-Makkah-Jeddah',
-  'Med_Airport-Madinah-Makkah-Madinah-Med_Airport',
-];
 
 const ROOM_TYPES = ['Double', 'Triple', 'Sharing', 'Room', 'Quad'];
 
@@ -175,7 +123,7 @@ const FlightLegRow: React.FC<{
     <div className="border border-slate-200 rounded-xl overflow-hidden">
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-12 gap-2 p-3 bg-white">
         <div className="col-span-2 sm:col-span-4 lg:col-span-1 flex items-stretch">
-          <div className="w-full flex items-center justify-center bg-[#16ec81] text-[#0e2c4c] font-bold text-xs uppercase tracking-wider rounded-lg px-2 py-2.5">
+          <div className="w-full flex items-center justify-center bg-[#0e2c4c] text-white font-bold text-xs uppercase tracking-wider rounded-lg px-2 py-2.5">
             {title}
           </div>
         </div>
@@ -253,6 +201,7 @@ export const VoucherCreatePage: React.FC = () => {
   const [vouchers, setVouchers] = useState<any[]>([]);
   const [agentsList, setAgentsList] = useState<AgentDoc[]>([]);
   const [vendorsMaster, setVendorsMaster] = useState<any[]>([]);
+  const [hotelsMaster, setHotelsMaster] = useState<HotelDoc[]>([]);
 
   // ---- Row 1: pax qty (readonly) | copy from ----
   const [copyFromId, setCopyFromId] = useState('');
@@ -260,8 +209,7 @@ export const VoucherCreatePage: React.FC = () => {
   // ---- Row 2: voucher# (auto) | total nights (readonly) | reference | package | SR rate ----
   const [voucherDate, setVoucherDate] = useState(todayStr());
   const [voucherReference, setVoucherReference] = useState('');
-  const [packageSelect, setPackageSelect] = useState('');
-  const [packageCustom, setPackageCustom] = useState('');
+  const [packageText, setPackageText] = useState('');
   const [srRate, setSrRate] = useState('');
 
   // ---- Row 3: agent (drives pilgrim list) | group head | contact | approved ----
@@ -307,16 +255,18 @@ export const VoucherCreatePage: React.FC = () => {
     (async () => {
       setLoading(true);
       try {
-        const [vList, visaList, aList, vndList] = await Promise.all([
+        const [vList, visaList, aList, vndList, hList] = await Promise.all([
           fetchVouchers(),
           fetchVisas(),
           fetchAgents(),
           fetchVendors(),
+          fetchHotels(),
         ]);
         setVouchers(vList);
         setAvailableVisas(visaList);
         setAgentsList(aList);
         setVendorsMaster(vndList || []);
+        setHotelsMaster(hList || []);
         try {
           setSrRate(String(getCurrentRate('SAR-PKR') || ''));
         } catch { /* keep empty */ }
@@ -401,17 +351,8 @@ export const VoucherCreatePage: React.FC = () => {
   const setFlag = (id: string, key: 'wob' | 'trnsPaid' | 'going', val: boolean) =>
     setFlags((prev) => ({ ...prev, [id]: { ...(prev[id] || { wob: false, trnsPaid: false, going: true }), [key]: val } }));
 
-  // When agent changes, drop selected pilgrims that don't belong to it
-  useEffect(() => {
-    if (!agentId) return;
-    setSelectedVisaIds((prev) =>
-      prev.filter((id) => {
-        const v = availableVisas.find((x) => x.id === id);
-        return v && (v.agentId || '') === agentId;
-      })
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentId]);
+  // NOTE: selected pilgrims are NEVER auto-deselected — user adds manually,
+  // selections persist even if the agent filter changes.
 
   // ---- Hotel grid editors ----
   const updateHotelRow = (id: string, patch: Partial<HotelRow>) => {
@@ -439,7 +380,9 @@ export const VoucherCreatePage: React.FC = () => {
   const transportSAR = useMemo(() => (tranType ? parseFloat(transportChargeSAR) || 0 : 0), [tranType, transportChargeSAR]);
   const totalSAR = hotelsSAR + transportSAR;
   const effectiveRate = parseFloat(srRate) || getCurrentRate('SAR-PKR') || 0;
-  const effectivePackageType = packageSelect === '__custom' ? packageCustom.trim() : packageSelect;
+  const effectivePackageType = packageText.trim();
+
+  const hotelSuggestions = hotelsMaster.filter((h) => h.isActive !== false);
 
   const cityFromSector = (sector: string): string => {
     const s = (sector || '').toUpperCase();
@@ -467,10 +410,7 @@ export const VoucherCreatePage: React.FC = () => {
     if (!v) return;
     setLeaderName(v.leaderName || '');
     setLeaderContact(v.leaderContact || '');
-    if (v.packageType) {
-      if (PACKAGE_OPTIONS.includes(v.packageType)) setPackageSelect(v.packageType);
-      else { setPackageSelect('__custom'); setPackageCustom(v.packageType); }
-    }
+    setPackageText(v.packageType || '');
     setTransportBy(v.transportCompany || '');
     setTranType(v.transportType || v.sectors?.[0]?.vehicleType || '');
     setTransportChargeSAR(v.sectors?.[0]?.transportRateSAR ? String(v.sectors[0].transportRateSAR) : '');
@@ -717,8 +657,7 @@ export const VoucherCreatePage: React.FC = () => {
   const handleAddNew = () => {
     setCopyFromId('');
     setVoucherReference('');
-    setPackageSelect('');
-    setPackageCustom('');
+    setPackageText('');
     setLeaderName('');
     setLeaderContact('');
     if (!isAgent) setAgentId('');
@@ -832,14 +771,12 @@ export const VoucherCreatePage: React.FC = () => {
                 </div>
                 <div>
                   <label className={labelCls}>Package / SAR</label>
-                  <select value={packageSelect} onChange={(e) => setPackageSelect(e.target.value)} className={inputCls}>
-                    <option value="">-- Select Package --</option>
-                    {PACKAGE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                    <option value="__custom">Customised (type below)</option>
-                  </select>
-                  {packageSelect === '__custom' && (
-                    <input type="text" value={packageCustom} onChange={(e) => setPackageCustom(e.target.value)} placeholder="Type custom package..." className={`${inputCls} mt-2`} />
-                  )}
+                  <input
+                    type="text" value={packageText}
+                    onChange={(e) => setPackageText(e.target.value)}
+                    placeholder="Type package name..."
+                    className={inputCls}
+                  />
                 </div>
                 <div>
                   <label className={labelCls}>Total Nights</label>
@@ -935,9 +872,15 @@ export const VoucherCreatePage: React.FC = () => {
                         <td className="p-1.5">
                           <input
                             type="text" value={row.hotelName}
+                            list={`hotel-master-${row.id}`}
                             onChange={(e) => updateHotelRow(row.id, { hotelName: e.target.value })}
                             placeholder="Hotel name" className={`${inputCls} !p-1.5`}
                           />
+                          <datalist id={`hotel-master-${row.id}`}>
+                            {hotelSuggestions.map((h) => (
+                              <option key={h.id} value={h.name}>{h.city || ''}</option>
+                            ))}
+                          </datalist>
                         </td>
                         <td className="p-1.5">
                           <select value={row.roomType} onChange={(e) => updateHotelRow(row.id, { roomType: e.target.value })} className={`${inputCls} !p-1.5`}>
@@ -1032,10 +975,12 @@ export const VoucherCreatePage: React.FC = () => {
                 </div>
                 <div>
                   <label className={labelCls}>Trip</label>
-                  <select value={trip} onChange={(e) => setTrip(e.target.value)} className={inputCls}>
-                    <option value="">-- Select --</option>
-                    {TRIP_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
+                  <input
+                    type="text" value={trip}
+                    onChange={(e) => setTrip(e.target.value)}
+                    placeholder="e.g. Jeddah-Makkah-Madinah"
+                    className={inputCls}
+                  />
                 </div>
                 <div>
                   <label className={labelCls}>Remarks</label>
