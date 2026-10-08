@@ -3,8 +3,10 @@ import { Outlet } from 'react-router-dom';
 import { TopNavbar } from '../navigation/TopNavbar';
 import { TENANT } from '../../config';
 import { getCurrentRate } from '../../services/exchangeRateService';
+import { useSidebarCollapsed } from '../../hooks/useSidebarCollapsed';
 
 export const AppShell: React.FC = () => {
+  const [sidebarCollapsed] = useSidebarCollapsed();
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-sans selection:bg-[#0e2c4c] selection:text-white">
       {/* Top Horizontal Navigation Bar */}
@@ -12,7 +14,8 @@ export const AppShell: React.FC = () => {
         <TopNavbar />
       </div>
 
-      {/* Main Content Area — centered, slightly squeezed */}
+      {/* Main Content Area — shifted right for the persistent desktop sidebar */}
+      <div className={`flex-1 flex flex-col transition-[margin] duration-300 ease-in-out ${sidebarCollapsed ? 'md:ml-[68px]' : 'md:ml-[260px]'}`}>
       <main className="flex-1 w-full px-3 sm:px-4 lg:px-6 py-4">
         <div className="w-full max-w-[1400px] mx-auto">
           <Outlet />
@@ -34,6 +37,7 @@ export const AppShell: React.FC = () => {
           </div>
         </div>
       </footer>
+      </div>
     </div>
   );
 };
