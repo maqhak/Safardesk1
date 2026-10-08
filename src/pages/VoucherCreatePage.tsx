@@ -430,9 +430,11 @@ export const VoucherCreatePage: React.FC = () => {
 
   const namedHotelRows = useMemo(() => hotelRows.filter((r) => r.hotelName.trim() !== ''), [hotelRows]);
   const totalNights = useMemo(() => namedHotelRows.reduce((s, r) => s + (r.nights || 0), 0), [namedHotelRows]);
+  const paxCount = selectedVisaIds.length;
+  /** Rate is per person per night: pax x nights x rate. */
   const hotelsSAR = useMemo(
-    () => namedHotelRows.reduce((s, r) => s + (r.nights || 0) * (r.rateSAR || 0), 0),
-    [namedHotelRows]
+    () => namedHotelRows.reduce((s, r) => s + paxCount * (r.nights || 0) * (r.rateSAR || 0), 0),
+    [namedHotelRows, paxCount]
   );
   const transportSAR = useMemo(() => (tranType ? parseFloat(transportChargeSAR) || 0 : 0), [tranType, transportChargeSAR]);
   const totalSAR = hotelsSAR + transportSAR;
@@ -595,7 +597,7 @@ export const VoucherCreatePage: React.FC = () => {
       bedType: r.roomType as any,
       roomCount: 1,
       ratePerNightSAR: r.rateSAR || 0,
-      totalSAR: (r.nights || 0) * (r.rateSAR || 0),
+      totalSAR: paxCount * (r.nights || 0) * (r.rateSAR || 0),
       description: r.remarks.trim() || undefined,
     }));
 
@@ -985,7 +987,13 @@ export const VoucherCreatePage: React.FC = () => {
                               type="number" min="0" step="10" value={row.rateSAR || ''}
                               onChange={(e) => updateHotelRow(row.id, { rateSAR: parseFloat(e.target.value) || 0 })}
                               placeholder="0" className={`${inputCls} font-mono font-bold text-[#0e2c4c] !p-1.5`}
+                              title="Per person per night"
                             />
+                            {(row.rateSAR > 0 && row.nights > 0) && (
+                              <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                {paxCount}×{row.nights}×{row.rateSAR} = <span className="font-bold text-[#0e2c4c]">{(paxCount * row.nights * row.rateSAR).toLocaleString()}</span>
+                              </div>
+                            )}
                           </td>
                         )}
                         <td className="p-1.5">
