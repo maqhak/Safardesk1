@@ -471,6 +471,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const refreshProfile = useCallback(async () => {
+    if (!user?.uid) return;
+    try {
+      const { doc: _doc, getDoc: _getDoc } = await import('firebase/firestore');
+      const { db: _db } = await import('../services/firebase');
+      const snap = await _getDoc(_doc(_db, 'users', user.uid));
+      if (snap.exists()) {
+        setUserProfile(snap.data() as UserProfile);
+      }
+    } catch (e) {
+      console.error('refreshProfile failed:', e);
+    }
+  }, [user?.uid]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -485,6 +499,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchRole,
         sendPasswordReset,
         changePassword,
+        refreshProfile,
       }}
     >
       {children}

@@ -509,6 +509,21 @@ export async function removeProfilePicture(uid: string): Promise<void> {
 }
 
 /**
+ * Update the user's own profile fields (name, phone).
+ */
+export async function updateUserProfile(
+  uid: string,
+  data: { name?: string; phone?: string }
+): Promise<void> {
+  const { updateDoc: _updateDoc, doc: _doc } = await import('firebase/firestore');
+  const { db: _db } = await import('./firebase');
+  await _updateDoc(_doc(_db, 'users', uid), {
+    ...data,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+/**
  * Resize an image file to max dimension and return as data URL.
  */
 function resizeImageToDataUrl(file: File, maxDim: number): Promise<string> {

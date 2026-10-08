@@ -74,4 +74,5 @@ export interface AuthContextType {
   switchRole: (newRole: UserRole) => void;
   sendPasswordReset: (email: string) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
