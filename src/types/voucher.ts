@@ -56,10 +56,13 @@ export interface FlightBlockInfo {
   date?: string;
   etd?: string;
   eta?: string;
+  sector?: string; // e.g. "LHE-JED" (Oracle APEX layout)
+  pnr?: string; // Booking PNR
 }
 
 export interface FlightDetailsSection {
   allowFlightInfo: boolean;
+  arrivalFlight?: FlightBlockInfo; // Oracle APEX 3-column layout
   departureFlight: FlightBlockInfo;
   returnFlight: FlightBlockInfo;
   lateIntimationChargesSAR: number;
@@ -112,6 +115,11 @@ export interface VoucherDoc {
   totalNights?: number;
   reference?: string;
   remarks?: string;
+  voucherDate?: string; // Oracle APEX voucher/transaction date
+  transportType?: string; // Car / Staria / Hiace / Coaster / Bus (Oracle APEX)
+  trip?: string; // Trip description (Oracle APEX)
+  makkahShirka?: string; // Oracle APEX text fields
+  madinaShirka?: string;
   packageIncludes?: string[]; // Manually selected Package Includes checklist
   status: 'Draft' | 'Pending Approval' | 'Confirmed' | 'Cancelled';
   approvedBy?: string;
@@ -166,6 +174,11 @@ export interface VoucherEditPayload {
   totalNights?: number;
   reference?: string;
   remarks?: string;
+  voucherDate?: string;
+  transportType?: string;
+  trip?: string;
+  makkahShirka?: string;
+  madinaShirka?: string;
   packageIncludes?: string[];
   passengers: PassengerSnapshot[];
   sectors: SectorItem[];
