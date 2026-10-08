@@ -25,6 +25,16 @@ export const CompanyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       const data = await fetchCompanyProfile();
       setProfile(data);
+      // Cache logo for the BrandedLoader (shows before React context is ready)
+      try {
+        if (data.logoUrl) {
+          localStorage.setItem('safardesk_company_logo', data.logoUrl);
+        } else {
+          localStorage.removeItem('safardesk_company_logo');
+        }
+      } catch {
+        /* ignore */
+      }
     } catch (err) {
       console.warn('Failed to load company profile:', err);
     } finally {

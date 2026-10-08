@@ -1,11 +1,21 @@
 import React from 'react';
 import { Plane } from 'lucide-react';
+import { TENANT } from '../../config';
 
 /**
  * Branded animated full-screen loader for SafarDesk.
- * Dark navy gradient, flying plane trail, shimmer brand text, animated dots.
+ * Shows the TENANT's company name + logo (falls back to plane icon).
+ * Never shows the "SafarDesk" product name — white-labeled per tenant.
  */
 export const BrandedLoader: React.FC<{ message?: string }> = ({ message = 'Loading...' }) => {
+  const companyName = TENANT.companyName || '';
+  // Try cached company logo (saved by CompanyContext); fallback to plane icon
+  let logoUrl = '';
+  try {
+    logoUrl = localStorage.getItem('safardesk_company_logo') || '';
+  } catch {
+    /* ignore */
+  }
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#101a30] via-[#16233f] to-[#0d1526] relative overflow-hidden">
       {/* Animated background blobs */}
@@ -14,32 +24,32 @@ export const BrandedLoader: React.FC<{ message?: string }> = ({ message = 'Loadi
         <div className="absolute -bottom-32 -right-24 w-[28rem] h-[28rem] rounded-full bg-[#2b5aa6]/15 blur-3xl animate-pulse" style={{ animationDelay: '1.2s' }} />
       </div>
 
-      {/* Flying plane with dotted trail */}
-      <div className="absolute inset-x-0 top-1/3 pointer-events-none overflow-hidden">
-        <div className="animate-[flyAcross_4s_linear_infinite] flex items-center">
-          <div className="flex items-center gap-1 mr-2">
-            {[...Array(8)].map((_, i) => (
-              <span
-                key={i}
-                className="w-1.5 h-1.5 rounded-full bg-white/40 animate-pulse"
-                style={{ animationDelay: `${i * 0.15}s` }}
-              />
-            ))}
-          </div>
-          <Plane className="w-8 h-8 text-[#c9a227] -rotate-12 drop-shadow-lg" />
-        </div>
-      </div>
-
       <div className="text-center relative z-10 px-6">
-        {/* Logo mark */}
-        <div className="mx-auto mb-6 w-20 h-20 rounded-3xl bg-gradient-to-br from-[#c9a227] to-[#9a7b1a] flex items-center justify-center shadow-2xl shadow-[#c9a227]/20 animate-[floatY_3s_ease-in-out_infinite]">
-          <Plane className="w-10 h-10 text-[#101a30] -rotate-12" />
-        </div>
+        {/* Logo + name with orbiting plane */}
+        <div className="relative inline-block">
+          {/* Orbiting plane — circles around logo and name */}
+          <div className="absolute inset-0 pointer-events-none animate-[orbit_6s_linear_infinite]">
+            <Plane className="absolute -top-3 left-1/2 -ml-4 w-8 h-8 text-[#c9a227] drop-shadow-lg" />
+          </div>
+          {/* Orbit ring (subtle) */}
+          <div className="absolute -inset-8 rounded-full border border-white/5 pointer-events-none" />
 
-        {/* Brand with shimmer */}
-        <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1">
-          Safar<span className="text-[#c9a227]">Desk</span>
-        </h1>
+          {/* Logo mark — company logo if available, else plane icon */}
+          <div className="mx-auto mb-6 w-20 h-20 rounded-3xl bg-gradient-to-br from-[#c9a227] to-[#9a7b1a] flex items-center justify-center shadow-2xl shadow-[#c9a227]/20 animate-[floatY_3s_ease-in-out_infinite] overflow-hidden relative">
+            {logoUrl ? (
+              <img src={logoUrl} alt={companyName} className="w-full h-full object-contain bg-white/10 p-1.5" />
+            ) : (
+              <Plane className="w-10 h-10 text-[#101a30] -rotate-12" />
+            )}
+          </div>
+
+          {/* Tenant company name — never the product name */}
+          {companyName ? (
+            <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1">
+              {companyName}
+            </h1>
+          ) : null}
+        </div>
         <p className="text-[11px] uppercase tracking-[0.3em] text-slate-400 mb-8">
           Travel Business Management
         </p>
@@ -58,11 +68,9 @@ export const BrandedLoader: React.FC<{ message?: string }> = ({ message = 'Loadi
       </div>
 
       <style>{`
-        @keyframes flyAcross {
-          0% { transform: translateX(-15%); opacity: 0; }
-          10% { opacity: 1; }
-          90% { opacity: 1; }
-          100% { transform: translateX(115%); opacity: 0; }
+        @keyframes orbit {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
         @keyframes floatY {
           0%, 100% { transform: translateY(0); }
