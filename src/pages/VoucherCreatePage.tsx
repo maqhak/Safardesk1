@@ -376,22 +376,47 @@ export const VoucherCreatePage: React.FC = () => {
   // NOTE: selected pilgrims are NEVER auto-deselected — user adds manually,
   // selections persist even if the agent filter changes.
 
-  // ---- Hotel grid editors ----
+  // ---- Hotel grid editors — rows are CHAINED: each row's check-in is
+  // exactly the previous row's check-out. Editing any row re-chains all
+  // rows after it. ----
+  const rechkRow = (r: HotelRow): HotelRow => ({ ...r, checkOut: addDays(r.checkIn, r.nights || 0) });
+
   const updateHotelRow = (id: string, patch: Partial<HotelRow>) => {
-    setHotelRows((rows) =>
-      rows.map((r) => {
-        if (r.id !== id) return r;
-        const next = { ...r, ...patch };
-        if (patch.checkIn !== undefined || patch.nights !== undefined) {
-          next.checkOut = addDays(next.checkIn, next.nights || 0);
-        }
-        return next;
-      })
-    );
+    setHotelRows((rows) => {
+      const idx = rows.findIndex((r) => r.id === id);
+      if (idx === -1) return rows;
+      const next = rows.map((r) => ({ ...r }));
+      Object.assign(next[idx], patch);
+      next[idx] = rechkRow(next[idx]);
+      for (let i = idx + 1; i < next.length; i++) {
+        next[i].checkIn = next[i - 1].checkOut;
+        next[i] = rechkRow(next[i]);
+      }
+      return next;
+    });
   };
-  const addHotelRow = () => setHotelRows((rows) => [...rows, blankHotelRow()]);
+  const addHotelRow = () =>
+    setHotelRows((rows) => {
+      const last = rows[rows.length - 1];
+      const r = blankHotelRow();
+      if (last) {
+        r.checkIn = last.checkOut;
+        r.checkOut = addDays(r.checkIn, r.nights || 0);
+      }
+      return [...rows, r];
+    });
   const delHotelRow = (id: string) =>
-    setHotelRows((rows) => (rows.length <= 1 ? rows : rows.filter((r) => r.id !== id)));
+    setHotelRows((rows) => {
+      if (rows.length <= 1) return rows;
+      const idx = rows.findIndex((r) => r.id === id);
+      const next = rows.filter((r) => r.id !== id);
+      // Re-chain rows after the deleted one
+      for (let i = Math.max(0, idx); i < next.length; i++) {
+        if (i > 0) next[i].checkIn = next[i - 1].checkOut;
+        next[i] = rechkRow(next[i]);
+      }
+      return next;
+    });
 
   const namedHotelRows = useMemo(() => hotelRows.filter((r) => r.hotelName.trim() !== ''), [hotelRows]);
   const totalNights = useMemo(() => namedHotelRows.reduce((s, r) => s + (r.nights || 0), 0), [namedHotelRows]);
