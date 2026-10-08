@@ -7,25 +7,23 @@ import {
   Users,
   FileText,
   Check,
-  ChevronDown,
-  ChevronUp,
-  X,
+  Building,
+  Copy,
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { AirportSelect, AirlineSelect } from '../components/ui';
+import { AirlineSelect } from '../components/ui';
 import { InlineLoader } from '../components/ui/BrandedLoader';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
-import { SectorItem, HotelStayItem, VoucherEditPayload } from '../types/voucher';
+import { SectorItem, HotelStayItem, VoucherEditPayload, FlightBlockInfo } from '../types/voucher';
 import { createVoucher, fetchVouchers } from '../services/voucherService';
 import { DEFAULT_PACKAGE_INCLUDES } from '../types/voucher';
 import { fetchVisas } from '../services/visaService';
-import { fetchHotels, fetchVehicles, fetchVendors } from '../services/masterService';
+import { fetchHotels, fetchVendors } from '../services/masterService';
 import { fetchAgents } from '../services/agentService';
 import { HotelDoc } from '../types/master';
 import { AgentDoc } from '../types/agent';
@@ -39,40 +37,76 @@ function addDays(dateStr: string, days: number): string {
   return d.toISOString().split('T')[0];
 }
 
-/** Collapsible section wrapper — keeps the page simple for optional blocks. */
-const Section: React.FC<{
+const todayStr = () => new Date().toISOString().split('T')[0];
+
+/** Oracle APEX package dropdown options (exact). */
+const PACKAGE_OPTIONS = [
+  'As Per Service',
+  'Umrah Visa',
+  'As per Package',
+  'SHUMUKH / SHAZA BARKA (DOUBLE) PIA',
+  'LULU IMAN / SHAZA BARKA (TRIPLE) PIA',
+  'SHUMUKH / SHAZA BARKA (QUAD) SV 15 DAYS',
+  'LULU IMAN / SHAZA BARKA (SHARING) SV 15 DAYS',
+  'LULU IMAN / SHAZA BARKA (QUAD) SV 15 DAYS',
+  'LULU IMAN / SHAZA BARKA (TRIPLE) SV 15 DAYS',
+  'CHILD PACKAGE WITHOUT BED',
+  'INFANT PACKAGE',
+];
+
+const TRANSPORT_TYPES = ['Car', 'Staria', 'Hiace', 'Coaster', 'Bus'];
+
+/** One flight block (Arrival / Departure / Return) — Oracle 3-column layout. */
+const FlightBlock: React.FC<{
   title: string;
-  icon?: React.ReactNode;
-  subtitle?: string;
-  collapsible?: boolean;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}> = ({ title, icon, subtitle, collapsible, defaultOpen = true, children }) => {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <Card className="overflow-hidden">
-      <button
-        type="button"
-        onClick={() => collapsible && setOpen(!open)}
-        className={`w-full flex items-center justify-between px-4 py-3.5 text-left ${collapsible ? 'cursor-pointer hover:bg-slate-50' : ''}`}
-      >
-        <div className="flex items-center gap-2.5">
-          {icon && <span className="text-[var(--theme-primary)]">{icon}</span>}
-          <div>
-            <h3 className="font-bold text-slate-900 text-sm">{title}</h3>
-            {subtitle && <p className="text-[11px] text-slate-500 mt-0.5">{subtitle}</p>}
-          </div>
+  airline: any;
+  setAirline: (v: any) => void;
+  flightNo: string;
+  setFlightNo: (v: string) => void;
+  date: string;
+  setDate: (v: string) => void;
+  time: string;
+  setTime: (v: string) => void;
+  sector: string;
+  setSector: (v: string) => void;
+  pnr: string;
+  setPnr: (v: string) => void;
+  inputCls: string;
+  labelCls: string;
+}> = (p) => (
+  <Card className="p-4">
+    <h4 className="flex items-center gap-2 font-bold text-[#0e2c4c] text-sm uppercase tracking-wider mb-3">
+      <Plane className="w-4 h-4" /> {p.title}
+    </h4>
+    <div className="space-y-3">
+      <AirlineSelect label="Airline" value={p.airline} onChange={p.setAirline} placeholder="Select airline..." />
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={p.labelCls}>Flight#</label>
+          <input type="text" value={p.flightNo} onChange={(e) => p.setFlightNo(e.target.value)} placeholder="e.g. SV-734" className={`${p.inputCls} font-mono`} />
         </div>
-        {collapsible && (
-          <span className="text-slate-400">
-            {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </span>
-        )}
-      </button>
-      {open && <div className="px-4 pb-4 pt-1 border-t border-slate-100">{children}</div>}
-    </Card>
-  );
-};
+        <div>
+          <label className={p.labelCls}>PNR</label>
+          <input type="text" value={p.pnr} onChange={(e) => p.setPnr(e.target.value)} placeholder="PNR" className={`${p.inputCls} font-mono`} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={p.labelCls}>Date</label>
+          <input type="date" value={p.date} onChange={(e) => p.setDate(e.target.value)} className={`${p.inputCls} font-mono`} />
+        </div>
+        <div>
+          <label className={p.labelCls}>Time</label>
+          <input type="time" value={p.time} onChange={(e) => p.setTime(e.target.value)} className={`${p.inputCls} font-mono`} />
+        </div>
+      </div>
+      <div>
+        <label className={p.labelCls}>Sector</label>
+        <input type="text" value={p.sector} onChange={(e) => p.setSector(e.target.value)} placeholder="e.g. LHE-JED" className={`${p.inputCls} font-mono uppercase`} />
+      </div>
+    </div>
+  </Card>
+);
 
 export const VoucherCreatePage: React.FC = () => {
   const navigate = useNavigate();
@@ -90,9 +124,18 @@ export const VoucherCreatePage: React.FC = () => {
   const [agentsList, setAgentsList] = useState<AgentDoc[]>([]);
   const [vendorsMaster, setVendorsMaster] = useState<any[]>([]);
   const [hotelsMaster, setHotelsMaster] = useState<HotelDoc[]>([]);
-  const [vehiclesMaster, setVehiclesMaster] = useState<any[]>([]);
 
-  // ---- Shirka (mandatory first) ----
+  // ---- Top bar: voucher meta ----
+  const [voucherDate, setVoucherDate] = useState(todayStr());
+  const [copyFromId, setCopyFromId] = useState('');
+
+  // ---- Row: reference / package / SR rate ----
+  const [voucherReference, setVoucherReference] = useState('');
+  const [packageSelect, setPackageSelect] = useState('');
+  const [packageCustom, setPackageCustom] = useState('');
+  const [srRate, setSrRate] = useState('');
+
+  // ---- Shirka (mandatory, filters pilgrim list) ----
   const [voucherVendorId, setVoucherVendorId] = useState('');
   const [voucherShirkaId, setVoucherShirkaId] = useState('');
 
@@ -101,80 +144,97 @@ export const VoucherCreatePage: React.FC = () => {
   const [paxSearch, setPaxSearch] = useState('');
   const [paxAgentFilter, setPaxAgentFilter] = useState('all');
 
-  // ---- Trip anchor + sectors + stays ----
-  const [arrivalDate, setArrivalDate] = useState(new Date().toISOString().split('T')[0]);
-  const [sectors, setSectors] = useState<SectorItem[]>([
-    { type: 'Arrival', date: new Date().toISOString().split('T')[0], flightNo: '', time: '12:00', vehicleType: undefined, transportRateSAR: 0 },
-  ]);
-  const [hotelStays, setHotelStays] = useState<HotelStayItem[]>([
-    { city: 'Makkah', hotelName: '', checkInDate: new Date().toISOString().split('T')[0], checkOutDate: addDays(new Date().toISOString().split('T')[0], 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 0, totalSAR: 0 },
-  ]);
+  // ---- Trip anchor ----
+  const [arrivalDate, setArrivalDate] = useState(todayStr());
 
-  // ---- Flight details ----
-  const [allowFlightInfo, setAllowFlightInfo] = useState(false);
+  // ---- Flight blocks: Arrival / Departure / Return (Oracle 3-col) ----
+  const [arrAirline, setArrAirline] = useState<any | null>(null);
+  const [arrFlightNo, setArrFlightNo] = useState('');
+  const [arrDate, setArrDate] = useState(todayStr());
+  const [arrTime, setArrTime] = useState('12:00');
+  const [arrSector, setArrSector] = useState('');
+  const [arrPnr, setArrPnr] = useState('');
+
   const [depAirline, setDepAirline] = useState<any | null>(null);
   const [depFlightNo, setDepFlightNo] = useState('');
-  const [depFrom, setDepFrom] = useState<any | null>(null);
-  const [depTo, setDepTo] = useState<any | null>(null);
-  const [depDate, setDepDate] = useState(new Date().toISOString().split('T')[0]);
-  const [depEtd, setDepEtd] = useState('12:00');
-  const [depEta, setDepEta] = useState('15:00');
+  const [depDate, setDepDate] = useState(todayStr());
+  const [depTime, setDepTime] = useState('12:00');
+  const [depSector, setDepSector] = useState('');
+  const [depPnr, setDepPnr] = useState('');
+
   const [retAirline, setRetAirline] = useState<any | null>(null);
   const [retFlightNo, setRetFlightNo] = useState('');
-  const [retFrom, setRetFrom] = useState<any | null>(null);
-  const [retTo, setRetTo] = useState<any | null>(null);
-  const [retDate, setRetDate] = useState(new Date().toISOString().split('T')[0]);
-  const [retEtd, setRetEtd] = useState('14:00');
-  const [retEta, setRetEta] = useState('18:00');
-  const [lateIntimationSAR, setLateIntimationSAR] = useState('');
+  const [retDate, setRetDate] = useState(todayStr());
+  const [retTime, setRetTime] = useState('14:00');
+  const [retSector, setRetSector] = useState('');
+  const [retPnr, setRetPnr] = useState('');
 
-  // ---- Commission ----
-  const [commissionEnabled, setCommissionEnabled] = useState(false);
-  const [commissionName, setCommissionName] = useState('');
-  const [commissionContact, setCommissionContact] = useState('');
-  const [commissionAmount, setCommissionAmount] = useState('');
+  // ---- Hotels: exactly 2 (Makkah | Madina) — Oracle layout ----
+  const [hotelStays, setHotelStays] = useState<HotelStayItem[]>([
+    { city: 'Makkah', hotelName: '', checkInDate: todayStr(), checkOutDate: addDays(todayStr(), 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 0, totalSAR: 0 },
+    { city: 'Madinah', hotelName: '', checkInDate: addDays(todayStr(), 3), checkOutDate: addDays(todayStr(), 6), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 0, totalSAR: 0 },
+  ]);
 
-  // ---- Oracle APEX legacy fields ----
+  // ---- Leader & companies (Oracle fields) ----
   const [leaderName, setLeaderName] = useState('');
   const [leaderContact, setLeaderContact] = useState('');
   const [leaderPassport, setLeaderPassport] = useState('');
-  const [packageType, setPackageType] = useState('');
   const [transportCompany, setTransportCompany] = useState('');
+  const [transportType, setTransportType] = useState('');
+  const [trip, setTrip] = useState('');
+  const [transportChargeSAR, setTransportChargeSAR] = useState('');
   const [saudiCompany, setSaudiCompany] = useState('');
   const [pakCompany, setPakCompany] = useState('');
+
+  // ---- Shirka text fields (Oracle) ----
+  const [makkahShirka, setMakkahShirka] = useState('');
+  const [madinaShirka, setMadinaShirka] = useState('');
+
+  // ---- Ziarat (Oracle: By | Cost | Rate) ----
   const [makkahZiaratBy, setMakkahZiaratBy] = useState('');
   const [makkahZiaratCost, setMakkahZiaratCost] = useState('');
+  const [makkahZiaratRate, setMakkahZiaratRate] = useState('');
   const [madinaZiaratBy, setMadinaZiaratBy] = useState('');
   const [madinaZiaratCost, setMadinaZiaratCost] = useState('');
-  const [voucherReference, setVoucherReference] = useState('');
+  const [madinaZiaratRate, setMadinaZiaratRate] = useState('');
+
+  // ---- Remarks ----
   const [voucherRemarks, setVoucherRemarks] = useState('');
 
-  // ---- Package includes + KSA staff ----
+  // ---- Transport sectors (auto-synced from Transport Type + charge; backend needs it) ----
+  const [sectors, setSectors] = useState<SectorItem[]>([]);
+
+  // ---- Carried-through defaults (not in Oracle layout, kept for backend) ----
   const [packageIncludes, setPackageIncludes] = useState<string[]>([...DEFAULT_PACKAGE_INCLUDES]);
   const [makkahStaffName, setMakkahStaffName] = useState('');
   const [makkahStaffPhone, setMakkahStaffPhone] = useState('');
   const [madinaStaffName, setMadinaStaffName] = useState('');
   const [madinaStaffPhone, setMadinaStaffPhone] = useState('');
+  const [commissionEnabled] = useState(false);
+  const [commissionName] = useState('');
+  const [commissionContact] = useState('');
+  const [commissionAmount] = useState('');
 
   // ---- Load data ----
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        const [vList, visaList, hList, vehList, aList, vndList] = await Promise.all([
+        const [vList, visaList, hList, aList, vndList] = await Promise.all([
           fetchVouchers(),
           fetchVisas(),
           fetchHotels(),
-          fetchVehicles(),
           fetchAgents(),
           fetchVendors(),
         ]);
         setVouchers(vList);
         setAvailableVisas(visaList);
         setHotelsMaster(hList);
-        setVehiclesMaster(vehList);
         setAgentsList(aList);
         setVendorsMaster(vndList || []);
+        try {
+          setSrRate(String(getCurrentRate('SAR-PKR') || ''));
+        } catch { /* keep empty */ }
       } catch {
         showError('Failed to load voucher creation data.');
       } finally {
@@ -190,6 +250,16 @@ export const VoucherCreatePage: React.FC = () => {
     setMadinaStaffName(company?.madinaStaffName || '');
     setMadinaStaffPhone(company?.madinaStaffPhone || '');
   }, [company]);
+
+  // ---- Sync single transport sector from Transport Type + charge ----
+  useEffect(() => {
+    const rate = parseFloat(transportChargeSAR) || 0;
+    if (transportType) {
+      setSectors([{ type: 'Arrival', date: arrivalDate, vehicleType: transportType as any, transportRateSAR: rate }]);
+    } else {
+      setSectors([]);
+    }
+  }, [transportType, transportChargeSAR, arrivalDate]);
 
   // ---- Remaining visas (no double vouchers) ----
   const usedVisaIds = useMemo(() => {
@@ -254,6 +324,22 @@ export const VoucherCreatePage: React.FC = () => {
     return shk ? `${vnd.name} — ${shk.name}` : vnd.name;
   };
 
+  // ---- Package: dropdown + custom text ----
+  const effectivePackageType = packageSelect === '__custom' ? packageCustom.trim() : packageSelect;
+
+  // ---- Agent auto from pilgrim selection (readonly display) ----
+  const selectedVisasData = useMemo(
+    () => availableVisas.filter((v) => selectedVisaIds.includes(v.id)),
+    [availableVisas, selectedVisaIds]
+  );
+  const displayAgentName = useMemo(() => {
+    const ids = Array.from(new Set(selectedVisasData.map((v) => v.agentId).filter(Boolean)));
+    if (ids.length === 0) return '—';
+    if (ids.length > 1) return 'Multiple agents';
+    return pickerAgentName(ids[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVisasData, agentsList]);
+
   // ---- Valid rows + totals ----
   const validHotelStays = useMemo(
     () => hotelStays.filter((h) => h.hotelName && h.hotelName.trim() !== '' && (h.ratePerNightSAR || 0) > 0),
@@ -265,15 +351,16 @@ export const VoucherCreatePage: React.FC = () => {
     [hotelStays]
   );
   const sectorsWithTransport = useMemo(
-    () => sectors.filter((s) => s.vehicleType || s.isSelfGari),
+    () => sectors.filter((s) => s.vehicleType || (s as any).isSelfGari),
     [sectors]
   );
   const hotelsSAR = useMemo(() => validHotelStays.reduce((sum, h) => sum + (h.totalSAR || 0), 0), [validHotelStays]);
   const transportSAR = useMemo(() => validSectors.reduce((sum, s) => sum + (s.transportRateSAR || 0), 0), [validSectors]);
-  const lateIntimation = parseFloat(lateIntimationSAR) || 0;
-  const totalSAR = hotelsSAR + transportSAR + lateIntimation;
+  const totalSAR = hotelsSAR + transportSAR;
+  const effectiveRate = parseFloat(srRate) || getCurrentRate('SAR-PKR') || 0;
+  const totalNights = useMemo(() => namedHotelStays.reduce((s, h) => s + (h.nights || 0), 0), [namedHotelStays]);
 
-  // ---- Hotel stay inline editor ----
+  // ---- Hotel stay editor (2 fixed stays, dates chain) ----
   const updateStay = (idx: number, patch: Partial<HotelStayItem>) => {
     const updated = [...hotelStays];
     updated[idx] = { ...updated[idx], ...patch };
@@ -282,7 +369,6 @@ export const VoucherCreatePage: React.FC = () => {
       s.checkOutDate = addDays(s.checkInDate, s.nights || 0);
       s.totalSAR = (s.nights || 0) * (s.ratePerNightSAR || 0) * (s.roomCount || 1);
     }
-    // re-chain subsequent stays
     for (let i = idx + 1; i < updated.length; i++) {
       updated[i].checkInDate = updated[i - 1].checkOutDate;
       updated[i].checkOutDate = addDays(updated[i].checkInDate, updated[i].nights || 0);
@@ -290,35 +376,73 @@ export const VoucherCreatePage: React.FC = () => {
     }
     setHotelStays(updated);
   };
-  const addStay = () => {
-    const last = hotelStays[hotelStays.length - 1];
-    const city = last ? last.city : 'Makkah';
-    const checkIn = last ? last.checkOutDate : arrivalDate;
-    setHotelStays([
-      ...hotelStays,
-      { city, hotelName: '', checkInDate: checkIn, checkOutDate: addDays(checkIn, 3), nights: 3, bedType: 'Double', roomCount: 1, ratePerNightSAR: 0, totalSAR: 0 },
-    ]);
-  };
-  const removeStay = (idx: number) => {
-    const updated = hotelStays.filter((_, i) => i !== idx);
-    for (let i = 0; i < updated.length; i++) {
-      updated[i].checkInDate = i === 0 ? arrivalDate : updated[i - 1].checkOutDate;
-      updated[i].checkOutDate = addDays(updated[i].checkInDate, updated[i].nights || 0);
-    }
-    setHotelStays(updated);
-  };
 
-  // ---- Sector helpers ----
-  const addSector = (type: SectorItem['type']) => {
-    setSectors([
-      ...sectors,
-      { type, date: sectors.length > 0 ? sectors[sectors.length - 1].date : arrivalDate, vehicleType: undefined, transportRateSAR: 0 },
-    ]);
-  };
-  const updateSector = (idx: number, patch: Partial<SectorItem>) => {
-    const updated = [...sectors];
-    updated[idx] = { ...updated[idx], ...patch } as SectorItem;
-    setSectors(updated);
+  // ---- Copy From: clone an existing voucher's fields ----
+  const handleCopyFrom = (voucherId: string) => {
+    setCopyFromId(voucherId);
+    if (!voucherId) return;
+    const v: any = vouchers.find((x) => x.id === voucherId);
+    if (!v) return;
+    setLeaderName(v.leaderName || '');
+    setLeaderContact(v.leaderContact || '');
+    setLeaderPassport(v.leaderPassport || '');
+    if (v.packageType) {
+      if (PACKAGE_OPTIONS.includes(v.packageType)) setPackageSelect(v.packageType);
+      else { setPackageSelect('__custom'); setPackageCustom(v.packageType); }
+    }
+    setTransportCompany(v.transportCompany || '');
+    setTransportType(v.transportType || v.sectors?.[0]?.vehicleType || '');
+    setTrip(v.trip || '');
+    setSaudiCompany(v.saudiCompany || '');
+    setPakCompany(v.pakCompany || '');
+    setMakkahShirka(v.makkahShirka || '');
+    setMadinaShirka(v.madinaShirka || '');
+    if (v.makkahZiarat) {
+      setMakkahZiaratBy(v.makkahZiarat.by || '');
+      setMakkahZiaratCost(v.makkahZiarat.costSAR ? String(v.makkahZiarat.costSAR) : '');
+      setMakkahZiaratRate(v.makkahZiarat.rateSAR ? String(v.makkahZiarat.rateSAR) : '');
+    }
+    if (v.madinaZiarat) {
+      setMadinaZiaratBy(v.madinaZiarat.by || '');
+      setMadinaZiaratCost(v.madinaZiarat.costSAR ? String(v.madinaZiarat.costSAR) : '');
+      setMadinaZiaratRate(v.madinaZiarat.rateSAR ? String(v.madinaZiarat.rateSAR) : '');
+    }
+    setVoucherReference(v.reference || '');
+    setVoucherRemarks(v.remarks || '');
+    const fd = v.flightDetails;
+    const applyBlock = (
+      b: any,
+      setA: (x: any) => void, setN: (x: string) => void, setD: (x: string) => void,
+      setT: (x: string) => void, setS: (x: string) => void, setP: (x: string) => void
+    ) => {
+      if (!b) return;
+      setA(b.airline || null); setN(b.flightNo || ''); setD(b.date || todayStr());
+      setT(b.etd || '12:00'); setS(b.sector || ''); setP(b.pnr || '');
+    };
+    if (fd) {
+      applyBlock(fd.arrivalFlight, setArrAirline, setArrFlightNo, setArrDate, setArrTime, setArrSector, setArrPnr);
+      applyBlock(fd.departureFlight, setDepAirline, setDepFlightNo, setDepDate, setDepTime, setDepSector, setDepPnr);
+      applyBlock(fd.returnFlight, setRetAirline, setRetFlightNo, setRetDate, setRetTime, setRetSector, setRetPnr);
+    }
+    if (Array.isArray(v.hotelStays) && v.hotelStays.length > 0) {
+      setHotelStays((prev) =>
+        prev.map((s, i) => {
+          const src = v.hotelStays[i];
+          if (!src) return s;
+          const nights = src.nights || s.nights;
+          const rate = src.ratePerNightSAR || 0;
+          return {
+            ...s,
+            hotelName: src.hotelName || s.hotelName,
+            nights,
+            ratePerNightSAR: rate,
+            checkOutDate: addDays(s.checkInDate, nights),
+            totalSAR: nights * rate * (s.roomCount || 1),
+          };
+        })
+      );
+    }
+    success(`Copied fields from ${v.voucherNo || 'voucher'}.`);
   };
 
   /** Validate state and construct the voucher payload. */
@@ -331,47 +455,27 @@ export const VoucherCreatePage: React.FC = () => {
       showError('Please select a Shirka first.');
       return null;
     }
-    const missingVehicle = sectors.filter((s) => !s.vehicleType && !s.isSelfGari);
+    const missingVehicle = sectors.filter((s) => !s.vehicleType && !(s as any).isSelfGari);
     if (missingVehicle.length > 0) {
-      showError('Transport rule: every sector needs a vehicle selected, or mark Self Gari.');
+      showError('Transport rule: every sector needs a vehicle selected.');
       return null;
     }
-    const departureDates = [
-      ...sectors.filter((s) => s.type === 'Departure' && s.date).map((s) => s.date),
-      ...(depDate ? [depDate] : []),
-    ];
-    const tripDeparture = departureDates.sort().pop() || '';
-    if (tripDeparture && arrivalDate && tripDeparture < arrivalDate) {
-      showError(`Departure date (${tripDeparture}) cannot be before the arrival date (${arrivalDate}).`);
+    if (depDate && arrivalDate && depDate < arrivalDate) {
+      showError(`Departure date (${depDate}) cannot be before the arrival date (${arrivalDate}).`);
       return null;
     }
-    if (tripDeparture) {
-      const lateStay = hotelStays.find((h) => h.checkOutDate && h.checkOutDate > tripDeparture);
+    if (depDate) {
+      const lateStay = hotelStays.find((h) => h.checkOutDate && h.checkOutDate > depDate);
       if (lateStay) {
-        showError(`Hotel checkout (${lateStay.checkOutDate}, ${lateStay.hotelName || lateStay.city}) cannot be after the departure date (${tripDeparture}).`);
-        return null;
-      }
-    }
-    if (commissionEnabled) {
-      if (!commissionName.trim()) {
-        showError('Commission: please enter the recipient name.');
-        return null;
-      }
-      if (!commissionContact.trim()) {
-        showError('Commission: please enter the recipient contact number.');
-        return null;
-      }
-      if (!(parseFloat(commissionAmount) > 0)) {
-        showError('Commission: please enter a valid commission amount.');
+        showError(`Hotel checkout (${lateStay.checkOutDate}, ${lateStay.hotelName || lateStay.city}) cannot be after the departure date (${depDate}).`);
         return null;
       }
     }
     if (namedHotelStays.length === 0 && sectorsWithTransport.length === 0) {
-      showError('Please add at least one hotel stay (with a name) or transport sector.');
+      showError('Please add at least one hotel stay (with a name) or select a transport type.');
       return null;
     }
 
-    const selectedVisasData = availableVisas.filter((v) => selectedVisaIds.includes(v.id));
     const passengers = selectedVisasData.map((v) => ({
       name: v.pilgrimName,
       passportNumber: v.passportNumber,
@@ -380,7 +484,18 @@ export const VoucherCreatePage: React.FC = () => {
     }));
     const paxAgents = Array.from(new Set(selectedVisasData.map((v) => v.agentId).filter(Boolean)));
     const voucherAgentId = paxAgents.length === 1 ? paxAgents[0] : undefined;
-    const totalPKR = convert(totalSAR, getCurrentRate('SAR-PKR'));
+    const totalPKR = convert(totalSAR, effectiveRate);
+
+    const block = (
+      airline: any, flightNo: string, date: string, time: string, sector: string, pnr: string
+    ): FlightBlockInfo => ({
+      airline: airline || null,
+      flightNo: flightNo.trim() || undefined,
+      date: date || undefined,
+      etd: time || undefined,
+      sector: sector.trim() || undefined,
+      pnr: pnr.trim() || undefined,
+    });
 
     return {
       visaIds: selectedVisaIds,
@@ -391,45 +506,43 @@ export const VoucherCreatePage: React.FC = () => {
       leaderName: leaderName.trim() || undefined,
       leaderContact: leaderContact.trim() || undefined,
       leaderPassport: leaderPassport.trim() || undefined,
-      packageType: packageType.trim() || undefined,
+      packageType: effectivePackageType || undefined,
       transportCompany: transportCompany.trim() || undefined,
+      transportType: transportType || undefined,
+      trip: trip.trim() || undefined,
       saudiCompany: saudiCompany.trim() || undefined,
       pakCompany: pakCompany.trim() || undefined,
+      makkahShirka: makkahShirka.trim() || undefined,
+      madinaShirka: madinaShirka.trim() || undefined,
       makkahZiarat:
-        makkahZiaratBy.trim() || makkahZiaratCost
-          ? { by: makkahZiaratBy.trim() || undefined, costSAR: parseFloat(makkahZiaratCost) || 0 }
+        makkahZiaratBy.trim() || makkahZiaratCost || makkahZiaratRate
+          ? {
+              by: makkahZiaratBy.trim() || undefined,
+              costSAR: parseFloat(makkahZiaratCost) || 0,
+              rateSAR: parseFloat(makkahZiaratRate) || undefined,
+            }
           : undefined,
       madinaZiarat:
-        madinaZiaratBy.trim() || madinaZiaratCost
-          ? { by: madinaZiaratBy.trim() || undefined, costSAR: parseFloat(madinaZiaratCost) || 0 }
+        madinaZiaratBy.trim() || madinaZiaratCost || madinaZiaratRate
+          ? {
+              by: madinaZiaratBy.trim() || undefined,
+              costSAR: parseFloat(madinaZiaratCost) || 0,
+              rateSAR: parseFloat(madinaZiaratRate) || undefined,
+            }
           : undefined,
-      totalNights: namedHotelStays.reduce((s, h) => s + (h.nights || 0), 0),
+      totalNights,
       reference: voucherReference.trim() || undefined,
       remarks: voucherRemarks.trim() || undefined,
+      voucherDate: voucherDate || undefined,
       passengers,
       sectors: sectorsWithTransport,
       hotelStays: namedHotelStays,
       flightDetails: {
-        allowFlightInfo,
-        departureFlight: {
-          airline: depAirline,
-          flightNo: depFlightNo,
-          fromAirport: depFrom,
-          toAirport: depTo,
-          date: depDate,
-          etd: depEtd,
-          eta: depEta,
-        },
-        returnFlight: {
-          airline: retAirline,
-          flightNo: retFlightNo,
-          fromAirport: retFrom,
-          toAirport: retTo,
-          date: retDate,
-          etd: retEtd,
-          eta: retEta,
-        },
-        lateIntimationChargesSAR: lateIntimation,
+        allowFlightInfo: true,
+        arrivalFlight: block(arrAirline, arrFlightNo, arrDate, arrTime, arrSector, arrPnr),
+        departureFlight: block(depAirline, depFlightNo, depDate, depTime, depSector, depPnr),
+        returnFlight: block(retAirline, retFlightNo, retDate, retTime, retSector, retPnr),
+        lateIntimationChargesSAR: 0,
       },
       charges: [
         ...validHotelStays.map((h) => ({
@@ -442,11 +555,8 @@ export const VoucherCreatePage: React.FC = () => {
           category: 'Transport' as const,
           amountSAR: s.transportRateSAR || 0,
         })),
-        ...(lateIntimation > 0
-          ? [{ description: 'Late Intimation Charges', category: 'Other' as const, amountSAR: lateIntimation }]
-          : []),
       ],
-      totals: { hotelsSAR, transportSAR, otherSAR: lateIntimation, totalSAR, totalPKR },
+      totals: { hotelsSAR, transportSAR, otherSAR: 0, totalSAR, totalPKR, exchangeRate: effectiveRate || undefined },
       commission: {
         enabled: commissionEnabled,
         recipientName: commissionName.trim(),
@@ -483,6 +593,7 @@ export const VoucherCreatePage: React.FC = () => {
           otherSAR: payload.totals.otherSAR,
           totalSAR: payload.totals.totalSAR,
           totalPKR: payload.totals.totalPKR,
+          exchangeRate: payload.totals.exchangeRate,
         },
         commission: payload.commission,
         makkahStaffName: makkahStaffName.trim() || undefined,
@@ -495,13 +606,18 @@ export const VoucherCreatePage: React.FC = () => {
         leaderPassport: payload.leaderPassport,
         packageType: payload.packageType,
         transportCompany: payload.transportCompany,
+        transportType: payload.transportType,
+        trip: payload.trip,
         saudiCompany: payload.saudiCompany,
         pakCompany: payload.pakCompany,
+        makkahShirka: payload.makkahShirka,
+        madinaShirka: payload.madinaShirka,
         makkahZiarat: payload.makkahZiarat,
         madinaZiarat: payload.madinaZiarat,
         totalNights: payload.totalNights,
         reference: payload.reference,
         remarks: payload.remarks,
+        voucherDate: payload.voucherDate,
       });
       success('Trip voucher created successfully and posted to ledger.');
       navigate('/vouchers');
@@ -523,14 +639,18 @@ export const VoucherCreatePage: React.FC = () => {
     );
   }
 
-  const inputCls = 'w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold';
-  const labelCls = 'block text-[11px] font-semibold text-slate-600 mb-1.5';
+  const inputCls = 'w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-900';
+  const labelCls = 'block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-1.5';
+  const readOnlyCls = 'w-full p-2.5 bg-slate-100 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 font-mono';
+
+  const hotelSuggestions = (city: string) =>
+    hotelsMaster.filter((h) => (h.city || '').toLowerCase() === city.toLowerCase());
 
   return (
     <div className="pb-32">
       <PageHeader
         title="New Voucher"
-        subtitle="Everything on one page — fill it, save it, done."
+        subtitle="Fill the form exactly like the register — save when done."
         actions={
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate('/vouchers')}>
@@ -543,22 +663,100 @@ export const VoucherCreatePage: React.FC = () => {
         }
       />
 
-      <div className="px-4 sm:px-6 space-y-4 max-w-5xl mx-auto">
+      <div className="px-4 sm:px-6 space-y-4 max-w-6xl mx-auto">
         {loading ? (
           <Card><InlineLoader message="Loading voucher data..." /></Card>
         ) : (
           <>
-            {/* 1. Shirka + arrival date */}
-            <Section
-              title="Shirka & Trip Date"
-              icon={<FileText className="w-4 h-4" />}
-              subtitle="Select the Shirka first — only its pilgrims will appear below."
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* ===== TOP BAR: Voucher# | Pax QTY | Copy From | Date ===== */}
+            <Card className="p-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
-                  <label className={labelCls}>
-                    Shirka <span className="text-red-500">*</span>
-                  </label>
+                  <label className={labelCls}>Voucher#</label>
+                  <input type="text" value="Auto" readOnly className={readOnlyCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Pax QTY</label>
+                  <input type="text" value={String(selectedVisaIds.length)} readOnly className={readOnlyCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Copy From</label>
+                  <div className="relative">
+                    <Copy className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <select value={copyFromId} onChange={(e) => handleCopyFrom(e.target.value)} className={`${inputCls} pl-9`}>
+                      <option value="">-- Copy from existing --</option>
+                      {vouchers.slice(0, 100).map((v: any) => (
+                        <option key={v.id} value={v.id}>
+                          {v.voucherNo} — {v.passengers?.length || (v.visaIds || []).length} pax
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className={labelCls}>Date</label>
+                  <input type="date" value={voucherDate} onChange={(e) => setVoucherDate(e.target.value)} className={`${inputCls} font-mono`} />
+                </div>
+              </div>
+            </Card>
+
+            {/* ===== ROW: Reference | Package | Total Nights | SR Rate ===== */}
+            <Card className="p-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                  <label className={labelCls}>Reference</label>
+                  <input type="text" value={voucherReference} onChange={(e) => setVoucherReference(e.target.value)} placeholder="Reference no." className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Package / SAR</label>
+                  <select
+                    value={packageSelect}
+                    onChange={(e) => setPackageSelect(e.target.value)}
+                    className={inputCls}
+                  >
+                    <option value="">-- Select Package --</option>
+                    {PACKAGE_OPTIONS.map((o) => (
+                      <option key={o} value={o}>{o}</option>
+                    ))}
+                    <option value="__custom">Custom... (type below)</option>
+                  </select>
+                  {packageSelect === '__custom' && (
+                    <input
+                      type="text"
+                      value={packageCustom}
+                      onChange={(e) => setPackageCustom(e.target.value)}
+                      placeholder="Type custom package..."
+                      className={`${inputCls} mt-2`}
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className={labelCls}>Total Nights</label>
+                  <input type="text" value={String(totalNights)} readOnly className={readOnlyCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>SR Rate</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={srRate}
+                    onChange={(e) => setSrRate(e.target.value)}
+                    placeholder={`e.g. ${getCurrentRate('SAR-PKR') || 75.5}`}
+                    className={`${inputCls} font-mono`}
+                  />
+                </div>
+              </div>
+            </Card>
+
+            {/* ===== PILGRIMS ===== */}
+            <Card className="p-4">
+              <h3 className="flex items-center gap-2 font-bold text-[#0e2c4c] text-sm uppercase tracking-wider mb-3">
+                <Users className="w-4 h-4" /> Pilgrims — {selectedVisaIds.length} selected
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                <div className="md:col-span-2">
+                  <label className={labelCls}>Shirka <span className="text-red-500">*</span></label>
                   <select
                     value={`${voucherVendorId}::${voucherShirkaId}`}
                     onChange={(e) => {
@@ -583,8 +781,7 @@ export const VoucherCreatePage: React.FC = () => {
                       if (shirkas.length === 0) {
                         return (
                           <option key={v.id} value={`${v.id}::`}>
-                            {v.name}
-                            {v.vendorCode ? ` (${v.vendorCode})` : ''}
+                            {v.name}{v.vendorCode ? ` (${v.vendorCode})` : ''}
                           </option>
                         );
                       }
@@ -601,15 +798,15 @@ export const VoucherCreatePage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className={labelCls}>Trip Arrival Date (auto-chains hotel dates)</label>
+                  <label className={labelCls}>Trip Arrival Date</label>
                   <input
                     type="date"
                     value={arrivalDate}
                     onChange={(e) => {
                       const newDate = e.target.value;
                       setArrivalDate(newDate);
-                      if (hotelStays.length > 0) {
-                        const updated = [...hotelStays];
+                      const updated = [...hotelStays];
+                      if (updated[0]) {
                         updated[0].checkInDate = newDate;
                         updated[0].checkOutDate = addDays(newDate, updated[0].nights || 0);
                         for (let i = 1; i < updated.length; i++) {
@@ -619,18 +816,10 @@ export const VoucherCreatePage: React.FC = () => {
                         setHotelStays(updated);
                       }
                     }}
-                    className={inputCls}
+                    className={`${inputCls} font-mono`}
                   />
                 </div>
               </div>
-            </Section>
-
-            {/* 2. Pilgrims */}
-            <Section
-              title={`Pilgrims — ${selectedVisaIds.length} selected`}
-              icon={<Users className="w-4 h-4" />}
-              subtitle={`${remainingVisas.length} pax available (distributed visas without a voucher yet).`}
-            >
               {!voucherVendorId ? (
                 <div className="p-6 text-center bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl text-sm font-bold text-slate-600">
                   ↑ Select a Shirka above first
@@ -671,12 +860,10 @@ export const VoucherCreatePage: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                  <div className="max-h-80 overflow-y-auto border border-slate-200 rounded-xl">
+                  <div className="max-h-72 overflow-y-auto border border-slate-200 rounded-xl">
                     {groupedPicker.length === 0 ? (
                       <div className="p-6 text-center text-sm text-slate-500">
-                        {remainingVisas.length === 0
-                          ? 'No remaining unvouchered visas available.'
-                          : 'No pilgrims match your search.'}
+                        {remainingVisas.length === 0 ? 'No remaining unvouchered visas available.' : 'No pilgrims match your search.'}
                       </div>
                     ) : (
                       groupedPicker.map((group) => {
@@ -689,7 +876,7 @@ export const VoucherCreatePage: React.FC = () => {
                               onClick={() => { allIn ? deselectPickerIds(groupIds) : selectPickerIds(groupIds); }}
                               className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 hover:bg-slate-100 transition"
                             >
-                              <span className="text-xs font-bold text-[var(--theme-primary)]">
+                              <span className="text-xs font-bold text-[#0e2c4c]">
                                 {pickerAgentName(group.agentId)}
                                 <span className="ml-2 text-[10px] font-semibold text-slate-500">
                                   {group.visas.length} pax • {groupIds.filter((id) => selectedVisaIds.includes(id)).length} selected
@@ -727,395 +914,248 @@ export const VoucherCreatePage: React.FC = () => {
                   </div>
                 </div>
               )}
-            </Section>
+            </Card>
 
-            {/* 3. Transport sectors */}
-            <Section
-              title="Ground Transport"
-              icon={<Plane className="w-4 h-4" />}
-              subtitle="Every sector needs a vehicle, or mark Self Gari."
-            >
-              <div className="flex items-center gap-1.5 flex-wrap mb-3">
-                <Button variant="outline" size="sm" onClick={() => addSector('Arrival')}>+ Arrival</Button>
-                <Button variant="outline" size="sm" onClick={() => addSector('Departure')}>+ Departure</Button>
-                <Button variant="outline" size="sm" onClick={() => addSector('Makkah to Madina' as any)}>+ Makkah ↔ Madina</Button>
-                <Button variant="outline" size="sm" onClick={() => addSector('Madina to Makkah' as any)}>+ Madina ↔ Makkah</Button>
-              </div>
-              <div className="space-y-3">
-                {sectors.map((sec, idx) => (
-                  <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3 text-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-[var(--theme-primary)] px-2.5 py-1 bg-[#0e2c4c]/10 rounded uppercase text-[10px]">{sec.type}</span>
-                        <input
-                          type="date"
-                          value={sec.date || ''}
-                          min={sec.type === 'Departure' ? arrivalDate : undefined}
-                          onChange={(e) => updateSector(idx, { date: e.target.value })}
-                          className="p-1.5 bg-white border border-slate-300 rounded text-xs font-mono"
-                        />
-                      </div>
-                      {sectors.length > 1 && (
-                        <button type="button" onClick={() => setSectors(sectors.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 font-semibold">
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className={labelCls}>Vehicle *</label>
-                        <select
-                          value={sec.vehicleType || ''}
-                          disabled={!!sec.isSelfGari}
-                          onChange={(e) => updateSector(idx, { vehicleType: (e.target.value || undefined) as any })}
-                          className={`${inputCls} disabled:bg-slate-100 disabled:text-slate-400`}
-                        >
-                          <option value="">-- Select Vehicle (Mandatory) --</option>
-                          <option value="Car">Car (4 Seater Sedan)</option>
-                          <option value="Staria">Staria VIP Van</option>
-                          <option value="Hiace">Hiace (12 Seater High Roof)</option>
-                          <option value="Coaster">Toyota Coaster Bus</option>
-                          <option value="Bus">49-Seater Luxury Bus</option>
-                          <option value="GMC">GMC (VIP SUV)</option>
-                        </select>
-                        <label className="flex items-center gap-2 mt-2 text-[11px] font-semibold text-slate-700 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={!!sec.isSelfGari}
-                            onChange={(e) => {
-                              const patch: Partial<SectorItem> = { isSelfGari: e.target.checked };
-                              if (e.target.checked) { patch.vehicleType = undefined; patch.transportRateSAR = 0; }
-                              updateSector(idx, patch);
-                            }}
-                            className="w-4 h-4 accent-[#0e2c4c]"
-                          />
-                          Self Gari (own vehicle — no company transport charge)
-                        </label>
-                      </div>
-                      <div>
-                        <label className={labelCls}>Transport Charge (SAR)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="10"
-                          value={sec.transportRateSAR || ''}
-                          onChange={(e) => updateSector(idx, { transportRateSAR: parseFloat(e.target.value) || 0 })}
-                          placeholder={isAgent ? 'Staff will add the charge' : 'Type rate (SAR)...'}
-                          disabled={isAgent || !!sec.isSelfGari}
-                          className={`${inputCls} font-mono font-bold text-[var(--theme-primary)] disabled:bg-slate-100 disabled:text-slate-400`}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Section>
+            {/* ===== FLIGHTS: Arrival | Departure | Return ===== */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <FlightBlock
+                title="Arrival"
+                airline={arrAirline} setAirline={setArrAirline}
+                flightNo={arrFlightNo} setFlightNo={setArrFlightNo}
+                date={arrDate} setDate={setArrDate}
+                time={arrTime} setTime={setArrTime}
+                sector={arrSector} setSector={setArrSector}
+                pnr={arrPnr} setPnr={setArrPnr}
+                inputCls={inputCls} labelCls={labelCls}
+              />
+              <FlightBlock
+                title="Departure"
+                airline={depAirline} setAirline={setDepAirline}
+                flightNo={depFlightNo} setFlightNo={setDepFlightNo}
+                date={depDate} setDate={setDepDate}
+                time={depTime} setTime={setDepTime}
+                sector={depSector} setSector={setDepSector}
+                pnr={depPnr} setPnr={setDepPnr}
+                inputCls={inputCls} labelCls={labelCls}
+              />
+              <FlightBlock
+                title="Return"
+                airline={retAirline} setAirline={setRetAirline}
+                flightNo={retFlightNo} setFlightNo={setRetFlightNo}
+                date={retDate} setDate={setRetDate}
+                time={retTime} setTime={setRetTime}
+                sector={retSector} setSector={setRetSector}
+                pnr={retPnr} setPnr={setRetPnr}
+                inputCls={inputCls} labelCls={labelCls}
+              />
+            </div>
 
-            {/* 4. Hotels */}
-            <Section
-              title="Accommodation"
-              icon={<Bed className="w-4 h-4" />}
-              subtitle="Add each hotel stay — dates chain automatically."
-            >
-              <div className="flex justify-end mb-3">
-                <Button variant="outline" size="sm" onClick={addStay}>+ Add Hotel Stay</Button>
-              </div>
-              <div className="space-y-3">
-                {hotelStays.map((stay, idx) => (
-                  <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-[var(--theme-primary)] text-[11px] uppercase">Stay {idx + 1} — {stay.city}</span>
-                      {hotelStays.length > 1 && (
-                        <button type="button" onClick={() => removeStay(idx)} className="text-red-500 hover:text-red-700 font-semibold">
-                          Remove
-                        </button>
-                      )}
+            {/* ===== HOTELS: Makkah | Madina ===== */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {hotelStays.map((stay, idx) => (
+                <Card key={stay.city} className="p-4">
+                  <h4 className="flex items-center justify-between font-bold text-[#0e2c4c] text-sm uppercase tracking-wider mb-3">
+                    <span className="flex items-center gap-2"><Bed className="w-4 h-4" /> {stay.city} Hotel</span>
+                    <span className="font-mono text-xs text-slate-500 normal-case">Out: {stay.checkOutDate}</span>
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className={labelCls}>Hotel Name</label>
+                      <input
+                        type="text"
+                        list={`hotel-suggest-${stay.city}`}
+                        value={stay.hotelName}
+                        onChange={(e) => updateStay(idx, { hotelName: e.target.value })}
+                        placeholder={`Type ${stay.city} hotel name...`}
+                        className={inputCls}
+                      />
+                      <datalist id={`hotel-suggest-${stay.city}`}>
+                        {hotelSuggestions(stay.city).map((h) => (
+                          <option key={h.id} value={h.name} />
+                        ))}
+                      </datalist>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <label className={labelCls}>City</label>
-                        <select value={stay.city} onChange={(e) => updateStay(idx, { city: e.target.value })} className={inputCls}>
-                          <option value="Makkah">Makkah</option>
-                          <option value="Madinah">Madinah</option>
-                          <option value="Jeddah">Jeddah</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className={labelCls}>Bed Type</label>
-                        <select value={stay.bedType} onChange={(e) => updateStay(idx, { bedType: e.target.value as any })} className={inputCls}>
-                          <option value="Double">Double Bed</option>
-                          <option value="Triple">Triple Bed</option>
-                          <option value="Sharing">Sharing Bed</option>
-                          <option value="Room">Room</option>
-                          <option value="Quad">Quad Bed</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className={labelCls}>Check-In</label>
+                        <label className={labelCls}>Check-in</label>
                         <input type="date" value={stay.checkInDate} onChange={(e) => updateStay(idx, { checkInDate: e.target.value })} className={`${inputCls} font-mono`} />
                       </div>
                       <div>
                         <label className={labelCls}>Nights</label>
                         <input type="number" min="0" value={stay.nights || ''} onChange={(e) => updateStay(idx, { nights: parseInt(e.target.value) || 0 })} className={`${inputCls} font-mono`} />
                       </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="sm:col-span-2">
-                        <label className={labelCls}>Hotel {isAgent ? '(Self Hotel — type name)' : ''}</label>
-                        {isAgent ? (
-                          <input
-                            type="text"
-                            value={stay.hotelName}
-                            onChange={(e) => updateStay(idx, { hotelName: e.target.value })}
-                            placeholder="Type hotel name..."
-                            className={inputCls}
-                          />
-                        ) : (
-                          <select value={stay.hotelName} onChange={(e) => updateStay(idx, { hotelName: e.target.value })} className={inputCls}>
-                            <option value="">-- Choose Hotel from Master --</option>
-                            {hotelsMaster.filter((h) => (h.city || '').toLowerCase() === (stay.city || '').toLowerCase()).map((h) => (
-                              <option key={h.id} value={h.name}>
-                                {h.name}{h.availabilityNote ? ` (${h.availabilityNote})` : ''}{h.starRating ? ` — ${h.starRating}★` : ''}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
                       <div>
-                        <label className={labelCls}>Rate / Night (SAR){isAgent ? ' — staff adds' : ''}</label>
+                        <label className={labelCls}>Rate (SAR){isAgent ? '*' : ''}</label>
                         <input
                           type="number"
                           min="0"
                           step="10"
                           value={stay.ratePerNightSAR || ''}
                           onChange={(e) => updateStay(idx, { ratePerNightSAR: parseFloat(e.target.value) || 0 })}
-                          placeholder={isAgent ? 'Staff will add' : 'Type rate...'}
+                          placeholder={isAgent ? 'Staff adds' : 'Per night'}
                           disabled={isAgent}
-                          className={`${inputCls} font-mono font-bold text-[var(--theme-primary)] disabled:bg-slate-100`}
+                          className={`${inputCls} font-mono font-bold text-[#0e2c4c] disabled:bg-slate-100`}
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className={labelCls}>Rooms</label>
-                        <input type="number" min="1" value={stay.roomCount || 1} onChange={(e) => updateStay(idx, { roomCount: Math.max(1, parseInt(e.target.value) || 1) })} className={`${inputCls} font-mono`} />
-                      </div>
-                      <div className="flex items-end justify-between bg-white border border-slate-200 rounded-lg px-3 py-2">
-                        <span className="text-[11px] text-slate-500">Out: <span className="font-mono font-bold text-slate-700">{stay.checkOutDate}</span></span>
-                        <span className="font-mono font-bold text-[var(--theme-primary)]">SAR {(stay.totalSAR || 0).toLocaleString()}</span>
-                      </div>
+                    <div className="flex justify-end">
+                      <span className="text-xs font-bold text-slate-600">
+                        Total: <span className="font-mono text-[#0e2c4c]">SAR {(stay.totalSAR || 0).toLocaleString()}</span>
+                      </span>
                     </div>
                   </div>
-                ))}
-              </div>
-            </Section>
+                </Card>
+              ))}
+            </div>
 
-            {/* 5. Flight details (optional, collapsed) */}
-            <Section
-              title="Flight Details"
-              icon={<Plane className="w-4 h-4" />}
-              subtitle="Optional carrier & flight schedule tracking."
-              collapsible
-              defaultOpen={false}
-            >
-              <label className="flex items-center gap-2 cursor-pointer bg-slate-100 px-3 py-2 rounded-lg border border-slate-200 w-fit mb-3">
-                <input type="checkbox" checked={allowFlightInfo} onChange={(e) => setAllowFlightInfo(e.target.checked)} className="rounded" />
-                <span className="text-xs font-bold text-slate-800">Allow Flight Information</span>
-              </label>
-              <fieldset disabled={!allowFlightInfo} className={`space-y-3 ${!allowFlightInfo ? 'opacity-50' : ''}`}>
-                {[
-                  { title: 'Departure Flight', airline: depAirline, setAirline: setDepAirline, no: depFlightNo, setNo: setDepFlightNo, from: depFrom, setFrom: setDepFrom, to: depTo, setTo: setDepTo, date: depDate, setDate: setDepDate, etd: depEtd, setEtd: setDepEtd, eta: depEta, setEta: setDepEta },
-                  { title: 'Return Flight', airline: retAirline, setAirline: setRetAirline, no: retFlightNo, setNo: setRetFlightNo, from: retFrom, setFrom: setRetFrom, to: retTo, setTo: setRetTo, date: retDate, setDate: setRetDate, etd: retEtd, setEtd: setRetEtd, eta: retEta, setEta: setRetEta },
-                ].map((f) => (
-                  <div key={f.title} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                    <span className="font-bold text-[var(--theme-primary)] text-xs uppercase block tracking-wider">{f.title}</span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      <AirlineSelect label="Flight (Airline)" value={f.airline} onChange={f.setAirline} placeholder="Select airline..." />
-                      <div>
-                        <label className={labelCls}>No (Flight Number)</label>
-                        <input type="text" value={f.no} onChange={(e) => f.setNo(e.target.value)} placeholder="e.g. SV-734" className={`${inputCls} font-mono`} />
-                      </div>
-                      <AirportSelect label="FROM Airport" value={f.from} onChange={f.setFrom} placeholder="Origin..." />
-                      <AirportSelect label="TO Airport" value={f.to} onChange={f.setTo} placeholder="Destination..." />
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <label className={labelCls}>Date</label>
-                        <input type="date" value={f.date} min={arrivalDate} onChange={(e) => f.setDate(e.target.value)} className={`${inputCls} font-mono`} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>ETD</label>
-                        <input type="time" value={f.etd} onChange={(e) => f.setEtd(e.target.value)} className={`${inputCls} font-mono`} />
-                      </div>
-                      <div>
-                        <label className={labelCls}>ETA</label>
-                        <input type="time" value={f.eta} onChange={(e) => f.setEta(e.target.value)} className={`${inputCls} font-mono`} />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                <div>
-                  <label className={labelCls}>Late Intimation Charges (SAR)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="10"
-                    value={lateIntimationSAR}
-                    onChange={(e) => setLateIntimationSAR(e.target.value)}
-                    placeholder="0 (Manual entry)"
-                    className={`${inputCls} sm:w-64 font-mono font-bold text-[var(--theme-primary)]`}
-                  />
-                </div>
-              </fieldset>
-            </Section>
-
-            {/* 6. Additional details (optional, collapsed) */}
-            <Section
-              title="Additional Details"
-              icon={<FileText className="w-4 h-4" />}
-              subtitle="Leader, package, companies, ziarat, reference & remarks — all optional."
-              collapsible
-              defaultOpen={false}
-            >
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Group Leader</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <input type="text" value={leaderName} onChange={(e) => setLeaderName(e.target.value)} placeholder="Leader name" className="p-2 bg-white border border-slate-300 rounded-lg text-sm" />
-                    <input type="text" value={leaderContact} onChange={(e) => setLeaderContact(e.target.value)} placeholder="Contact number" className="p-2 bg-white border border-slate-300 rounded-lg text-sm" />
-                    <input type="text" value={leaderPassport} onChange={(e) => setLeaderPassport(e.target.value)} placeholder="Passport number" className="p-2 bg-white border border-slate-300 rounded-lg text-sm" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* ===== LEADER & COMPANIES ===== */}
+            <Card className="p-4">
+              <h3 className="flex items-center gap-2 font-bold text-[#0e2c4c] text-sm uppercase tracking-wider mb-3">
+                <FileText className="w-4 h-4" /> Leader & Companies
+              </h3>
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
-                    <label className={labelCls}>Package Type</label>
-                    <input type="text" value={packageType} onChange={(e) => setPackageType(e.target.value)} placeholder="e.g. SHUMUKH / SHAZA BARKA (DOUBLE) PIA" className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm" />
+                    <label className={labelCls}>Group Head</label>
+                    <input type="text" value={leaderName} onChange={(e) => setLeaderName(e.target.value)} placeholder="Leader name" className={inputCls} />
                   </div>
                   <div>
-                    <label className={labelCls}>Reference</label>
-                    <input type="text" value={voucherReference} onChange={(e) => setVoucherReference(e.target.value)} placeholder="Reference number" className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm" />
+                    <label className={labelCls}>Contact</label>
+                    <input type="text" value={leaderContact} onChange={(e) => setLeaderContact(e.target.value)} placeholder="Contact number" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Passport</label>
+                    <input type="text" value={leaderPassport} onChange={(e) => setLeaderPassport(e.target.value)} placeholder="Passport number" className={`${inputCls} font-mono`} />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div>
                     <label className={labelCls}>Transport Company</label>
-                    <input type="text" value={transportCompany} onChange={(e) => setTransportCompany(e.target.value)} placeholder="Transport company" className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm" />
+                    <input type="text" value={transportCompany} onChange={(e) => setTransportCompany(e.target.value)} placeholder="Transport company" className={inputCls} />
                   </div>
                   <div>
+                    <label className={labelCls}>Transport Type</label>
+                    <select value={transportType} onChange={(e) => setTransportType(e.target.value)} className={inputCls}>
+                      <option value="">-- Select --</option>
+                      {TRANSPORT_TYPES.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Trip</label>
+                    <input type="text" value={trip} onChange={(e) => setTrip(e.target.value)} placeholder="e.g. Jeddah-Makkah" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Transport Charge (SAR){isAgent ? '*' : ''}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="10"
+                      value={transportChargeSAR}
+                      onChange={(e) => setTransportChargeSAR(e.target.value)}
+                      placeholder={isAgent ? 'Staff adds' : '0'}
+                      disabled={isAgent || !transportType}
+                      className={`${inputCls} font-mono font-bold text-[#0e2c4c] disabled:bg-slate-100`}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
                     <label className={labelCls}>Saudi Company</label>
-                    <input type="text" value={saudiCompany} onChange={(e) => setSaudiCompany(e.target.value)} placeholder="Saudi company" className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm" />
+                    <input type="text" value={saudiCompany} onChange={(e) => setSaudiCompany(e.target.value)} placeholder="Saudi company" className={inputCls} />
                   </div>
                   <div>
                     <label className={labelCls}>Pak Company</label>
-                    <input type="text" value={pakCompany} onChange={(e) => setPakCompany(e.target.value)} placeholder="Pakistan company" className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm" />
+                    <input type="text" value={pakCompany} onChange={(e) => setPakCompany(e.target.value)} placeholder="Pakistan company" className={inputCls} />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Makkah Ziarat</label>
-                    <input type="text" value={makkahZiaratBy} onChange={(e) => setMakkahZiaratBy(e.target.value)} placeholder="Ziarat by" className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm mb-2" />
-                    <input type="number" value={makkahZiaratCost} onChange={(e) => setMakkahZiaratCost(e.target.value)} placeholder="Cost (SAR)" className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm" />
-                  </div>
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Madina Ziarat</label>
-                    <input type="text" value={madinaZiaratBy} onChange={(e) => setMadinaZiaratBy(e.target.value)} placeholder="Ziarat by" className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm mb-2" />
-                    <input type="number" value={madinaZiaratCost} onChange={(e) => setMadinaZiaratCost(e.target.value)} placeholder="Cost (SAR)" className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm" />
-                  </div>
+              </div>
+            </Card>
+
+            {/* ===== SHIRKA ===== */}
+            <Card className="p-4">
+              <h3 className="flex items-center gap-2 font-bold text-[#0e2c4c] text-sm uppercase tracking-wider mb-3">
+                <Building className="w-4 h-4" /> Shirka
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Makkah Shirka</label>
+                  <input type="text" value={makkahShirka} onChange={(e) => setMakkahShirka(e.target.value)} placeholder="Makkah shirka" className={inputCls} />
                 </div>
                 <div>
+                  <label className={labelCls}>Madina Shirka</label>
+                  <input type="text" value={madinaShirka} onChange={(e) => setMadinaShirka(e.target.value)} placeholder="Madina shirka" className={inputCls} />
+                </div>
+              </div>
+            </Card>
+
+            {/* ===== ZIARAT ===== */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="p-4">
+                <h4 className="font-bold text-[#0e2c4c] text-sm uppercase tracking-wider mb-3">Makkah Ziarat</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className={labelCls}>Ziarat By</label>
+                    <input type="text" value={makkahZiaratBy} onChange={(e) => setMakkahZiaratBy(e.target.value)} placeholder="By whom" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Cost</label>
+                    <input type="number" min="0" value={makkahZiaratCost} onChange={(e) => setMakkahZiaratCost(e.target.value)} placeholder="SAR" className={`${inputCls} font-mono`} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Rate</label>
+                    <input type="number" min="0" step="0.01" value={makkahZiaratRate} onChange={(e) => setMakkahZiaratRate(e.target.value)} placeholder="Rate" className={`${inputCls} font-mono`} />
+                  </div>
+                </div>
+              </Card>
+              <Card className="p-4">
+                <h4 className="font-bold text-[#0e2c4c] text-sm uppercase tracking-wider mb-3">Madina Ziarat</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className={labelCls}>Ziarat By</label>
+                    <input type="text" value={madinaZiaratBy} onChange={(e) => setMadinaZiaratBy(e.target.value)} placeholder="By whom" className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Cost</label>
+                    <input type="number" min="0" value={madinaZiaratCost} onChange={(e) => setMadinaZiaratCost(e.target.value)} placeholder="SAR" className={`${inputCls} font-mono`} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Rate</label>
+                    <input type="number" min="0" step="0.01" value={madinaZiaratRate} onChange={(e) => setMadinaZiaratRate(e.target.value)} placeholder="Rate" className={`${inputCls} font-mono`} />
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* ===== BOTTOM: Remarks | Agent ===== */}
+            <Card className="p-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="md:col-span-2">
                   <label className={labelCls}>Remarks</label>
-                  <textarea value={voucherRemarks} onChange={(e) => setVoucherRemarks(e.target.value)} rows={2} placeholder="Any special remarks..." className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm resize-none" />
+                  <textarea value={voucherRemarks} onChange={(e) => setVoucherRemarks(e.target.value)} rows={2} placeholder="Any special remarks..." className={`${inputCls} resize-none`} />
+                </div>
+                <div>
+                  <label className={labelCls}>Agent</label>
+                  <input type="text" value={displayAgentName} readOnly className={readOnlyCls} />
+                  <p className="text-[10px] text-slate-400 mt-1">Auto from selected pilgrims</p>
                 </div>
               </div>
-            </Section>
-
-            {/* 7. Package includes (optional, collapsed) */}
-            <Section title="Package Includes" subtitle="Prints on the voucher." collapsible defaultOpen={false}>
-              <div className="flex items-center gap-2 mb-3">
-                <button type="button" onClick={() => setPackageIncludes([...DEFAULT_PACKAGE_INCLUDES])} className="text-[11px] font-bold text-[var(--theme-primary)] hover:underline">Select All</button>
-                <span className="text-slate-300">|</span>
-                <button type="button" onClick={() => setPackageIncludes([])} className="text-[11px] font-bold text-slate-500 hover:underline">Clear</button>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {DEFAULT_PACKAGE_INCLUDES.map((item) => (
-                  <label key={item} className="flex items-center gap-2.5 p-2.5 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-[#0e2c4c]/40 transition text-xs font-medium text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={packageIncludes.includes(item)}
-                      onChange={(e) => {
-                        setPackageIncludes(e.target.checked ? [...packageIncludes, item] : packageIncludes.filter((x) => x !== item));
-                      }}
-                      className="w-4 h-4 accent-[#0e2c4c]"
-                    />
-                    <span>✓ {item}</span>
-                  </label>
-                ))}
-              </div>
-            </Section>
-
-            {/* 8. KSA ground staff (optional, collapsed) */}
-            <Section title="KSA Ground Staff Contacts" subtitle="Changeable per voucher — prints on the voucher." collapsible defaultOpen={false}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-3 bg-white border border-emerald-200 rounded-lg space-y-2">
-                  <p className="text-[11px] font-bold text-emerald-800 uppercase">Makkah Staff</p>
-                  <Input label="Name" placeholder="e.g. Ahmed Khan" value={makkahStaffName} onChange={(e) => setMakkahStaffName(e.target.value)} />
-                  <Input label="Mobile Number" placeholder="e.g. +966 5X XXX XXXX" value={makkahStaffPhone} onChange={(e) => setMakkahStaffPhone(e.target.value)} />
-                </div>
-                <div className="p-3 bg-white border border-emerald-200 rounded-lg space-y-2">
-                  <p className="text-[11px] font-bold text-emerald-800 uppercase">Madina Staff</p>
-                  <Input label="Name" placeholder="e.g. Bilal Ahmed" value={madinaStaffName} onChange={(e) => setMadinaStaffName(e.target.value)} />
-                  <Input label="Mobile Number" placeholder="e.g. +966 5X XXX XXXX" value={madinaStaffPhone} onChange={(e) => setMadinaStaffPhone(e.target.value)} />
-                </div>
-              </div>
-            </Section>
-
-            {/* 9. Charges & commission summary */}
-            <Section title="Charges & Commission" icon={<Bed className="w-4 h-4" />} subtitle="Live totals as you fill the form.">
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2 text-xs mb-4">
-                <div className="flex justify-between font-semibold text-slate-700">
-                  <span>Hotel Stays ({validHotelStays.length} charged):</span>
-                  <span>SAR {hotelsSAR.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between font-semibold text-slate-700">
-                  <span>Transport Sectors ({validSectors.length} charged):</span>
-                  <span>SAR {transportSAR.toLocaleString()}</span>
-                </div>
-                {lateIntimation > 0 && (
-                  <div className="flex justify-between font-semibold text-slate-700">
-                    <span>Late Intimation Charges:</span>
-                    <span>SAR {lateIntimation.toLocaleString()}</span>
-                  </div>
-                )}
-                <div className="pt-2 border-t border-slate-200 flex justify-between font-bold text-slate-900 text-sm">
-                  <span>Gross Voucher Total:</span>
-                  <span className="font-mono text-[var(--theme-primary)]">SAR {totalSAR.toLocaleString()}</span>
-                </div>
-              </div>
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-3 text-xs">
-                <label className="flex items-center gap-2 font-semibold text-amber-950 cursor-pointer">
-                  <input type="checkbox" checked={commissionEnabled} onChange={(e) => setCommissionEnabled(e.target.checked)} className="rounded" />
-                  <span>Include Sub-Agent / Referrer Commission</span>
-                </label>
-                {commissionEnabled && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                    <Input label="Recipient Name *" placeholder="e.g. Al-Noor Agency" value={commissionName} onChange={(e) => setCommissionName(e.target.value)} />
-                    <Input label="Contact Number *" placeholder="e.g. +92 300 1234567" value={commissionContact} onChange={(e) => setCommissionContact(e.target.value)} />
-                    <Input label="Amount (SAR) *" type="number" placeholder="e.g. 250" value={commissionAmount} onChange={(e) => setCommissionAmount(e.target.value)} />
-                  </div>
-                )}
-              </div>
-            </Section>
+            </Card>
           </>
         )}
       </div>
 
       {/* Sticky bottom action bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] z-40">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="text-xs text-slate-600">
             <span className="font-bold text-slate-900">{selectedVisaIds.length}</span> pax
             <span className="mx-2 text-slate-300">|</span>
-            <span className="font-mono font-bold text-[var(--theme-primary)] text-sm">SAR {totalSAR.toLocaleString()}</span>
+            <span className="font-mono font-bold text-[#0e2c4c] text-sm">SAR {totalSAR.toLocaleString()}</span>
+            {effectiveRate > 0 && (
+              <span className="ml-2 text-slate-400 font-mono">≈ PKR {convert(totalSAR, effectiveRate).toLocaleString()}</span>
+            )}
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => navigate('/vouchers')} disabled={saving}>
