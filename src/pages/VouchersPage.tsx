@@ -65,6 +65,7 @@ function addDays(dateStr: string, days: number): string {
 }
 
 export const VouchersPage: React.FC = () => {
+  const navigate = useNavigate();
   const { userProfile, role } = useAuth();
   const { success, error: showError, info } = useToast();
   const { profile: company } = useCompany();
@@ -1013,7 +1014,7 @@ export const VouchersPage: React.FC = () => {
                 variant="primary"
                 size="sm"
                 leftIcon={<Plus className="w-3.5 h-3.5" />}
-                onClick={openBuilder}
+                onClick={() => navigate('/vouchers/new')}
                 className="bg-[#0e2c4c] hover:bg-[#1a4473]"
               >
                 + New Voucher
