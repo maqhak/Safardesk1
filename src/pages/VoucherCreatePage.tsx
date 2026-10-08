@@ -306,10 +306,14 @@ export const VoucherCreatePage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAgent, userProfile]);
 
+  /** Robust agent display name — never show a raw ID like Agent_0170000. */
+  const agentDisplayName = (a: any, fallback = ''): string =>
+    (a && (a.companyName || a.name || a.agencyName || a.contactPerson || a.agentCode)) || fallback || (a && a.id) || '';
+
   const agentName = (id: string): string => {
     if (!id) return 'Unassigned';
     const a = agentsList.find((x: any) => x.id === id);
-    return a ? ((a as any).companyName || (a as any).name || id) : id;
+    return agentDisplayName(a, id);
   };
 
   // ---- Remaining visas: vouchered ones auto-remove ----
@@ -325,8 +329,8 @@ export const VoucherCreatePage: React.FC = () => {
 
   // ---- Pending passports: SIRF selected agent ke, vouchered auto-removed ----
   const pendingList = useMemo(() => {
-    let list = remainingVisas;
-    if (agentId) list = list.filter((v) => (v.agentId || '') === agentId);
+    if (!agentId) return [];
+    let list = remainingVisas.filter((v) => (v.agentId || '') === agentId);
     if (shirkaVendorId) {
       list = list.filter((v) => !v.vendorId || (v.vendorId === shirkaVendorId && (v.shirkaId || '') === (shirkaId || '')));
     }
@@ -866,7 +870,7 @@ export const VoucherCreatePage: React.FC = () => {
                   >
                     <option value="">-- Select Agent --</option>
                     {agentsList.map((a: any) => (
-                      <option key={a.id} value={a.id}>{a.companyName || a.name || a.id}</option>
+                      <option key={a.id} value={a.id}>{agentDisplayName(a, a.id)}</option>
                     ))}
                   </select>
                 </div>
@@ -1193,7 +1197,9 @@ export const VoucherCreatePage: React.FC = () => {
                     <div className="max-h-72 overflow-y-auto border border-slate-200 rounded-xl">
                       {pendingList.length === 0 ? (
                         <div className="p-6 text-center text-sm text-slate-500 space-y-2">
-                          {agentPendingCount > 0 && shirkaVendorId ? (
+                          {!agentId ? (
+                            <div>Please select an <span className="font-bold text-[#0e2c4c]">Agent</span> above first — passports appear only after agent selection.</div>
+                          ) : agentPendingCount > 0 && shirkaVendorId ? (
                             <>
                               <div>
                                 <span className="font-bold text-[#0e2c4c]">{agentPendingCount}</span> pilgrim(s) of {agentName(agentId)} found,
