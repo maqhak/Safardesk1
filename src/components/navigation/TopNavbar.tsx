@@ -27,7 +27,9 @@ import {
   EyeOff,
   Moon,
   Sun,
-  Camera
+  Camera,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react';
 import { TENANT } from '../../config';
 import { getCurrentRate } from '../../services/exchangeRateService';
@@ -45,6 +47,7 @@ import { Button } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { PremiumPattern } from '../ui/PremiumPattern';
 import { checkCan } from '../../hooks/useCan';
+import { useSidebarCollapsed } from '../../hooks/useSidebarCollapsed';
 
 interface NavChild {
   name: string;
@@ -184,6 +187,9 @@ export const TopNavbar: React.FC = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed();
+  const toggleSidebar = () => setSidebarCollapsed((p) => !p);
+  const expandSidebar = () => setSidebarCollapsed(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
@@ -347,14 +353,23 @@ export const TopNavbar: React.FC = () => {
             
             {/* LEFT: Menu Button, Logo & Company Name */}
             <div className="flex items-center gap-3 shrink-0">
-              {/* Menu Drawer Toggle Button (left side) */}
+              {/* Menu Button — mobile: opens drawer; desktop: toggles icon rail */}
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen((prev) => !prev)}
-                className="flex items-center gap-2 p-2 rounded-lg text-slate-200 hover:text-white hover:bg-white/10"
+                className="md:hidden flex items-center gap-2 p-2 rounded-lg text-slate-200 hover:text-white hover:bg-white/10"
                 aria-label="Open Navigation Menu"
               >
                 <Menu className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                className="hidden md:flex items-center gap-2 p-2 rounded-lg text-slate-200 hover:text-white hover:bg-white/10"
+                aria-label={sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+                title={sidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+              >
+                {sidebarCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
               </button>
               <NavLink to={role === 'agent' ? '/agent-portal' : '/'} className="flex items-center gap-3 group focus:outline-none">
                 {companyLogoUrl ? (
@@ -629,6 +644,120 @@ export const TopNavbar: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* Desktop Persistent Sidebar — icon rail (collapsed) or full (expanded) */}
+      <aside
+        className={`hidden md:flex fixed left-0 top-16 bottom-0 z-30 flex-col border-r border-white/10 shadow-xl transition-all duration-300 ease-in-out ${
+          sidebarCollapsed ? 'w-[68px]' : 'w-[260px]'
+        }`}
+        style={{ backgroundColor: 'color-mix(in srgb, var(--theme-primary) 88%, black)' }}
+        aria-label="Main Navigation"
+      >
+        <PremiumPattern variant="drawer" />
+        {/* Company header */}
+        <div className={`flex items-center gap-3 px-4 py-4 border-b border-white/10 relative ${sidebarCollapsed ? 'justify-center px-2' : ''}`}>
+          {companyLogoUrl ? (
+            <img
+              src={companyLogoUrl}
+              alt={TENANT.companyName}
+              className="w-10 h-10 rounded-xl object-contain bg-white/10 p-1 shrink-0"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--theme-accent)] to-[var(--theme-accent)] flex items-center justify-center text-[var(--theme-primary)] shrink-0">
+              <Compass className="w-6 h-6 stroke-[2.2]" />
+            </div>
+          )}
+          {!sidebarCollapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-extrabold text-white truncate">{TENANT.companyName}</p>
+              {!theme.hidePoweredBy && (
+                <p className="text-[11px] text-slate-400">SafarDesk</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Nav items (scrollable) */}
+        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1 relative">
+          {visibleNavItems.filter((item) => item.name !== 'Settings').map((item) => {
+            const Icon = item.icon;
+            const iconColor = NAV_ICON_COLORS[item.name] || 'text-gold-400';
+            if (!item.children) {
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  title={sidebarCollapsed ? item.name : undefined}
+                  className={({ isActive }) =>
+                    `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                      sidebarCollapsed ? 'justify-center' : ''
+                    } ${
+                      isActive
+                        ? 'bg-white/20 text-white font-semibold'
+                        : 'text-slate-300 hover:text-white hover:bg-white/10'
+                    }`
+                  }
+                >
+                  <Icon className={`w-5 h-5 shrink-0 ${iconColor}`} />
+                  {!sidebarCollapsed && <span>{item.name}</span>}
+                </NavLink>
+              );
+            }
+            // Parent with children: in collapsed mode, clicking expands the sidebar
+            if (sidebarCollapsed) {
+              return (
+                <button
+                  key={item.path}
+                  type="button"
+                  onClick={expandSidebar}
+                  title={item.name}
+                  aria-label={item.name}
+                  className="w-full flex items-center justify-center px-3 py-2 rounded-lg text-sm font-medium transition text-slate-300 hover:text-white hover:bg-white/10"
+                >
+                  <Icon className={`w-5 h-5 shrink-0 ${iconColor}`} />
+                </button>
+              );
+            }
+            return (
+              <MobileNavGroup
+                key={item.path}
+                item={item}
+                onNavigate={() => {}}
+              />
+            );
+          })}
+        </nav>
+
+        {/* Settings pinned at bottom */}
+        {visibleNavItems.some((item) => item.name === 'Settings') && (
+          <div className="px-3 pb-4 pt-2 border-t border-white/10 relative">
+            {(() => {
+              const item = visibleNavItems.find((i) => i.name === 'Settings')!;
+              const Icon = item.icon;
+              const iconColor = NAV_ICON_COLORS[item.name] || 'text-gold-400';
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  title={sidebarCollapsed ? item.name : undefined}
+                  className={({ isActive }) =>
+                    `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                      sidebarCollapsed ? 'justify-center' : ''
+                    } ${
+                      isActive
+                        ? 'bg-white/20 text-white font-semibold'
+                        : 'text-slate-300 hover:text-white hover:bg-white/10'
+                    }`
+                  }
+                >
+                  <Icon className={`w-5 h-5 shrink-0 ${iconColor}`} />
+                  {!sidebarCollapsed && <span>{item.name}</span>}
+                </NavLink>
+              );
+            })()}
+          </div>
+        )}
+      </aside>
 
       {/* Global Spotlight Search Modal */}
       <GlobalSearchModal
