@@ -17,6 +17,12 @@ export interface PassengerSnapshot {
   passportNumber: string;
   ageType: 'Adult' | 'Child' | 'Infant';
   visaId?: string;
+  /** Ground-transport paid flag (Oracle: print shows YES if paid, XXXXX if not). */
+  trnsPaid?: boolean;
+  /** Without bed flag. */
+  withoutBed?: boolean;
+  /** Going flag. */
+  going?: boolean;
 }
 
 export interface SectorItem {

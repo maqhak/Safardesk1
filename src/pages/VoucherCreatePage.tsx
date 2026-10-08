@@ -501,12 +501,18 @@ export const VoucherCreatePage: React.FC = () => {
       return null;
     }
 
-    const passengers = selectedVisasData.map((vv) => ({
-      name: vv.pilgrimName,
-      passportNumber: vv.passportNumber,
-      ageType: 'Adult' as const,
-      visaId: vv.id,
-    }));
+    const passengers = selectedVisasData.map((vv) => {
+      const f = flags[vv.id] || { wob: false, trnsPaid: false, going: true };
+      return {
+        name: vv.pilgrimName,
+        passportNumber: vv.passportNumber,
+        ageType: 'Adult' as const,
+        visaId: vv.id,
+        trnsPaid: f.trnsPaid,
+        withoutBed: f.wob,
+        going: f.going,
+      };
+    });
     const totalPKR = convert(totalSAR, effectiveRate);
 
     const legBlock = (leg: FlightLeg, useArrivalSide: boolean): FlightBlockInfo => {
