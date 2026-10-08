@@ -1,16 +1,47 @@
-import React from 'react';
-import { User, ShieldCheck, Mail, Phone, Building, Calendar, Key, CheckCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { User, ShieldCheck, Mail, Phone, Building, Calendar, Key, CheckCircle, Pencil, X, Save } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card, CardHeader } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { formatDate } from '../utils/formatters';
+import { updateUserProfile } from '../services/userService';
 
 export const ProfilePage: React.FC = () => {
-  const { userProfile, role, isDemoMode } = useAuth();
-  const { success, info } = useToast();
+  const { user, userProfile, role, isDemoMode, refreshProfile } = useAuth();
+  const { success, error: showError, info } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(userProfile?.name || '');
+  const [editPhone, setEditPhone] = useState(userProfile?.phone || '');
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = () => {
+    setEditName(userProfile?.name || '');
+    setEditPhone(userProfile?.phone || '');
+    setEditing(true);
+  };
+
+  const handleSave = async () => {
+    if (!user?.uid) return;
+    if (!editName.trim()) {
+      showError('Name cannot be empty.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateUserProfile(user.uid, { name: editName.trim(), phone: editPhone.trim() });
+      if (refreshProfile) await refreshProfile();
+      setEditing(false);
+      success('Profile updated successfully.');
+    } catch (e: any) {
+      showError(e?.message || 'Failed to update profile.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -65,6 +96,22 @@ export const ProfilePage: React.FC = () => {
           <CardHeader
             title="Account Information"
             subtitle="Details associated with your Firestore users record"
+            action={
+              editing ? (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" leftIcon={<X className="w-3.5 h-3.5" />} onClick={() => setEditing(false)} disabled={saving}>
+                    Cancel
+                  </Button>
+                  <Button variant="primary" size="sm" leftIcon={<Save className="w-3.5 h-3.5" />} onClick={handleSave} disabled={saving}>
+                    {saving ? 'Saving...' : 'Save'}
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="outline" size="sm" leftIcon={<Pencil className="w-3.5 h-3.5" />} onClick={startEdit}>
+                  Edit Profile
+                </Button>
+              )
+            }
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -72,9 +119,13 @@ export const ProfilePage: React.FC = () => {
               <span className="text-slate-400 block mb-0.5 flex items-center gap-1">
                 <User className="w-3.5 h-3.5" /> Full Name
               </span>
-              <span className="text-sm font-semibold text-slate-800">
-                {userProfile?.name || '—'}
-              </span>
+              {editing ? (
+                <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Your full name" className="mt-1" />
+              ) : (
+                <span className="text-sm font-semibold text-slate-800">
+                  {userProfile?.name || '—'}
+                </span>
+              )}
             </div>
 
             <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
@@ -99,9 +150,13 @@ export const ProfilePage: React.FC = () => {
               <span className="text-slate-400 block mb-0.5 flex items-center gap-1">
                 <Phone className="w-3.5 h-3.5" /> Direct Contact
               </span>
-              <span className="text-sm font-semibold text-slate-800 font-mono">
-                {userProfile?.phone || '+966 50 000 0000'}
-              </span>
+              {editing ? (
+                <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="+92 3XX XXXXXXX" className="mt-1" />
+              ) : (
+                <span className="text-sm font-semibold text-slate-800 font-mono">
+                  {userProfile?.phone || '—'}
+                </span>
+              )}
             </div>
 
             <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">

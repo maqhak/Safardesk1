@@ -133,6 +133,23 @@
   color: #64748b !important;
 }
 
+/* Hover states — must stay dark in dark mode */
+.theme-dark .hover\:bg-slate-50:hover {
+  background-color: #334155 !important;
+}
+.theme-dark .hover\:bg-slate-100:hover {
+  background-color: #3b4d6b !important;
+}
+.theme-dark .hover\:bg-white:hover {
+  background-color: #2b3a55 !important;
+}
+.theme-dark .hover\:bg-navy-50:hover {
+  background-color: #334155 !important;
+}
+.theme-dark .hover\:bg-rose-50:hover {
+  background-color: #4c1d1d !important;
+}
+
 
 /* ===== Night-mode readability fixes ===== */
 /* Theme-primary text (page titles, headings) -> white in dark mode */
