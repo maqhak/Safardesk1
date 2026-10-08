@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { Loader2, ShieldAlert, ArrowLeft, Home, RefreshCw } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, Home, RefreshCw } from 'lucide-react';
 import { AppModule, PermissionAction } from '../../types/auth';
 import { checkCan } from '../../hooks/useCan';
 import { Button } from '../ui/Button';
+import { BrandedLoader } from '../ui/BrandedLoader';
 
 interface ProtectedRouteProps {
   children?: React.ReactNode;
@@ -34,23 +35,18 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-        <Loader2 className="w-8 h-8 animate-spin text-[var(--theme-primary)]" />
-        <p className="text-xs text-slate-500 mt-3 font-medium">Loading...</p>
+      <>
+        <BrandedLoader message="Signing you in..." />
         {slowAuth && (
-          <div className="mt-4 text-center space-y-2">
-            <p className="text-[11px] text-slate-500">Taking longer than usual.</p>
-            <Button
-              variant="outline"
-              size="sm"
-              leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-              onClick={() => window.location.reload()}
-            >
-              Retry
-            </Button>
-          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 px-4 py-2 text-xs font-semibold text-white bg-white/10 border border-white/20 rounded-full backdrop-blur hover:bg-white/20 flex items-center gap-2"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Taking long? Retry
+          </button>
         )}
-      </div>
+      </>
     );
   }
 
