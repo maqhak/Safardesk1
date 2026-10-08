@@ -41,6 +41,14 @@ function addDays(dateStr: string, days: number): string {
 const todayStr = () => new Date().toISOString().split('T')[0];
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+/** ISO yyyy-mm-dd -> dd/mm/yyyy for display. */
+const fmtDMY = (iso: string): string => {
+  if (!iso) return '';
+  const parts = iso.split('-');
+  if (parts.length !== 3) return iso;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+};
+
 /** Package is free text — the agency's own packages, not a fixed list. */
 const TRANSPORT_TYPES = ['Car', 'Staria', 'Hiace', 'Coaster', 'Bus'];
 
@@ -327,6 +335,20 @@ export const VoucherCreatePage: React.FC = () => {
     return list;
   }, [remainingVisas, agentId, shirkaVendorId, shirkaId, paxSearch]);
 
+  /** Agent's pending pilgrims BEFORE the shirka filter — for diagnostics. */
+  const agentPendingCount = useMemo(() => {
+    if (!agentId) return 0;
+    return remainingVisas.filter((v) => (v.agentId || '') === agentId).length;
+  }, [remainingVisas, agentId]);
+
+  const selectedShirkaName = useMemo(() => {
+    if (!shirkaVendorId) return '';
+    const vnd: any = (vendorsMaster || []).find((x: any) => x.id === shirkaVendorId);
+    if (!vnd) return '';
+    const shk = (vnd.shirkas || []).find((s: any) => s.id === shirkaId);
+    return shk ? `${vnd.name} — ${shk.name}` : vnd.name;
+  }, [vendorsMaster, shirkaVendorId, shirkaId]);
+
   const selectedVisasData = useMemo(
     () => availableVisas.filter((v) => selectedVisaIds.includes(v.id)),
     [availableVisas, selectedVisaIds]
@@ -492,7 +514,7 @@ export const VoucherCreatePage: React.FC = () => {
     if (retLeg.depDate) {
       const lateRow = namedHotelRows.find((r) => r.checkOut && r.checkOut > retLeg.depDate);
       if (lateRow) {
-        showError(`Hotel checkout (${lateRow.checkOut}, ${lateRow.hotelName}) cannot be after the return date (${retLeg.depDate}).`);
+        showError(`Hotel checkout (${fmtDMY(lateRow.checkOut)}, ${lateRow.hotelName}) cannot be after the return date (${fmtDMY(retLeg.depDate)}).`);
         return null;
       }
     }
@@ -904,7 +926,7 @@ export const VoucherCreatePage: React.FC = () => {
                           />
                         </td>
                         <td className="p-1.5">
-                          <input type="text" value={row.checkOut} readOnly className={`${readOnlyCls} !p-1.5`} />
+                          <input type="text" value={fmtDMY(row.checkOut)} readOnly className={`${readOnlyCls} !p-1.5`} />
                         </td>
                         {!isAgent && (
                           <td className="p-1.5">
@@ -1133,8 +1155,24 @@ export const VoucherCreatePage: React.FC = () => {
                   ) : (
                     <div className="max-h-72 overflow-y-auto border border-slate-200 rounded-xl">
                       {pendingList.length === 0 ? (
-                        <div className="p-6 text-center text-sm text-slate-500">
-                          No pending pilgrims for this agent — vouchered ones are auto-removed.
+                        <div className="p-6 text-center text-sm text-slate-500 space-y-2">
+                          {agentPendingCount > 0 && shirkaVendorId ? (
+                            <>
+                              <div>
+                                <span className="font-bold text-[#0e2c4c]">{agentPendingCount}</span> pilgrim(s) of {agentName(agentId)} found,
+                                but none match Shirka "{selectedShirkaName || 'selected'}".
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => { setShirkaVendorId(''); setShirkaId(''); }}
+                                className="px-3 py-1.5 text-xs font-bold bg-white text-[#0e2c4c] border border-[#0e2c4c] rounded-lg"
+                              >
+                                Show all {agentName(agentId)} pilgrims
+                              </button>
+                            </>
+                          ) : (
+                            <div>No pending pilgrims for this agent — vouchered ones are auto-removed.</div>
+                          )}
                         </div>
                       ) : (
                         pendingList.map((visa) => {
