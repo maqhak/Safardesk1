@@ -5,6 +5,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { CompanyProvider } from './contexts/CompanyContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { BrandedLoader } from './components/ui/BrandedLoader';
 import { AppShell } from './components/layout/AppShell';
 
 // Pages — lazy loaded for faster initial load (code splitting)
@@ -43,14 +44,7 @@ import { LicenseGate } from './components/auth/LicenseGate';
 
 /** Loading fallback shown while a lazy page chunk loads. */
 function PageLoader() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 border-[#0e2c4c]/20 border-t-[#0e2c4c] rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-sm font-semibold text-slate-600">Loading...</p>
-      </div>
-    </div>
-  );
+  return <BrandedLoader />;
 }
 
 /**

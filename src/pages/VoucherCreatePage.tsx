@@ -16,6 +16,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { AirportSelect, AirlineSelect } from '../components/ui';
+import { InlineLoader } from '../components/ui/BrandedLoader';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
@@ -544,7 +545,7 @@ export const VoucherCreatePage: React.FC = () => {
 
       <div className="px-4 sm:px-6 space-y-4 max-w-5xl mx-auto">
         {loading ? (
-          <Card className="p-10 text-center text-sm text-slate-500">Loading...</Card>
+          <Card><InlineLoader message="Loading voucher data..." /></Card>
         ) : (
           <>
             {/* 1. Shirka + arrival date */}
