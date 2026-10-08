@@ -41,6 +41,12 @@ function addDays(dateStr: string, days: number): string {
 const todayStr = () => new Date().toISOString().split('T')[0];
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+/** Hotel grid sector options — only Makkah / Madina (per owner). */
+const HOTEL_SECTOR_OPTIONS = [
+  { value: 'MAK', label: 'Makkah' },
+  { value: 'MED', label: 'Madina' },
+];
+
 /** ISO yyyy-mm-dd -> dd/mm/yyyy for display. */
 const fmtDMY = (iso: string): string => {
   if (!iso) return '';
@@ -433,7 +439,7 @@ export const VoucherCreatePage: React.FC = () => {
 
   const cityFromSector = (sector: string): string => {
     const s = (sector || '').toUpperCase();
-    if (s.includes('MED')) return 'Madinah';
+    if (s.includes('MED') || s.includes('MADINA') || s.includes('MADINAH')) return 'Madinah';
     if (s.includes('JED')) return 'Jeddah';
     return 'Makkah';
   };
@@ -912,7 +918,8 @@ export const VoucherCreatePage: React.FC = () => {
                           <input
                             type="text" value={row.sector}
                             onChange={(e) => updateHotelRow(row.id, { sector: e.target.value.toUpperCase() })}
-                            placeholder="JED-MAK" className={`${inputCls} font-mono uppercase !p-1.5`}
+                            list="hotel-sector-list"
+                            placeholder="MAK / MED" className={`${inputCls} font-mono uppercase !p-1.5`}
                           />
                         </td>
                         <td className="p-1.5">
@@ -932,6 +939,11 @@ export const VoucherCreatePage: React.FC = () => {
                           <datalist id={`hotel-master-${row.id}`}>
                             {hotelSuggestions.map((h) => (
                               <option key={h.id} value={h.name}>{h.city || ''}</option>
+                            ))}
+                          </datalist>
+                          <datalist id="hotel-sector-list">
+                            {HOTEL_SECTOR_OPTIONS.map((o) => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
                             ))}
                           </datalist>
                         </td>
