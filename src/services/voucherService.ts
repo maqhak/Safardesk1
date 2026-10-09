@@ -13,6 +13,7 @@ import { VoucherDoc, VoucherEditPayload, VoucherEditRequest } from '../types/vou
 import { UserProfile } from '../types/auth';
 import { LedgerAccountDoc, LedgerEntryDoc } from '../types/agent';
 import { logAuditEvent } from './userService';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 import { getCurrentRate } from './exchangeRateService';
 import { fetchCompanyProfile } from './companyService';
 import { postBalancedTransaction, fetchLedgerAccounts } from './accountingService';
@@ -157,7 +158,9 @@ export async function createVoucher(
   };
 
   if (!isConfigPlaceholder) {
-    await setDoc(doc(db, VOUCHERS_COLLECTION, voucherId), newVoucher);
+    // Fix: the payload carries `undefined` for empty optional fields;
+    // Firestore rejects undefined, so strip them before writing.
+    await setDoc(doc(db, VOUCHERS_COLLECTION, voucherId), stripUndefinedDeep(newVoucher));
   }
 
   const existing = await fetchVouchers();
@@ -289,7 +292,7 @@ export async function approveVoucher(actor: UserProfile, voucherId: string): Pro
   vouchers[index] = updated;
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, VOUCHERS_COLLECTION, voucherId), updated);
+      await setDoc(doc(db, VOUCHERS_COLLECTION, voucherId), stripUndefinedDeep(updated));
     }
   } catch (err) {
     console.warn('Firestore write failed for voucher approval:', err);
@@ -337,7 +340,7 @@ export async function disapproveVoucher(actor: UserProfile, voucherId: string, n
   vouchers[index] = updated;
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, VOUCHERS_COLLECTION, voucherId), updated);
+      await setDoc(doc(db, VOUCHERS_COLLECTION, voucherId), stripUndefinedDeep(updated));
     }
   } catch (err) {
     console.warn('Firestore write failed for voucher disapproval:', err);
@@ -646,7 +649,7 @@ async function applyEditPayload(
   localStorage.setItem(LOCAL_STORAGE_VOUCHERS_KEY, JSON.stringify(vouchers));
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, VOUCHERS_COLLECTION, voucher.id), updated as any);
+      await setDoc(doc(db, VOUCHERS_COLLECTION, voucher.id), stripUndefinedDeep(updated) as any);
     }
   } catch (err) {
     console.warn('Could not update edited voucher in Firestore:', err);
