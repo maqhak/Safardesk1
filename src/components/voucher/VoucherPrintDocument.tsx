@@ -76,6 +76,16 @@ export const VoucherPrintDocument: React.FC<{
     };
   });
 
+  // Roundtrip: when all 4 standard Umrah sectors are company-provided with the
+  // same vehicle, print a single "Roundtrip" row with the vehicle type.
+  const normSector = (r: TransportRow) => r.sector.toUpperCase().replace(/[^A-Z]/g, '');
+  const hasJedMak = transportRows.some(r => /JED.*MAK|MAK.*JED/.test(normSector(r)));
+  const hasMakMed = transportRows.some(r => /MAK.*MED/.test(normSector(r)));
+  const hasMedMak = transportRows.some(r => /MED.*MAK/.test(normSector(r)));
+  const companyRows = transportRows.filter(r => r.provider === 'Company');
+  const vehicles = [...new Set(companyRows.map(r => r.vehicle))];
+  const isRoundtrip = hasJedMak && hasMakMed && hasMedMak && companyRows.length >= 3 && vehicles.length === 1;
+
   const half = Math.ceil(pax.length / 2);
   const cols = [pax.slice(0, half), pax.slice(half)];
 
@@ -265,17 +275,20 @@ export const VoucherPrintDocument: React.FC<{
 
           <div className="fsv-secttl">TRANSPORTATION</div>
           <table className="fsv-vt">
-            <thead><tr><th>SECTOR</th><th>DATE</th><th>TRANSPORT</th><th>PROVIDED BY</th></tr></thead>
+            <thead><tr><th>TRANSPORT TRIP</th><th>TRANSPORT BY</th></tr></thead>
             <tbody>
-              {transportRows.length > 0 ? transportRows.map((r, i) => (
+              {isRoundtrip ? (
+                <tr>
+                  <td className="fsv-nm">Roundtrip (JED-MAK, MAK-MED, MED-MAK, MAK-JED)</td>
+                  <td>{vehicles[0]}</td>
+                </tr>
+              ) : transportRows.length > 0 ? transportRows.map((r, i) => (
                 <tr key={i}>
                   <td className="fsv-nm">{r.sector}</td>
-                  <td>{r.date}</td>
-                  <td>{r.vehicle}</td>
-                  <td>{r.provider}</td>
+                  <td>{r.vehicle} — {r.provider}</td>
                 </tr>
               )) : (
-                <tr><td colSpan={4}>—</td></tr>
+                <tr><td colSpan={2}>—</td></tr>
               )}
             </tbody>
           </table>

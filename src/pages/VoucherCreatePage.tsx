@@ -10,6 +10,8 @@ import {
   Trash2,
   RefreshCw,
   ChevronDown,
+  CheckSquare,
+  Phone,
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -263,7 +265,7 @@ export const VoucherCreatePage: React.FC = () => {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // ---- Carried-through defaults (backend, not in Oracle layout) ----
-  const [packageIncludes] = useState<string[]>([...DEFAULT_PACKAGE_INCLUDES]);
+  const [packageIncludes, setPackageIncludes] = useState<string[]>([...DEFAULT_PACKAGE_INCLUDES]);
   const [makkahStaffName, setMakkahStaffName] = useState('');
   const [makkahStaffPhone, setMakkahStaffPhone] = useState('');
   const [madinaStaffName, setMadinaStaffName] = useState('');
@@ -1083,6 +1085,56 @@ export const VoucherCreatePage: React.FC = () => {
                   <input type="text" value={voucherRemarks} onChange={(e) => setVoucherRemarks(e.target.value)} placeholder="Remarks" className={inputCls} />
                 </div>
               </div>
+            </Card>
+
+            {/* ===== PACKAGE INCLUDES — checked items print on voucher ===== */}
+            <Card className="p-4">
+              <h3 className="flex items-center gap-2 font-bold text-[#0e2c4c] text-sm uppercase tracking-wider mb-3">
+                <CheckSquare className="w-4 h-4" /> Package Includes
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {DEFAULT_PACKAGE_INCLUDES.map((item) => (
+                  <label key={item} className="flex items-center gap-2 text-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-slate-100">
+                    <input
+                      type="checkbox"
+                      checked={packageIncludes.includes(item)}
+                      onChange={(e) => {
+                        if (e.target.checked) setPackageIncludes([...packageIncludes, item]);
+                        else setPackageIncludes(packageIncludes.filter((x) => x !== item));
+                      }}
+                      className="w-4 h-4 accent-[#0e2c4c]"
+                    />
+                    {item}
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-slate-500 mt-2">Checked items will appear on the printed voucher.</p>
+            </Card>
+
+            {/* ===== KSA STAFF CONTACTS — printed on voucher for on-ground help ===== */}
+            <Card className="p-4">
+              <h3 className="flex items-center gap-2 font-bold text-[#0e2c4c] text-sm uppercase tracking-wider mb-3">
+                <Phone className="w-4 h-4" /> KSA Staff Contacts
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Makkah Staff Name</label>
+                  <input type="text" value={makkahStaffName} onChange={(e) => setMakkahStaffName(e.target.value)} placeholder="Staff name" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Makkah Staff Phone</label>
+                  <input type="text" value={makkahStaffPhone} onChange={(e) => setMakkahStaffPhone(e.target.value)} placeholder="+966 ..." className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Madina Staff Name</label>
+                  <input type="text" value={madinaStaffName} onChange={(e) => setMadinaStaffName(e.target.value)} placeholder="Staff name" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Madina Staff Phone</label>
+                  <input type="text" value={madinaStaffPhone} onChange={(e) => setMadinaStaffPhone(e.target.value)} placeholder="+966 ..." className={inputCls} />
+                </div>
+              </div>
+              <p className="text-xs text-slate-500 mt-2">Printed on the voucher so pilgrims can reach on-ground staff directly.</p>
             </Card>
 
             {/* ===== UMRAH DETAIL — selected pilgrims (Oracle UDETAIL) ===== */}
