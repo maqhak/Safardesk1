@@ -1014,7 +1014,7 @@ export const VouchersPage: React.FC = () => {
                 variant="primary"
                 size="sm"
                 leftIcon={<Plus className="w-3.5 h-3.5" />}
-                onClick={() => navigate('/vouchers/new')}
+                onClick={() => navigate('/vouchers/select')}
                 className="bg-[#0e2c4c] hover:bg-[#1a4473]"
               >
                 + New Voucher
