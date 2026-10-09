@@ -15,6 +15,7 @@ const VisasPage = lazy(() => import('./pages/VisasPage').then(m => ({ default: m
 const CustomersPage = lazy(() => import('./pages/CustomersPage').then(m => ({ default: m.CustomersPage })));
 const VouchersPage = lazy(() => import('./pages/VouchersPage').then(m => ({ default: m.VouchersPage })));
 const VoucherCreatePage = lazy(() => import('./pages/VoucherCreatePage').then(m => ({ default: m.VoucherCreatePage })));
+const VoucherSelectPage = lazy(() => import('./pages/VoucherSelectPage').then(m => ({ default: m.VoucherSelectPage })));
 const VoucherSharedView = lazy(() => import('./pages/VoucherSharedView').then(m => ({ default: m.VoucherSharedView })));
 const TicketsPage = lazy(() => import('./pages/TicketsPage').then(m => ({ default: m.TicketsPage })));
 const MovementReportsPage = lazy(() => import('./pages/MovementReportsPage').then(m => ({ default: m.MovementReportsPage })));
@@ -117,6 +118,14 @@ export default function App() {
                   element={
                     <ProtectedRoute requiredModule="Vouchers">
                       <VouchersPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/vouchers/select"
+                  element={
+                    <ProtectedRoute requiredModule="Vouchers">
+                      <VoucherSelectPage />
                     </ProtectedRoute>
                   }
                 />

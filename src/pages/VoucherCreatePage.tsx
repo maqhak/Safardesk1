@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Search,
   Plane,
@@ -202,12 +202,17 @@ const FlightLegRow: React.FC<{
 
 export const VoucherCreatePage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { userProfile, role } = useAuth();
   const { success, error: showError } = useToast();
   const { profile: company } = useCompany();
   const canCreate = useCan('Vouchers', 'create');
   const isAgent = role === 'agent';
   const [saving, setSaving] = useState(false);
+  // Pre-selection carried from /vouchers/select (Step 1). The voucher form
+  // only shows exactly these passengers.
+  const preselect = (location.state as any) || {};
+  const [cameFromSelect] = useState<boolean>(Array.isArray(preselect.preselectedVisaIds));
   const [loading, setLoading] = useState(true);
 
   // ---- Masters / lists ----
@@ -227,7 +232,7 @@ export const VoucherCreatePage: React.FC = () => {
   const [srRate, setSrRate] = useState('');
 
   // ---- Row 3: agent (drives pilgrim list) | group head | contact | approved ----
-  const [agentId, setAgentId] = useState('');
+  const [agentId, setAgentId] = useState(preselect.agentId || '');
   const [leaderName, setLeaderName] = useState('');
   const [leaderContact, setLeaderContact] = useState('');
 
@@ -249,9 +254,9 @@ export const VoucherCreatePage: React.FC = () => {
   const [voucherRemarks, setVoucherRemarks] = useState('');
 
   // ---- Pending passports (Oracle PPASSPORTS): shirka filter + search + select ----
-  const [shirkaVendorId, setShirkaVendorId] = useState('');
-  const [shirkaId, setShirkaId] = useState('');
-  const [selectedVisaIds, setSelectedVisaIds] = useState<string[]>([]);
+  const [shirkaVendorId, setShirkaVendorId] = useState(preselect.shirkaVendorId || '');
+  const [shirkaId, setShirkaId] = useState(preselect.shirkaId || '');
+  const [selectedVisaIds, setSelectedVisaIds] = useState<string[]>(preselect.preselectedVisaIds || []);
   const [paxSearch, setPaxSearch] = useState('');
   const [ppOpen, setPpOpen] = useState(true);
   const [flags, setFlags] = useState<Record<string, { wob: boolean; trnsPaid: boolean; going: boolean }>>({});
@@ -305,6 +310,16 @@ export const VoucherCreatePage: React.FC = () => {
     if (isAgent && userProfile?.agentId && !agentId) setAgentId(userProfile.agentId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAgent, userProfile]);
+
+  // Gate: voucher form is only reachable via /vouchers/select (Step 1).
+  // Direct opens bounce back to the selection page.
+  useEffect(() => {
+    if (!cameFromSelect) {
+      const t = setTimeout(() => navigate('/vouchers/select', { replace: true }), 600);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameFromSelect]);
 
   /** Robust agent display name — never show a raw ID like Agent_0170000. */
   const agentDisplayName = (a: any, fallback = ''): string =>
@@ -795,28 +810,22 @@ export const VoucherCreatePage: React.FC = () => {
           <Card><InlineLoader message="Loading voucher data..." /></Card>
         ) : (
           <>
-            {/* ===== STEP 1: SELECT AGENT (top of page) ===== */}
+            {/* ===== SELECTED AGENT (from Step 1) ===== */}
             <div className="bg-[#0e2c4c] rounded-2xl p-4 flex flex-wrap items-center gap-4 shadow">
               <div className="flex items-center gap-2">
-                <span className="w-7 h-7 rounded-full bg-white text-[#0e2c4c] font-bold flex items-center justify-center text-sm">1</span>
-                <label className="text-white font-bold text-sm tracking-wide">SELECT AGENT *</label>
+                <span className="w-7 h-7 rounded-full bg-white text-[#0e2c4c] font-bold flex items-center justify-center text-sm">✓</span>
+                <label className="text-white font-bold text-sm tracking-wide">AGENT</label>
               </div>
-              <select
-                value={agentId}
-                onChange={(e) => setAgentId(e.target.value)}
-                disabled={isAgent}
-                className="flex-1 min-w-[220px] bg-white text-slate-900 font-semibold rounded-xl px-4 py-2.5 text-sm border-2 border-transparent focus:border-amber-400 outline-none"
+              <span className="flex-1 min-w-[220px] bg-white text-slate-900 font-semibold rounded-xl px-4 py-2.5 text-sm">
+                {agentDisplayName(agentsList.find((x: any) => x.id === agentId), agentId) || '—'}
+              </span>
+              <button
+                type="button"
+                onClick={() => navigate('/vouchers/select')}
+                className="text-amber-300 text-xs font-bold underline hover:text-amber-200"
               >
-                <option value="">-- Select Agent --</option>
-                {agentsList.map((a: any) => (
-                  <option key={a.id} value={a.id}>{agentDisplayName(a, a.id)}</option>
-                ))}
-              </select>
-              {agentId && (
-                <span className="text-amber-300 text-xs font-semibold">
-                  Passports, Shirka & Group Head isi agent se filter hon ge
-                </span>
-              )}
+                ← Change selection
+              </button>
             </div>
 
             {/* ===== ROW 1: Pax QTY | Copy From | Date ===== */}
@@ -1134,7 +1143,8 @@ export const VoucherCreatePage: React.FC = () => {
               )}
             </Card>
 
-            {/* ===== PENDING PASSPORTS (Oracle PPASSPORTS) ===== */}
+            {/* ===== PENDING PASSPORTS (Oracle PPASSPORTS) — hidden when pre-selected from Step 1 ===== */}
+            {!cameFromSelect && (
             <Card className="p-4">
               <button
                 type="button"
@@ -1267,6 +1277,7 @@ export const VoucherCreatePage: React.FC = () => {
                 </>
               )}
             </Card>
+            )}
           </>
         )}
       </div>
