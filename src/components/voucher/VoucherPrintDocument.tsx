@@ -1,18 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'react-qr-code';
-import { VoucherDoc } from '../../types/voucher';
+import { VoucherDoc, DEFAULT_PACKAGE_INCLUDES } from '../../types/voucher';
 import { CompanyProfile } from '../../types/company';
+import kaabaSketch from '../../assets/voucher/kaaba-sketch.jpg';
+import madinahSketch from '../../assets/voucher/madinah-sketch.jpg';
+import kaabaColor from '../../assets/voucher/kaaba-color.jpg';
+import madinahColor from '../../assets/voucher/madinah-color.jpg';
 
 export type VoucherPrintTheme = 'bw' | 'color';
 
 /**
- * Hotel Voucher print document — layout per reference voucher UB-103940
- * (approved by owner 2026-10-09, supersedes the F&S sketch design).
- * Sections: header (Hotel Voucher / voucher no / manual no / family head),
- * Mutamers grid, Accommodation grid + total nights, Transport/Services,
- * Departure/Arrival flight tables + QR, Special Instructions (Urdu).
- * Auto-fits to ONE A4 page. Rendered print-only; screen shows the normal
- * detail modal instead.
+ * F&S-approved A4 Umrah voucher print document (B&W print theme).
+ * Locked design (approved 2026-10-01): pencil-sketch Kaaba + Masjid-e-Nabawi header,
+ * company logo/monogram, ribbon, metabar, flight tables, full-width accommodation
+ * table, transportation, two-column mutamer tables, includes/remarks/notes,
+ * staff contacts, signature stamp, footer. Auto-fits to ONE A4 page.
+ * Rendered print-only; screen shows the normal detail modal instead.
  */
 export const VoucherPrintDocument: React.FC<{
   voucher: VoucherDoc;
@@ -27,231 +30,298 @@ export const VoucherPrintDocument: React.FC<{
   useEffect(() => {
     const t = setTimeout(() => {
       const el = innerRef.current;
-      if (el) {
-        const h = el.scrollHeight;
-        const pagePx = 297 * 3.779527559 - 4; // A4 height px @96dpi
-        if (h > pagePx) setScale(Math.max(0.55, pagePx / h));
-        else setScale(1);
-      }
+      if (!el) return;
+      const h = el.scrollHeight;
+      const pagePx = 297 * 3.779527559 - 4; // A4 height px @96dpi
+      if (h > pagePx) setScale(Math.max(0.55, pagePx / h));
+      else setScale(1);
     }, 120);
     return () => clearTimeout(t);
   }, [voucher]);
 
   const pax = voucher.passengers || [];
+  const adults = pax.filter(p => p.ageType === 'Adult').length;
+  const children = pax.filter(p => p.ageType === 'Child').length;
+  const infants = pax.filter(p => p.ageType === 'Infant').length;
   const stays = voucher.hotelStays || [];
+  const sectors = voucher.sectors || [];
   const totalNights = stays.reduce((s, h) => s + (h.nights || 0), 0);
+
+  const arrivalSector = sectors.find(s => /^arrival/i.test(s.type));
+  const departureSector = sectors.find(s => /^departure/i.test(s.type));
   const fd = voucher.flightDetails;
 
-  /** 2026-10-18 -> 18-10-26 */
-  const fmtShort = (iso?: string) => {
+  const fmtDate = (iso?: string) => {
     if (!iso) return '—';
-    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-    if (m) return `${m[3]}-${m[2]}-${m[1].slice(2)}`;
-    return iso;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   };
-  /** 2026-10-18 -> 18-OCT */
-  const fmtDay = (iso?: string) => {
-    if (!iso) return '—';
-    const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
-    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-    if (m) return `${m[3]}-${months[parseInt(m[2], 10) - 1] || ''}`;
-    return iso;
-  };
+  const createdStr = fmtDate(voucher.createdAt);
 
-  const dep = fd?.departureFlight;
-  const ret = fd?.returnFlight;
-  const depSector = dep?.sector || `${dep?.fromAirport?.iata || ''}-${dep?.toAirport?.iata || ''}`;
-  const retSector = ret?.sector || `${ret?.fromAirport?.iata || ''}-${ret?.toAirport?.iata || ''}`;
+  // Per-sector transport rows: each Umrah sector on its own row showing
+  // exactly which transport the company provides (vs agent's Self Gari).
+  interface TransportRow { sector: string; date: string; vehicle: string; provider: string; }
+  const transportRows: TransportRow[] = sectors.map((s) => {
+    const note = (s as any).vehicleNote ? ` — ${(s as any).vehicleNote}` : '';
+    let sectorLabel = s.type;
+    const ap = `${s.fromAirport?.iata || ''}${s.toAirport?.iata ? ` → ${s.toAirport.iata}` : ''}`;
+    if (ap.trim() && ap.trim() !== '→') sectorLabel += ` (${ap.trim()})`;
+    const vehicle = s.isSelfGari ? 'Self Gari' : (s.vehicleType || '—');
+    return {
+      sector: sectorLabel,
+      date: s.date ? fmtDate(s.date) : '—',
+      vehicle: vehicle + note,
+      provider: s.isSelfGari ? 'Agent (Self)' : 'Company',
+    };
+  });
+
+  const half = Math.ceil(pax.length / 2);
+  const cols = [pax.slice(0, half), pax.slice(half)];
+
+  const includes = voucher.packageIncludes && voucher.packageIncludes.length > 0 ? voucher.packageIncludes : DEFAULT_PACKAGE_INCLUDES;
+  const notes = ['Please keep this voucher with you during travel.', 'Present this voucher at the time of check-in.', 'All timings are local and subject to change.', 'The company is not responsible for any loss of personal belongings.', 'For any assistance, contact our representatives.'];
 
   const shareUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/vouchers/shared/${voucher.id}`
     : voucher.voucherNo;
+  const brandShort = (company.companyName || 'S').split(/\s+/).filter(w => /[a-zA-Z]/.test(w[0] || '')).map(w => w[0]).join('').slice(0, 3).toUpperCase();
 
-  const genderShort = (g?: string) => {
-    const s = (g || '').toLowerCase();
-    if (s.startsWith('f')) return 'F';
-    if (s.startsWith('m')) return 'M';
-    return '—';
-  };
-
-  const instructions: string[] = [
-    'آپ کو مکہ اور مدینہ میں ہوٹل میں چیک اِن کیا گیا ہے، اس کے مطابق آپ کو پرنٹ شدہ واؤچر کے ساتھ تمام سہولیات فراہم کی جائیں گی۔',
-    'سفری معلومات میں درج شدہ فلائٹ کی مقررہ تاریخ کو ایئرپورٹ پر وقت سے پہلے پہنچنا لازمی ہے۔ کسی بھی تبدیلی کی ذمہ داری مسافر پر ہوگی۔',
-    'ممنوعہ اشیاء ساتھ رکھنا منع ہے۔ سعودی عرب میں کسی بھی شکایت کی صورت میں ہمارے نمائندے سے رابطہ کریں۔',
-    'ہوٹل سے چیک آؤٹ کا وقت دوپہر 2 بجے ہے۔ اس کے بعد اضافی نائٹ کا چارج لاگو ہوگا۔',
-    'واپسی فلائٹ سے 6 گھنٹے پہلے اپنا سامان سمیت مکمل تیار ہو کر ہوٹل کی لابی میں موجود ہوں۔',
-    'واؤچر پر درج شدہ فلائٹ کی پابندی آپ کے لیے لازمی ہے۔',
-  ];
+  const isColor = theme === 'color';
+  const cssVars: React.CSSProperties = {
+    '--fsv-pri': isColor ? '#0e2a5c' : '#111',
+    '--fsv-acc': isColor ? '#c9a24b' : '#111',
+    '--fsv-imgf': isColor ? 'none' : 'grayscale(1) contrast(1.05)',
+    '--fsv-soft': isColor ? '#faf3e3' : '#f4f4f4',
+    '--fsv-pagebg': isColor ? '#fffdf6' : '#ffffff',
+  } as React.CSSProperties;
+  const imgKaaba = isColor ? kaabaColor : kaabaSketch;
+  const imgMadinah = isColor ? madinahColor : madinahSketch;
 
   return (
-    <div className={`hv-root${preview ? ' hv-preview' : ''}`}>
+    <div className={`fsv-root${preview ? ' fsv-preview' : ''}`} style={cssVars}>
       <style>{`
-        .hv-root { position:absolute; left:-12000px; top:0; width:210mm; font-family:Arial,Helvetica,sans-serif; color:#111; background:#fff; }
-        .hv-root.hv-preview { position:static; width:210mm; margin:0 auto; box-shadow:0 4px 24px rgba(0,0,0,.25); }
+        .fsv-root { position:absolute; left:-12000px; top:0; width:210mm; font-family:Arial,Helvetica,sans-serif; color:#111; background:var(--fsv-pagebg); }
+        .fsv-root.fsv-preview { position:static; width:210mm; margin:0 auto; box-shadow:0 4px 24px rgba(0,0,0,.25); }
         @media print {
-          .hv-root { position:static; width:auto; }
-          .hv-root.hv-preview { box-shadow:none; margin:0; }
+          .fsv-root { position:static; width:auto; }
+          .fsv-root.fsv-preview { box-shadow:none; margin:0; }
           @page { size:A4; margin:0; }
         }
-        .hv-page { width:210mm; height:297mm; overflow:hidden; position:relative; background:#fff; }
-        .hv-fit { width:210mm; transform-origin:top left; position:relative; padding:6mm 7mm; }
-        .hv-brandline { display:flex; align-items:center; justify-content:space-between; border-bottom:.6mm solid #111; padding-bottom:2mm; margin-bottom:2mm; }
-        .hv-brandline .hv-coname { font-size:4.2mm; font-weight:bold; letter-spacing:.5mm; }
-        .hv-brandline .hv-cocontact { font-size:2.8mm; color:#333; }
-        .hv-head { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:2mm; }
-        .hv-head .hv-fam { font-size:3.4mm; font-weight:bold; flex:1; }
-        .hv-head .hv-title { text-align:center; flex:1; }
-        .hv-head .hv-title h1 { font-size:4.6mm; font-weight:normal; letter-spacing:.3mm; }
-        .hv-head .hv-vno { font-size:4.6mm; font-weight:bold; margin-top:1mm; }
-        .hv-head .hv-manual { flex:1; text-align:right; font-size:3.2mm; font-weight:bold; }
-        .hv-secttl { font-size:3.2mm; font-weight:bold; text-align:center; letter-spacing:.5mm; padding:1.6mm; border:.45mm solid #111; background:#e8e8e8; margin-top:2.6mm; }
-        table.hv-vt { width:100%; border-collapse:collapse; }
-        table.hv-vt th { background:#f0f0f0; font-size:2.7mm; font-weight:bold; padding:1.4mm 1.2mm; border:.35mm solid #111; white-space:nowrap; }
-        table.hv-vt td { font-size:2.9mm; padding:1.3mm 1.2mm; border:.35mm solid #111; }
-        table.hv-vt tr:nth-child(even) td { background:#fafafa; }
-        .hv-totalrow td { font-weight:bold; background:#f0f0f0 !important; }
-        .hv-flt2 { display:flex; gap:3mm; align-items:stretch; }
-        .hv-flt2 .hv-half { flex:1; min-width:0; }
-        .hv-flt2 .hv-qr { flex:0 0 30mm; display:flex; align-items:center; justify-content:center; border:.35mm solid #111; margin-top:2.6mm; padding:2mm; }
-        .hv-instr { margin-top:2.6mm; border:.45mm solid #111; padding:2.5mm 3mm; }
-        .hv-instr h4 { font-size:3.2mm; font-style:italic; margin-bottom:1.5mm; }
-        .hv-instr ul { list-style:none; }
-        .hv-instr li { font-size:2.9mm; line-height:1.7; text-align:right; direction:rtl; padding:.6mm 0; }
-        .hv-instr li::before { content:"- "; }
-        .hv-foot { margin-top:2.6mm; display:flex; justify-content:space-between; font-size:2.7mm; color:#333; border-top:.45mm solid #111; padding-top:2mm; }
+        .fsv-page { width:210mm; height:297mm; overflow:hidden; position:relative; background:#fff; }
+        .fsv-fit { width:210mm; transform-origin:top left; position:relative; padding:7mm 8mm; }
+        .fsv-vhead { display:flex; align-items:stretch; justify-content:space-between; gap:4mm; }
+        .fsv-sketch { width:44mm; }
+        .fsv-sketch .fsv-arch { width:44mm; height:30mm; overflow:hidden; border:1.2mm solid var(--fsv-acc); border-radius:22mm 22mm 3mm 3mm; background:#eee; }
+        .fsv-sketch img { width:100%; height:100%; object-fit:cover; display:block; filter:var(--fsv-imgf); }
+        .fsv-brand { flex:1; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+        .fsv-mono { width:26mm; height:26mm; border:1mm solid var(--fsv-acc); border-radius:50%; display:flex; align-items:center; justify-content:center; position:relative; margin-bottom:1.5mm; }
+        .fsv-mono::after { content:""; position:absolute; inset:1.6mm; border:.5mm solid var(--fsv-acc); border-radius:50%; }
+        .fsv-mono b { font-family:Georgia,serif; font-size:8mm; letter-spacing:.5mm; color:var(--fsv-pri); }
+        .fsv-logo { width:30mm; max-height:26mm; object-fit:contain; margin-bottom:1.5mm; }
+        .fsv-brand h1 { font-family:Georgia,serif; font-size:6.2mm; letter-spacing:2.2mm; font-weight:normal; color:var(--fsv-pri); }
+        .fsv-brand .fsv-tag { font-size:2.5mm; letter-spacing:1.1mm; color:#333; margin-top:1.2mm; }
+        .fsv-ribbon { margin:2.6mm 0 0; background:var(--fsv-pri); color:#fff; text-align:center; position:relative; padding:2.2mm 0; }
+        .fsv-ribbon::before,.fsv-ribbon::after { content:""; position:absolute; top:50%; width:3.4mm; height:3.4mm; background:var(--fsv-pagebg); border:1mm solid var(--fsv-pri); transform:translateY(-50%) rotate(45deg); }
+        .fsv-ribbon::before { left:14mm; } .fsv-ribbon::after { right:14mm; }
+        .fsv-ribbon h2 { font-family:Georgia,serif; font-size:5.4mm; letter-spacing:2.6mm; font-weight:normal; }
+        .fsv-metabar { display:flex; border:.45mm solid var(--fsv-pri); border-top:none; font-size:3mm; }
+        .fsv-metabar>div { flex:1; padding:1.6mm 3mm; display:flex; align-items:center; gap:2.5mm; }
+        .fsv-metabar>div+div { border-left:.45mm solid var(--fsv-pri); }
+        .fsv-metabar .fsv-lbl { font-size:2.4mm; color:#555; letter-spacing:.6mm; }
+        .fsv-metabar .fsv-val { font-weight:bold; font-size:3.4mm; }
+        .fsv-counts { display:flex; border:.45mm solid var(--fsv-pri); border-top:none; }
+        .fsv-counts .fsv-grp { display:flex; flex:1; }
+        .fsv-counts .fsv-grp+.fsv-grp { border-left:.45mm solid var(--fsv-pri); }
+        .fsv-c { flex:1; text-align:center; padding:1.5mm 1mm; }
+        .fsv-c+.fsv-c { border-left:.25mm solid #999; }
+        .fsv-c .fsv-k { font-size:2.3mm; color:#555; letter-spacing:.5mm; }
+        .fsv-c .fsv-v { font-size:3.6mm; font-weight:bold; margin-top:.6mm; }
+        .fsv-secttl { font-size:3.1mm; font-weight:bold; letter-spacing:.8mm; padding:1.8mm 2.5mm; border:.45mm solid var(--fsv-pri); color:var(--fsv-pri); border-bottom:none; background:var(--fsv-soft); margin-top:2.4mm; }
+        table.fsv-vt { width:100%; border-collapse:collapse; }
+        table.fsv-vt th { background:var(--fsv-pri); color:#fff; font-size:2.5mm; letter-spacing:.4mm; padding:1.4mm 1.5mm; font-weight:bold; border:.35mm solid var(--fsv-pri); white-space:nowrap; }
+        table.fsv-vt td { font-size:2.9mm; padding:1.25mm 1.5mm; border:.35mm solid #555; }
+        table.fsv-vt tr:nth-child(even) td { background:#f6f6f6; }
+        .fsv-cols2 { display:flex; gap:3mm; }
+        .fsv-cols2>.fsv-half { flex:1; min-width:0; }
+        .fsv-mutwrap { display:flex; gap:3mm; }
+        .fsv-mutwrap table { flex:1; }
+        table.fsv-vt.fsv-mut td, table.fsv-vt.fsv-mut th { padding:.95mm 1.2mm; }
+        table.fsv-vt.fsv-mut td { font-size:2.85mm; }
+        table.fsv-vt.fsv-mut .fsv-nm { font-weight:bold; }
+        .fsv-bottom4 { display:flex; gap:3mm; margin-top:2.4mm; }
+        .fsv-bbox { flex:1; border:.45mm solid var(--fsv-pri); min-width:0; }
+        .fsv-bbox h4 { font-size:2.9mm; letter-spacing:.7mm; background:var(--fsv-soft); padding:1.6mm 2.2mm; border-bottom:.45mm solid var(--fsv-pri); color:var(--fsv-pri); }
+        .fsv-bbox .fsv-in { padding:2mm 2.4mm; font-size:2.8mm; line-height:1.55; }
+        .fsv-incl { list-style:none; columns:2; column-gap:3mm; }
+        .fsv-incl li { font-size:2.7mm; padding:.7mm 0; break-inside:avoid; }
+        .fsv-incl li::before { content:"✓ "; font-weight:bold; }
+        .fsv-notes { list-style:none; }
+        .fsv-notes li { font-size:2.65mm; padding:.8mm 0; }
+        .fsv-notes li::before { content:"• "; font-weight:bold; }
+        .fsv-qrbox { border:.6mm dashed #555; margin:2mm; min-height:24mm; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.5mm; color:#555; padding:2mm; }
+        .fsv-qrbox span { font-size:2.5mm; font-weight:bold; letter-spacing:.4mm; }
+        .fsv-contact { display:flex; border:.45mm solid var(--fsv-pri); margin-top:2.4mm; }
+        .fsv-contact>div { flex:1; padding:1.8mm 3mm; display:flex; align-items:center; gap:2.5mm; font-size:3mm; }
+        .fsv-contact>div+div { border-left:.45mm solid var(--fsv-pri); }
+        .fsv-contact .fsv-k { font-size:2.4mm; color:#555; letter-spacing:.5mm; }
+        .fsv-contact .fsv-v { font-weight:bold; font-size:3.3mm; }
+        .fsv-stamp { width:22mm; height:22mm; border:.7mm solid var(--fsv-acc); border-radius:50%; display:flex; align-items:center; justify-content:center; text-align:center; font-size:2.2mm; letter-spacing:.4mm; color:#333; transform:rotate(-8deg); flex:0 0 22mm; }
+        .fsv-stampimg { width:24mm; height:24mm; object-fit:contain; transform:rotate(-8deg); flex:0 0 24mm; }
+        .fsv-foot { margin-top:2.4mm; background:var(--fsv-pri); color:#fff; display:flex; font-size:2.9mm; }
+        .fsv-foot>div { flex:1; padding:2mm 3mm; text-align:center; }
+        .fsv-foot>div+div { border-left:.3mm solid #666; }
       `}</style>
 
-      <div className="hv-page">
-        <div ref={innerRef} className="hv-fit" style={{ transform: `scale(${scale})` }}>
+      <div className="fsv-page">
+        <div ref={innerRef} className="fsv-fit" style={{ transform: `scale(${scale})` }}>
 
-          <div className="hv-brandline">
-            <div className="hv-coname">{(company.companyName || 'TRAVEL AND TOURS').toUpperCase()}</div>
-            <div className="hv-cocontact">{[company.phone, company.email].filter(Boolean).join(' | ')}</div>
-          </div>
-
-          <div className="hv-head">
-            <div className="hv-fam">Family Head: {voucher.leaderName || pax[0]?.name || '—'}</div>
-            <div className="hv-title">
-              <h1>Hotel Voucher</h1>
-              <div className="hv-vno">{voucher.voucherNo}</div>
+          <div className="fsv-vhead">
+            <div className="fsv-sketch"><div className="fsv-arch"><img src={imgKaaba} alt="Kaaba Shareef" /></div></div>
+            <div className="fsv-brand">
+              {company.logoUrl ? (
+                <img className="fsv-logo" src={company.logoUrl} alt="Company logo" />
+              ) : (
+                <div className="fsv-mono"><b>{brandShort}</b></div>
+              )}
+              <h1>{(company.companyName || 'TRAVEL AND TOURS').toUpperCase()}</h1>
+              <div className="fsv-tag">{(company.legalName || 'UMRAH SERVICES | TRAVEL SOLUTIONS').toUpperCase()}</div>
             </div>
-            <div className="hv-manual">Manual No: {(voucher as any).manualNo || ''}</div>
+            <div className="fsv-sketch"><div className="fsv-arch"><img src={imgMadinah} alt="Masjid-e-Nabawi" /></div></div>
           </div>
 
-          <div className="hv-secttl">Mutamers</div>
-          <table className="hv-vt">
-            <thead>
-              <tr>
-                <th>SNO</th><th>Passport</th><th>Mutamer Name</th><th>G</th><th>PAX</th>
-                <th>Bed</th><th>MOFA #</th><th>GRP #</th><th>Visa #</th><th>PNR</th><th>TRNS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pax.map((m, i) => (
-                <tr key={i}>
-                  <td>{i + 1}</td>
-                  <td>{m.passportNumber || '—'}</td>
-                  <td style={{ fontWeight: 'bold' }}>{m.name}</td>
-                  <td>{genderShort((m as any).gender)}</td>
-                  <td>{m.ageType}</td>
-                  <td>{m.withoutBed ? 'No' : 'Yes'}</td>
-                  <td>—</td>
-                  <td>{(m as any).groupCode || groupCode || '—'}</td>
-                  <td>—</td>
-                  <td>{dep?.pnr || '—'}</td>
-                  <td style={{ fontWeight: 'bold' }}>{m.trnsPaid ? 'YES' : 'XXXXX'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="fsv-ribbon"><h2>UMRAH TRAVEL VOUCHER</h2></div>
 
-          <div className="hv-secttl">Accommodation</div>
-          <table className="hv-vt">
-            <thead>
-              <tr>
-                <th>City</th><th>Hotel Name</th><th>View</th><th>Meal</th><th>Conf#</th>
-                <th>Room Type</th><th>Checkin</th><th>Checkout</th><th>Nights</th>
-              </tr>
-            </thead>
+          <div className="fsv-metabar">
+            <div><span className="fsv-lbl">VOUCHER NO.</span><span className="fsv-val">{voucher.voucherNo}</span></div>
+            {((voucher as any).shirkaName || (voucher as any).shirkaVendorId) && (
+              <div style={{ justifyContent: 'center' }}><span className="fsv-lbl">SHIRKA</span><span className="fsv-val">{(voucher as any).shirkaName || (voucher as any).shirkaVendorId}</span></div>
+            )}
+            <div style={{ justifyContent: 'flex-end' }}><span className="fsv-lbl">DATE CREATED</span><span className="fsv-val">{createdStr}</span></div>
+          </div>
+
+          <div className="fsv-counts">
+            <div className="fsv-grp">
+              <div className="fsv-c"><div className="fsv-k">ADULT</div><div className="fsv-v">{adults}</div></div>
+              <div className="fsv-c"><div className="fsv-k">CHILD</div><div className="fsv-v">{children}</div></div>
+              <div className="fsv-c"><div className="fsv-k">INFANT</div><div className="fsv-v">{infants}</div></div>
+              <div className="fsv-c"><div className="fsv-k">GROUP</div><div className="fsv-v" style={{ fontSize: '2.8mm' }}>{groupCode || '—'}</div></div>
+            </div>
+            <div className="fsv-grp">
+              <div className="fsv-c"><div className="fsv-k">ARRIVAL DATE</div><div className="fsv-v" style={{ fontSize: '2.8mm' }}>{fmtDate(arrivalSector?.date)}</div></div>
+              <div className="fsv-c"><div className="fsv-k">DEPARTURE DATE</div><div className="fsv-v" style={{ fontSize: '2.8mm' }}>{fmtDate(departureSector?.date)}</div></div>
+              <div className="fsv-c"><div className="fsv-k">NIGHTS</div><div className="fsv-v">{totalNights}</div></div>
+            </div>
+          </div>
+
+          <div className="fsv-cols2">
+            <div className="fsv-half">
+              <div className="fsv-secttl">KSA ARRIVAL INFORMATION</div>
+              <table className="fsv-vt">
+                <thead><tr><th>SECTOR</th><th>FLIGHT</th><th>DATE</th><th>TIME</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td>{arrivalSector?.fromAirport?.iata || ''} - {arrivalSector?.toAirport?.iata || ''}</td>
+                    <td>{fd?.allowFlightInfo ? `${fd.departureFlight.airline?.iataCode || ''} ${fd.departureFlight.flightNo || ''}` : `${arrivalSector?.airline?.iataCode || ''} ${arrivalSector?.flightNo || ''}`}</td>
+                    <td>{fmtDate(fd?.allowFlightInfo ? fd.departureFlight.date : arrivalSector?.date)}</td>
+                    <td>{arrivalSector?.time || ''}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div className="fsv-half">
+              <div className="fsv-secttl">DEPARTURE INFORMATION</div>
+              <table className="fsv-vt">
+                <thead><tr><th>SECTOR</th><th>FLIGHT</th><th>DATE</th><th>TIME</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td>{departureSector?.fromAirport?.iata || ''} - {departureSector?.toAirport?.iata || ''}</td>
+                    <td>{fd?.allowFlightInfo ? `${fd.returnFlight.airline?.iataCode || ''} ${fd.returnFlight.flightNo || ''}` : `${departureSector?.airline?.iataCode || ''} ${departureSector?.flightNo || ''}`}</td>
+                    <td>{fmtDate(fd?.allowFlightInfo ? fd.returnFlight.date : departureSector?.date)}</td>
+                    <td>{departureSector?.time || ''}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="fsv-secttl">ACCOMMODATION</div>
+          <table className="fsv-vt">
+            <thead><tr><th>CITY</th><th>HOTEL</th><th>CHECK IN</th><th>CHECK OUT</th><th>NIGHTS</th><th>ROOM TYPE</th></tr></thead>
             <tbody>
               {stays.map((h, i) => (
                 <tr key={i}>
-                  <td>{h.city}</td>
-                  <td style={{ fontWeight: 'bold' }}>{h.hotelName}{h.description ? ` (${h.description})` : ''}</td>
-                  <td>—</td><td>—</td><td>—</td>
-                  <td>{h.bedType}</td>
-                  <td>{fmtShort(h.checkInDate)}</td>
-                  <td>{fmtShort(h.checkOutDate)}</td>
+                  <td>{h.city}{h.isSelfHotel ? ' (SELF)' : ''}</td>
+                  <td>{h.hotelName}</td>
+                  <td>{fmtDate(h.checkInDate)}</td>
+                  <td>{fmtDate(h.checkOutDate)}</td>
                   <td>{h.nights}</td>
+                  <td>{h.bedType}</td>
                 </tr>
               ))}
-              <tr className="hv-totalrow">
-                <td colSpan={8} style={{ textAlign: 'right' }}>Total Nights:</td>
-                <td>{totalNights}</td>
-              </tr>
             </tbody>
           </table>
 
-          <div className="hv-secttl">Transport / Services</div>
-          <table className="hv-vt">
-            <thead>
-              <tr><th>Travel Date</th><th>Transporter</th><th>Type</th><th>Description</th></tr>
-            </thead>
+          <div className="fsv-secttl">TRANSPORTATION</div>
+          <table className="fsv-vt">
+            <thead><tr><th>SECTOR</th><th>DATE</th><th>TRANSPORT</th><th>PROVIDED BY</th></tr></thead>
             <tbody>
-              <tr>
-                <td>—</td>
-                <td>{voucher.transportCompany || 'Company Transport'}</td>
-                <td>{voucher.transportType || '—'}</td>
-                <td>{voucher.trip || voucher.remarks || '—'}</td>
-              </tr>
+              {transportRows.length > 0 ? transportRows.map((r, i) => (
+                <tr key={i}>
+                  <td className="fsv-nm">{r.sector}</td>
+                  <td>{r.date}</td>
+                  <td>{r.vehicle}</td>
+                  <td>{r.provider}</td>
+                </tr>
+              )) : (
+                <tr><td colSpan={4}>—</td></tr>
+              )}
             </tbody>
           </table>
 
-          <div className="hv-flt2">
-            <div className="hv-half">
-              <div className="hv-secttl">Departure (Pakistan to KSA)</div>
-              <table className="hv-vt">
-                <thead><tr><th>Flight</th><th>Sector</th><th>Departure</th><th>Arrival</th></tr></thead>
+          <div className="fsv-secttl">MUTAMER'S DETAIL</div>
+          <div className="fsv-mutwrap">
+            {cols.map((col, ci) => (
+              <table key={ci} className="fsv-vt fsv-mut">
+                <thead><tr><th>NO.</th><th>NAME</th><th>PP NO</th><th>TRNS</th></tr></thead>
                 <tbody>
-                  <tr>
-                    <td style={{ fontWeight: 'bold' }}>{dep?.airline?.iataCode || ''} {dep?.flightNo || '—'}</td>
-                    <td>{depSector || '—'}</td>
-                    <td>{fmtDay(dep?.date)}{dep?.etd ? ` ${dep.etd}` : ''}</td>
-                    <td>{fmtDay(dep?.date)}{dep?.eta ? ` ${dep.eta}` : ''}</td>
-                  </tr>
+                  {col.map((m, i) => (
+                    <tr key={i}>
+                      <td>{ci * half + i + 1}</td>
+                      <td className="fsv-nm">{m.name}</td>
+                      <td>{m.passportNumber}</td>
+                      <td style={{ fontWeight: 'bold' }}>{m.trnsPaid ? 'YES' : 'XXXXX'}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
-            </div>
-            <div className="hv-half">
-              <div className="hv-secttl">Arrival (KSA to Pakistan)</div>
-              <table className="hv-vt">
-                <thead><tr><th>Flight</th><th>Sector</th><th>Departure</th><th>Arrival</th></tr></thead>
-                <tbody>
-                  <tr>
-                    <td style={{ fontWeight: 'bold' }}>{ret?.airline?.iataCode || ''} {ret?.flightNo || '—'}</td>
-                    <td>{retSector || '—'}</td>
-                    <td>{fmtDay(ret?.date)}{ret?.etd ? ` ${ret.etd}` : ''}</td>
-                    <td>{fmtDay(ret?.date)}{ret?.eta ? ` ${ret.eta}` : ''}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="hv-qr">
-              <QRCode value={shareUrl} size={88} />
-            </div>
+            ))}
           </div>
 
-          <div className="hv-instr">
-            <h4><i>Special Instructions:</i></h4>
-            <ul>
-              {instructions.map((t, i) => <li key={i}>{t}</li>)}
-            </ul>
+          <div className="fsv-bottom4">
+            <div className="fsv-bbox"><h4>PACKAGE INCLUDES</h4><div className="fsv-in"><ul className="fsv-incl">{includes.map(x => <li key={x}>{x}</li>)}</ul></div></div>
+            <div className="fsv-bbox"><h4>IMPORTANT NOTES</h4><div className="fsv-in"><ul className="fsv-notes">{notes.map(x => <li key={x}>{x}</li>)}</ul></div></div>
+            <div className="fsv-bbox"><h4>SCAN FOR DIGITAL VOUCHER</h4><div className="fsv-qrbox"><QRCode value={shareUrl} size={84} /><span>{voucher.voucherNo}</span></div></div>
           </div>
 
-          <div className="hv-foot">
-            <div>Shirka: {(voucher as any).shirkaName || '—'}</div>
-            <div>Agent: {(voucher as any).agentName || '—'}</div>
-            <div>{company.website || company.email || ''}</div>
+          <div className="fsv-contact">
+            <div><span className="fsv-k">MAKKAH STAFF{voucher.makkahStaffName ? ` — ${voucher.makkahStaffName}` : ''}<br /><span className="fsv-v">{voucher.makkahStaffPhone || company.makkahStaffPhone || company.mobile || company.phone || '—'}</span></span></div>
+            <div><span className="fsv-k">MADINA STAFF{voucher.madinaStaffName ? ` — ${voucher.madinaStaffName}` : ''}<br /><span className="fsv-v">{voucher.madinaStaffPhone || company.madinaStaffPhone || company.phone || '—'}</span></span></div>
+            <div style={{ justifyContent: 'center' }}>
+              {company.stampUrl ? (
+                <img src={company.stampUrl} alt="Company stamp" className="fsv-stampimg" />
+              ) : (
+                <div className="fsv-stamp">AUTHORIZED<br />SIGNATURE</div>
+              )}
+            </div>
+            <div style={{ justifyContent: 'center' }}><span className="fsv-k">AUTHORIZED SIGNATURE</span></div>
+          </div>
+
+          <div className="fsv-foot">
+            <div>{company.address || ''}{company.city ? `, ${company.city}` : ''}</div>
+            <div>{company.phone || ''}</div>
+            <div>{company.email || ''}</div>
+            <div>{company.website || ''}</div>
           </div>
 
         </div>
