@@ -114,6 +114,7 @@ export const VoucherPrintDocument: React.FC<{
         .fsv-sketch { width:44mm; }
         .fsv-sketch .fsv-arch { width:44mm; height:30mm; overflow:hidden; border:1.2mm solid var(--fsv-acc); border-radius:22mm 22mm 3mm 3mm; background:#eee; }
         .fsv-sketch img { width:100%; height:100%; object-fit:cover; display:block; filter:var(--fsv-imgf); }
+        .fsv-under { text-align:center; font-size:3.2mm; font-weight:bold; margin-top:1.5mm; }
         .fsv-brand { flex:1; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; }
         .fsv-mono { width:26mm; height:26mm; border:1mm solid var(--fsv-acc); border-radius:50%; display:flex; align-items:center; justify-content:center; position:relative; margin-bottom:1.5mm; }
         .fsv-mono::after { content:""; position:absolute; inset:1.6mm; border:.5mm solid var(--fsv-acc); border-radius:50%; }
@@ -177,7 +178,7 @@ export const VoucherPrintDocument: React.FC<{
         <div ref={innerRef} className="fsv-fit" style={{ transform: `scale(${scale})` }}>
 
           <div className="fsv-vhead">
-            <div className="fsv-sketch"><div className="fsv-arch"><img src={imgKaaba} alt="Kaaba Shareef" /></div></div>
+            <div className="fsv-sketch"><div className="fsv-arch"><img src={imgKaaba} alt="Kaaba Shareef" /></div><div className="fsv-under">Shirka: {(voucher as any).shirkaName || "—"}</div></div>
             <div className="fsv-brand">
               {company.logoUrl ? (
                 <img className="fsv-logo" src={company.logoUrl} alt="Company logo" />
@@ -187,7 +188,7 @@ export const VoucherPrintDocument: React.FC<{
               <h1>{(company.companyName || 'TRAVEL AND TOURS').toUpperCase()}</h1>
               <div className="fsv-tag">{(company.legalName || 'UMRAH SERVICES | TRAVEL SOLUTIONS').toUpperCase()}</div>
             </div>
-            <div className="fsv-sketch"><div className="fsv-arch"><img src={imgMadinah} alt="Masjid-e-Nabawi" /></div></div>
+            <div className="fsv-sketch"><div className="fsv-arch"><img src={imgMadinah} alt="Masjid-e-Nabawi" /></div><div className="fsv-under">Agent: {(voucher as any).agentName || "—"}</div></div>
           </div>
 
           <div className="fsv-ribbon"><h2>UMRAH TRAVEL VOUCHER</h2></div>
