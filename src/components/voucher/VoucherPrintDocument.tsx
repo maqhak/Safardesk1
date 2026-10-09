@@ -119,6 +119,10 @@ export const VoucherPrintDocument: React.FC<{
           @page { size:A4; margin:0; }
         }
         .fsv-page { width:210mm; height:297mm; overflow:hidden; position:relative; background:#fff; }
+        .fsv-watermark { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:50; }
+        .fsv-watermark span { font-size:32mm; font-weight:bold; letter-spacing:4mm; opacity:0.14; transform:rotate(-25deg); white-space:nowrap; }
+        .fsv-watermark.ok span { color:#15803d; }
+        .fsv-watermark.no span { color:#b91c1c; }
         .fsv-fit { width:210mm; transform-origin:top left; position:relative; padding:7mm 8mm; }
         .fsv-vhead { display:flex; align-items:stretch; justify-content:space-between; gap:4mm; }
         .fsv-sketch { width:44mm; }
@@ -185,6 +189,7 @@ export const VoucherPrintDocument: React.FC<{
       `}</style>
 
       <div className="fsv-page">
+        <div className={`fsv-watermark ${wm.cls}`}><span>{wm.text}</span></div>
         <div ref={innerRef} className="fsv-fit" style={{ transform: `scale(${scale})` }}>
 
           <div className="fsv-vhead">
