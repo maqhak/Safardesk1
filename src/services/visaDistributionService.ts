@@ -123,7 +123,7 @@ export async function createVisaDistributionBatch(params: {
   // Group distributions by agentId
   const agentBatches = new Map<string, {
     agentId: string;
-    groups: Array<{ groupCode: string; groupName: string; visaIds: string[]; visaCount: number; sellingPricePerVisa: number; buyingPricePerVisa: number }>;
+    groups: Array<{ groupCode: string; groupName: string; visaIds: string[]; visaCount: number; sellingPricePerVisa: number; buyingPricePerVisa: number; packageType?: string }>;
     totalVisas: number;
     sellingTotalSAR: number;
     buyingTotalSAR: number;
@@ -184,6 +184,7 @@ export async function createVisaDistributionBatch(params: {
         buyingPricePerVisa: g.buyingPricePerVisa,
         visaIds: g.visaIds,
         visaCount: g.visaCount,
+        packageType: (g as any).packageType || undefined,
       });
 
       // Update visa docs status to Distributed
@@ -220,6 +221,7 @@ export async function createVisaDistributionBatch(params: {
           groupName: g.groupName,
           sellingPricePerVisa: g.sellingPricePerVisa,
           lineTotalSAR: g.sellingPricePerVisa,
+          packageType: (g as any).packageType || undefined,
         });
       });
     });

@@ -28,6 +28,7 @@ import { fetchVisas, VisaDoc, deleteVisasBatch } from '../services/visaService';
 import { fetchVendors } from '../services/masterService';
 import { fetchLedgerAccounts } from '../services/accountingService';
 import { createVisaDistributionBatch, fetchVisaInvoices } from '../services/visaDistributionService';
+import { PACKAGE_TYPES } from '../types/visaDistribution';
 import { fetchAgents } from '../services/agentService';
 import { getCurrentRate } from '../services/exchangeRateService';
 import { AgentDoc } from '../types/agent';
@@ -48,6 +49,7 @@ interface GroupSelectionData {
   agentId: string;
   sellingPricePerVisa: number;
   buyingPricePerVisa: number;
+  packageType?: string;
   commissionEnabled?: boolean;
   commissionRecipientName?: string;
   commissionContactNumber?: string;
@@ -104,9 +106,12 @@ export const VisaDistributionPage: React.FC = () => {
       const buyMap = new Map<string, number>();
       const sorted = [...(invList as any[])].filter(i => !i.isVoid).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
       for (const inv of sorted) {
-        if (inv.agentId && !sellMap.has(inv.agentId)) {
+        if (inv.agentId) {
           const line = (inv.lines || []).find((l: any) => l.sellingPricePerVisa > 0);
-          if (line) sellMap.set(inv.agentId, line.sellingPricePerVisa);
+          if (line) {
+            const pkgKey = (line as any).packageType ? (line as any).packageType + '|' + inv.agentId : inv.agentId;
+            if (!sellMap.has(pkgKey)) sellMap.set(pkgKey, line.sellingPricePerVisa);
+          }
         }
         const vKey = inv.shirkaId || inv.vendorId;
         if (vKey && !buyMap.has(vKey)) {
@@ -128,11 +133,12 @@ export const VisaDistributionPage: React.FC = () => {
       const sellGroupMap = new Map<string, number>();
       const buyGroupMap = new Map<string, number>();
       for (const inv of sorted) {
-        const byGroup = new Map<string, { sell: number; count: number }>();
+        const byGroup = new Map<string, { sell: number; count: number; pkg: string }>();
         for (const l of (inv.lines || []) as any[]) {
           if (!l.groupCode) continue;
-          const e = byGroup.get(l.groupCode) || { sell: 0, count: 0 };
+          const e = byGroup.get(l.groupCode) || { sell: 0, count: 0, pkg: '' };
           if (l.sellingPricePerVisa > 0 && e.sell === 0) e.sell = l.sellingPricePerVisa;
+          if (l.packageType && !e.pkg) e.pkg = l.packageType;
           e.count++;
           byGroup.set(l.groupCode, e);
         }
@@ -140,9 +146,11 @@ export const VisaDistributionPage: React.FC = () => {
         const buyPerVisa = totalVisas > 0 && inv.buyingTotalSAR > 0
           ? Math.round((inv.buyingTotalSAR / totalVisas) * 100) / 100 : 0;
         byGroup.forEach((e, gc) => {
-          if (!sellGroupMap.has(gc) && e.sell > 0) sellGroupMap.set(gc, e.sell);
+          const pkg = e.pkg || '';
+          const sellKey = pkg ? pkg + '|' + gc : gc;
+          if (!sellGroupMap.has(sellKey) && e.sell > 0) sellGroupMap.set(sellKey, e.sell);
           // buying per group only reliable when invoice covers a single group
-          if (!buyGroupMap.has(gc) && buyPerVisa > 0 && byGroup.size === 1) buyGroupMap.set(gc, buyPerVisa);
+          if (!buyGroupMap.has(sellKey) && buyPerVisa > 0 && byGroup.size === 1) buyGroupMap.set(sellKey, buyPerVisa);
         });
       }
       setLastSellByGroup(sellGroupMap);
@@ -218,8 +226,9 @@ export const VisaDistributionPage: React.FC = () => {
     const next: GroupSelectionData = { ...current, [field]: value };
     // Auto-fill selling price: group last > agent last > agent default (manual override always wins)
     if (field === 'agentId' && value && !current.sellingPricePerVisa) {
-      const groupLast = lastSellByGroup.get(groupCode);
-      const agentLast = lastSellByAgent.get(value);
+      const pkg = next.packageType || current.packageType || '';
+      const groupLast = lastSellByGroup.get(pkg + '|' + groupCode) || lastSellByGroup.get(groupCode);
+      const agentLast = lastSellByAgent.get(pkg + '|' + value) || lastSellByAgent.get(value);
       let price = 0;
       if (groupLast && groupLast > 0) price = groupLast;
       else if (agentLast && agentLast > 0) price = agentLast;
@@ -336,6 +345,7 @@ export const VisaDistributionPage: React.FC = () => {
       visaIds: string[];
       visaCount: number;
       exchangeRateSARPKR: number;
+      packageType?: string;
       commission?: { enabled: boolean; recipientName: string; contactNumber: string; amountSAR: number };
     }> = [];
 
@@ -352,6 +362,7 @@ export const VisaDistributionPage: React.FC = () => {
             agentId: sel.agentId,
             sellingPricePerVisa: sel.sellingPricePerVisa,
             buyingPricePerVisa: sel.buyingPricePerVisa || 0,
+            packageType: sel.packageType || undefined,
             visaIds: includedVisas.map(v => v.id),
             visaCount: includedVisas.length,
             exchangeRateSARPKR: rateForAgent(sel.agentId),
@@ -641,6 +652,26 @@ export const VisaDistributionPage: React.FC = () => {
                           <option value="">-- Select Agent (No Auto-Fill) --</option>
                           {agents.map((a) => (
                             <option key={a.id} value={a.id}>{a.title} ({a.accountCode})</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="w-full sm:w-36">
+                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5">Package Type</label>
+                        <select
+                          value={selection.packageType || ''}
+                          onChange={(e) => {
+                            handleGroupSelectionChange(group.groupCode, 'packageType', e.target.value);
+                            // Re-trigger price lookup for the new package type
+                            if (selection.agentId) {
+                              setTimeout(() => handleGroupSelectionChange(group.groupCode, 'agentId', selection.agentId), 0);
+                            }
+                          }}
+                          className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none"
+                        >
+                          <option value="">-- Select --</option>
+                          {PACKAGE_TYPES.map((pt) => (
+                            <option key={pt} value={pt}>{pt}</option>
                           ))}
                         </select>
                       </div>

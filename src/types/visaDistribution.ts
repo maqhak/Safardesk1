@@ -1,3 +1,7 @@
+/** Standard Umrah package varieties — price varies by duration. */
+export const PACKAGE_TYPES = ['10 Days', '15 Days', '21 Days', '28 Days', 'Long Stay'] as const;
+export type PackageType = typeof PACKAGE_TYPES[number];
+
 export interface DistributionGroupLine {
   groupCode: string;
   groupName: string;
@@ -6,6 +10,7 @@ export interface DistributionGroupLine {
   buyingPricePerVisa: number;
   visaIds: string[];
   visaCount: number;
+  packageType?: string;
 }
 
 export interface VisaDistributionDoc {
@@ -41,8 +46,10 @@ export interface InvoicePaxLine {
   groupName: string;
   sellingPricePerVisa: number;
   lineTotalSAR: number;
+  packageType?: string;
 }
 
+/** Details for the optional commission box on a distribution batch. */
 export interface CommissionDetails {
   enabled: boolean;
   recipientName: string;
