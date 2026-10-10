@@ -27,7 +27,7 @@ import { useCan } from '../hooks/useCan';
 import { fetchVisas, VisaDoc, deleteVisasBatch } from '../services/visaService';
 import { fetchVendors } from '../services/masterService';
 import { fetchLedgerAccounts } from '../services/accountingService';
-import { createVisaDistributionBatch } from '../services/visaDistributionService';
+import { createVisaDistributionBatch, fetchVisaInvoices } from '../services/visaDistributionService';
 import { fetchAgents } from '../services/agentService';
 import { getCurrentRate } from '../services/exchangeRateService';
 import { AgentDoc } from '../types/agent';
@@ -70,6 +70,10 @@ export const VisaDistributionPage: React.FC = () => {
   const [agentMasters, setAgentMasters] = useState<AgentDoc[]>([]);
   // Fix #29: manually entered SAR->PKR rate per agent (keyed by agent ledger account id)
   const [agentRates, setAgentRates] = useState<Map<string, number>>(new Map());
+  const [lastSellByAgent, setLastSellByAgent] = useState<Map<string, number>>(new Map());
+  const [lastBuyByVendor, setLastBuyByVendor] = useState<Map<string, number>>(new Map());
+  const [lastSellByGroup, setLastSellByGroup] = useState<Map<string, number>>(new Map());
+  const [lastBuyByGroup, setLastBuyByGroup] = useState<Map<string, number>>(new Map());
 
   // Batch header fields
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
@@ -88,12 +92,63 @@ export const VisaDistributionPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [vList, vndList, accList, agList] = await Promise.all([
+      const [vList, vndList, accList, agList, invList] = await Promise.all([
         fetchVisas(),
         fetchVendors(),
         fetchLedgerAccounts(),
         fetchAgents(),
+        fetchVisaInvoices().catch(() => []),
       ]);
+      // Last-used prices: most recent invoice per agent (selling) and per vendor/shirka (buying)
+      const sellMap = new Map<string, number>();
+      const buyMap = new Map<string, number>();
+      const sorted = [...(invList as any[])].filter(i => !i.isVoid).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      for (const inv of sorted) {
+        if (inv.agentId && !sellMap.has(inv.agentId)) {
+          const line = (inv.lines || []).find((l: any) => l.sellingPricePerVisa > 0);
+          if (line) sellMap.set(inv.agentId, line.sellingPricePerVisa);
+        }
+        const vKey = inv.shirkaId || inv.vendorId;
+        if (vKey && !buyMap.has(vKey)) {
+          // buying price per visa from invoice totals
+          const totalVisas = (inv.lines || []).length;
+          if (totalVisas > 0 && inv.buyingTotalSAR > 0) {
+            buyMap.set(vKey, Math.round((inv.buyingTotalSAR / totalVisas) * 100) / 100);
+          }
+        }
+        // also map vendor company key
+        if (inv.vendorId && !buyMap.has('vnd:' + inv.vendorId)) {
+          const totalVisas = (inv.lines || []).length;
+          if (totalVisas > 0 && inv.buyingTotalSAR > 0) {
+            buyMap.set('vnd:' + inv.vendorId, Math.round((inv.buyingTotalSAR / totalVisas) * 100) / 100);
+          }
+        }
+      }
+      // Group-wise: last price per group code (from pax lines)
+      const sellGroupMap = new Map<string, number>();
+      const buyGroupMap = new Map<string, number>();
+      for (const inv of sorted) {
+        const byGroup = new Map<string, { sell: number; count: number }>();
+        for (const l of (inv.lines || []) as any[]) {
+          if (!l.groupCode) continue;
+          const e = byGroup.get(l.groupCode) || { sell: 0, count: 0 };
+          if (l.sellingPricePerVisa > 0 && e.sell === 0) e.sell = l.sellingPricePerVisa;
+          e.count++;
+          byGroup.set(l.groupCode, e);
+        }
+        const totalVisas = (inv.lines || []).length;
+        const buyPerVisa = totalVisas > 0 && inv.buyingTotalSAR > 0
+          ? Math.round((inv.buyingTotalSAR / totalVisas) * 100) / 100 : 0;
+        byGroup.forEach((e, gc) => {
+          if (!sellGroupMap.has(gc) && e.sell > 0) sellGroupMap.set(gc, e.sell);
+          // buying per group only reliable when invoice covers a single group
+          if (!buyGroupMap.has(gc) && buyPerVisa > 0 && byGroup.size === 1) buyGroupMap.set(gc, buyPerVisa);
+        });
+      }
+      setLastSellByGroup(sellGroupMap);
+      setLastBuyByGroup(buyGroupMap);
+      setLastSellByAgent(sellMap);
+      setLastBuyByVendor(buyMap);
 
       setVisas(vList);
       setVendors(vndList.filter(v => v.isActive));
@@ -161,44 +216,64 @@ export const VisaDistributionPage: React.FC = () => {
   const handleGroupSelectionChange = (groupCode: string, field: keyof GroupSelectionData, value: any) => {
     const current = groupSelections.get(groupCode) || { agentId: '', sellingPricePerVisa: 0, buyingPricePerVisa: 0, commissionEnabled: false };
     const next: GroupSelectionData = { ...current, [field]: value };
-    // Auto-fill selling price from agent's default when agent is picked (manual override always wins)
+    // Auto-fill selling price: group last > agent last > agent default (manual override always wins)
     if (field === 'agentId' && value && !current.sellingPricePerVisa) {
-      const ledgerAcc = agents.find(a => a.id === value) as any;
-      const master = agentMasters.find(m => m.id === (ledgerAcc?.linkedId || ledgerAcc?.linkedAgentId));
-      const defPrice = (master as any)?.defaultSellingPricePerVisa;
-      if (defPrice && defPrice > 0) next.sellingPricePerVisa = defPrice;
+      const groupLast = lastSellByGroup.get(groupCode);
+      const agentLast = lastSellByAgent.get(value);
+      let price = 0;
+      if (groupLast && groupLast > 0) price = groupLast;
+      else if (agentLast && agentLast > 0) price = agentLast;
+      else {
+        const ledgerAcc = agents.find(a => a.id === value) as any;
+        const master = agentMasters.find(m => m.id === (ledgerAcc?.linkedId || ledgerAcc?.linkedAgentId));
+        const defPrice = (master as any)?.defaultSellingPricePerVisa;
+        if (defPrice && defPrice > 0) price = defPrice;
+      }
+      if (price > 0) next.sellingPricePerVisa = price;
     }
     const updated = new Map(groupSelections);
     updated.set(groupCode, next);
     setGroupSelections(updated);
   };
 
-  // Auto-fill buying price for all groups when a vendor with a default price is selected
+  // Auto-fill buying price: last-used price wins, then vendor default (manual override always wins)
   useEffect(() => {
     if (!selectedVendorId) return;
     const vendor = vendors.find(v => v.id === selectedVendorId);
-    const defPrice = vendor?.defaultBuyingPricePerVisa;
-    if (defPrice && defPrice > 0 && groupedVisas.length > 0) {
+    // shirka-specific last price first, then vendor-level last price, then vendor default
+    const lastPrice = lastBuyByVendor.get(selectedShirkaId || selectedVendorId)
+      || lastBuyByVendor.get('vnd:' + selectedVendorId);
+    if (groupedVisas.length > 0) {
       setGroupSelections(prev => {
         const updated = new Map(prev);
         let changed = false;
         groupedVisas.forEach(g => {
           const cur = updated.get(g.groupCode);
           if (!cur || !cur.buyingPricePerVisa) {
-            updated.set(g.groupCode, {
-              agentId: cur?.agentId || '',
-              sellingPricePerVisa: cur?.sellingPricePerVisa || 0,
-              buyingPricePerVisa: defPrice,
-              commissionEnabled: cur?.commissionEnabled || false,
-            });
-            changed = true;
+            // priority: group last > shirka last > vendor last > vendor default
+            const groupLast = lastBuyByGroup.get(g.groupCode);
+            const shirkaLast = lastBuyByVendor.get(selectedShirkaId || selectedVendorId);
+            const vendorLast = lastBuyByVendor.get('vnd:' + selectedVendorId);
+            const price = (groupLast && groupLast > 0) ? groupLast
+              : (shirkaLast && shirkaLast > 0) ? shirkaLast
+              : (vendorLast && vendorLast > 0) ? vendorLast
+              : vendor?.defaultBuyingPricePerVisa || 0;
+            if (price > 0) {
+              updated.set(g.groupCode, {
+                agentId: cur?.agentId || '',
+                sellingPricePerVisa: cur?.sellingPricePerVisa || 0,
+                buyingPricePerVisa: price,
+                commissionEnabled: cur?.commissionEnabled || false,
+              });
+              changed = true;
+            }
           }
         });
         return changed ? updated : prev;
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedVendorId]);
+  }, [selectedVendorId, selectedShirkaId]);
 
   const toggleExpandGroup = (code: string) => {
     const next = new Set(expandedGroups);
