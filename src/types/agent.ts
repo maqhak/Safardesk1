@@ -8,6 +8,7 @@ export interface AgentDoc {
   email: string;
   dueLimitSAR: number;
   exchangeRatePKRRate: number; // Manual SAR -> PKR rate for this agent
+  defaultSellingPricePerVisa?: number; // Default selling price per visa (SAR) — auto-fills in distribution
   notes: string;
   isActive: boolean;
   userId?: string; // Linked Firebase Auth / users doc UID

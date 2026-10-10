@@ -160,13 +160,45 @@ export const VisaDistributionPage: React.FC = () => {
   // Update selection for a group
   const handleGroupSelectionChange = (groupCode: string, field: keyof GroupSelectionData, value: any) => {
     const current = groupSelections.get(groupCode) || { agentId: '', sellingPricePerVisa: 0, buyingPricePerVisa: 0, commissionEnabled: false };
+    const next: GroupSelectionData = { ...current, [field]: value };
+    // Auto-fill selling price from agent's default when agent is picked (manual override always wins)
+    if (field === 'agentId' && value && !current.sellingPricePerVisa) {
+      const ledgerAcc = agents.find(a => a.id === value) as any;
+      const master = agentMasters.find(m => m.id === (ledgerAcc?.linkedId || ledgerAcc?.linkedAgentId));
+      const defPrice = (master as any)?.defaultSellingPricePerVisa;
+      if (defPrice && defPrice > 0) next.sellingPricePerVisa = defPrice;
+    }
     const updated = new Map(groupSelections);
-    updated.set(groupCode, {
-      ...current,
-      [field]: value,
-    });
+    updated.set(groupCode, next);
     setGroupSelections(updated);
   };
+
+  // Auto-fill buying price for all groups when a vendor with a default price is selected
+  useEffect(() => {
+    if (!selectedVendorId) return;
+    const vendor = vendors.find(v => v.id === selectedVendorId);
+    const defPrice = vendor?.defaultBuyingPricePerVisa;
+    if (defPrice && defPrice > 0 && groupedVisas.length > 0) {
+      setGroupSelections(prev => {
+        const updated = new Map(prev);
+        let changed = false;
+        groupedVisas.forEach(g => {
+          const cur = updated.get(g.groupCode);
+          if (!cur || !cur.buyingPricePerVisa) {
+            updated.set(g.groupCode, {
+              agentId: cur?.agentId || '',
+              sellingPricePerVisa: cur?.sellingPricePerVisa || 0,
+              buyingPricePerVisa: defPrice,
+              commissionEnabled: cur?.commissionEnabled || false,
+            });
+            changed = true;
+          }
+        });
+        return changed ? updated : prev;
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVendorId]);
 
   const toggleExpandGroup = (code: string) => {
     const next = new Set(expandedGroups);

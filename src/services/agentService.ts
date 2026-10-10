@@ -234,6 +234,7 @@ export async function createAgentWithCredentials(
     exchangeRatePKRRate: number;
     loginPassword: string;
     notes?: string;
+    defaultSellingPricePerVisa?: number;
   }
 ): Promise<{ agent: AgentDoc; userUid: string }> {
   if (actor.role !== 'owner') {
@@ -307,6 +308,7 @@ export async function createAgentWithCredentials(
     email: normalizedEmail,
     dueLimitSAR: Number(data.dueLimitSAR) || 0,
     exchangeRatePKRRate: Number(data.exchangeRatePKRRate) || getCurrentRate('SAR-PKR'),
+    defaultSellingPricePerVisa: data.defaultSellingPricePerVisa && data.defaultSellingPricePerVisa > 0 ? data.defaultSellingPricePerVisa : undefined,
     notes: data.notes?.trim() || '',
     isActive: true,
     userId: userUid,

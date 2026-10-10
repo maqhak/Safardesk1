@@ -92,6 +92,7 @@ export const AgentsPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [dueLimitSAR, setDueLimitSAR] = useState<number>(50000);
   const [exchangeRatePKRRate, setExchangeRatePKRRate] = useState<number>(getCurrentRate('SAR-PKR'));
+  const [defSellPrice, setDefSellPrice] = useState<string>('');
   const [loginPassword, setLoginPassword] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -115,6 +116,7 @@ export const AgentsPage: React.FC = () => {
   const [editCity, setEditCity] = useState('');
   const [editDueLimitSAR, setEditDueLimitSAR] = useState<number>(0);
   const [editExchangeRate, setEditExchangeRate] = useState<number>(masterRate);
+  const [editDefSellPrice, setEditDefSellPrice] = useState<string>('');
   const [editNotes, setEditNotes] = useState('');
   const [editing, setEditing] = useState<boolean>(false);
 
@@ -193,6 +195,7 @@ export const AgentsPage: React.FC = () => {
         email,
         dueLimitSAR,
         exchangeRatePKRRate,
+        defaultSellingPricePerVisa: parseFloat(defSellPrice) || undefined,
         loginPassword,
         notes,
       });
@@ -218,6 +221,7 @@ export const AgentsPage: React.FC = () => {
       setEmail('');
       setDueLimitSAR(50000);
       setExchangeRatePKRRate(getCurrentRate('SAR-PKR'));
+      setDefSellPrice('');
       setLoginPassword('');
       setNotes('');
 
@@ -258,6 +262,7 @@ Please keep these credentials safe and change password after first login.`;
     setEditCity(agent.city);
     setEditDueLimitSAR(agent.dueLimitSAR);
     setEditExchangeRate(agent.exchangeRatePKRRate);
+    setEditDefSellPrice(agent.defaultSellingPricePerVisa ? String(agent.defaultSellingPricePerVisa) : '');
     setEditNotes(agent.notes || '');
     setEditModalOpen(true);
   };
@@ -276,6 +281,7 @@ Please keep these credentials safe and change password after first login.`;
         city: editCity,
         dueLimitSAR: Number(editDueLimitSAR) || 0,
         exchangeRatePKRRate: Number(editExchangeRate) || masterRate,
+        defaultSellingPricePerVisa: parseFloat(editDefSellPrice) || undefined,
         notes: editNotes,
       });
 
@@ -784,6 +790,16 @@ Please keep these credentials safe and change password after first login.`;
               helperText="Specific rate for this agent ledger"
               required
             />
+            <Input
+              label="Default Selling Price / Visa (SAR)"
+              type="number"
+              min="0"
+              step="0.01"
+              value={defSellPrice}
+              onChange={(e) => setDefSellPrice(e.target.value)}
+              placeholder="e.g. 525"
+              helperText="Auto-fills in visa distribution"
+            />
           </div>
 
           {/* Login Credentials Section */}
@@ -948,6 +964,15 @@ Please keep these credentials safe and change password after first login.`;
               value={editExchangeRate}
               onChange={(e) => setEditExchangeRate(Number(e.target.value))}
               required
+            />
+            <Input
+              label="Default Selling Price / Visa (SAR)"
+              type="number"
+              min="0"
+              step="0.01"
+              value={editDefSellPrice}
+              onChange={(e) => setEditDefSellPrice(e.target.value)}
+              placeholder="e.g. 525"
             />
           </div>
 

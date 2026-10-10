@@ -22,6 +22,7 @@ export interface VendorDoc {
   email: string;
   notes: string;
   shirkas?: ShirkaUnit[]; // Sub-Shirkas under this company (empty = the company itself is the Shirka)
+  defaultBuyingPricePerVisa?: number; // Default buying price per visa (SAR) — auto-fills in distribution
   isActive: boolean;
   createdAt: string;
   createdBy: string;

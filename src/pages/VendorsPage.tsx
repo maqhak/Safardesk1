@@ -58,6 +58,7 @@ export const VendorsPage: React.FC = () => {
   const [mobile, setMobile] = useState('');
   const [email, setEmail] = useState('');
   const [notes, setNotes] = useState('');
+  const [defBuyPrice, setDefBuyPrice] = useState('');
 
   // Edit Vendor Modal
   const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
@@ -69,6 +70,7 @@ export const VendorsPage: React.FC = () => {
   const [editMobile, setEditMobile] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [editDefBuyPrice, setEditDefBuyPrice] = useState('');
   const [editShirkas, setEditShirkas] = useState<ShirkaUnit[]>([]);
   const [newShirkaName, setNewShirkaName] = useState('');
   const [newShirkaOperator, setNewShirkaOperator] = useState('');
@@ -125,6 +127,7 @@ export const VendorsPage: React.FC = () => {
         mobile,
         email,
         notes,
+        defaultBuyingPricePerVisa: parseFloat(defBuyPrice) || undefined,
       });
 
       success(`Vendor / Shirka "${name}" created with auto ledger account.`);
@@ -134,6 +137,7 @@ export const VendorsPage: React.FC = () => {
       setMobile('');
       setEmail('');
       setNotes('');
+      setDefBuyPrice('');
       await loadData();
     } catch (err: any) {
       showError(err?.message || 'Failed to create vendor.');
@@ -151,6 +155,7 @@ export const VendorsPage: React.FC = () => {
     setEditMobile(v.mobile);
     setEditEmail(v.email);
     setEditNotes(v.notes);
+    setEditDefBuyPrice(v.defaultBuyingPricePerVisa ? String(v.defaultBuyingPricePerVisa) : '');
     setEditShirkas((v.shirkas || []).map((s) => ({ ...s })));
     setNewShirkaName(''); setNewShirkaOperator(''); setNewShirkaMobile('');
     setEditModalOpen(true);
@@ -170,6 +175,7 @@ export const VendorsPage: React.FC = () => {
         mobile: editMobile,
         email: editEmail,
         notes: editNotes,
+        defaultBuyingPricePerVisa: parseFloat(editDefBuyPrice) || undefined,
         shirkas: editShirkas,
       });
 
@@ -405,6 +411,17 @@ export const VendorsPage: React.FC = () => {
             />
           </div>
           <div>
+            <Input
+              label="Default Buying Price / Visa (SAR)"
+              type="number"
+              min="0"
+              step="0.01"
+              value={defBuyPrice}
+              onChange={(e) => setDefBuyPrice(e.target.value)}
+              placeholder="e.g. 450"
+            />
+          </div>
+          <div>
             <label className="text-xs font-semibold text-slate-700 block mb-1">Notes / Terms</label>
             <textarea
               rows={2}
@@ -528,6 +545,17 @@ export const VendorsPage: React.FC = () => {
                 </Button>
               </div>
             </div>
+          </div>
+          <div>
+            <Input
+              label="Default Buying Price / Visa (SAR)"
+              type="number"
+              min="0"
+              step="0.01"
+              value={editDefBuyPrice}
+              onChange={(e) => setEditDefBuyPrice(e.target.value)}
+              placeholder="e.g. 450"
+            />
           </div>
         </form>
       </Modal>
