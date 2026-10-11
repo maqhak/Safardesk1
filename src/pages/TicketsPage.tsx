@@ -401,14 +401,31 @@ export const TicketsPage: React.FC = () => {
               </button>
             </div>
             {canCreate && (
+              <>
               <Button
                 variant="primary"
+                size="sm"
+                leftIcon={<Plus className="w-4 h-4" />}
+                onClick={() => navigate('/tickets/sale')}
+              >
+                New Ticket Sale
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/tickets/refund')}
+              >
+                New Refund
+              </Button>
+              <Button
+                variant="outline"
                 size="sm"
                 leftIcon={<Plus className="w-4 h-4" />}
                 onClick={() => setAddModalOpen(true)}
               >
                 Issue New Ticket
               </Button>
+              </>
             )}
           </div>
         }

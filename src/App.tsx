@@ -18,6 +18,8 @@ const VoucherCreatePage = lazy(() => import('./pages/VoucherCreatePage').then(m 
 const VoucherSelectPage = lazy(() => import('./pages/VoucherSelectPage').then(m => ({ default: m.VoucherSelectPage })));
 const VoucherSharedView = lazy(() => import('./pages/VoucherSharedView').then(m => ({ default: m.VoucherSharedView })));
 const TicketsPage = lazy(() => import('./pages/TicketsPage').then(m => ({ default: m.TicketsPage })));
+const TicketSalePage = lazy(() => import('./pages/TicketSalePage').then(m => ({ default: m.TicketSalePage })));
+const TicketRefundPage = lazy(() => import('./pages/TicketRefundPage').then(m => ({ default: m.TicketRefundPage })));
 const MovementReportsPage = lazy(() => import('./pages/MovementReportsPage').then(m => ({ default: m.MovementReportsPage })));
 const AccountsPage = lazy(() => import('./pages/AccountsPage').then(m => ({ default: m.AccountsPage })));
 const PaymentsPage = lazy(() => import('./pages/PaymentsPage').then(m => ({ default: m.PaymentsPage })));
@@ -158,6 +160,22 @@ export default function App() {
                   element={
                     <ProtectedRoute requiredModule="Tickets">
                       <MovementReportsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/tickets/sale"
+                  element={
+                    <ProtectedRoute requiredModule="Tickets">
+                      <TicketSalePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/tickets/refund"
+                  element={
+                    <ProtectedRoute requiredModule="Tickets">
+                      <TicketRefundPage />
                     </ProtectedRoute>
                   }
                 />
