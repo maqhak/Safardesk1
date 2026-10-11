@@ -88,7 +88,14 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { name: 'Visas', path: '/visas', module: 'Visas', icon: FileCheck },
   { name: 'Customers & Agents', path: '/customers', module: 'Visas', icon: UsersIcon },
   { name: 'Vouchers', path: '/vouchers', module: 'Vouchers', icon: Building },
-  { name: 'Tickets', path: '/tickets', module: 'Tickets', icon: Plane },
+  {
+    name: 'Tickets', path: '/tickets', module: 'Tickets', icon: Plane,
+    children: [
+      { name: 'All Tickets', path: '/tickets', module: 'Tickets' },
+      { name: 'Ticket Sale', path: '/tickets/sale', module: 'Tickets' },
+      { name: 'Ticket Refund', path: '/tickets/refund', module: 'Tickets' },
+    ],
+  },
   { name: 'Flights', path: '/masters', module: 'Masters', icon: Plane },
   { name: 'Reports', path: '/reports', module: 'Reports', icon: BarChart3 },
   { name: 'Settings', path: '/settings', module: 'Settings', icon: SettingsIcon },
