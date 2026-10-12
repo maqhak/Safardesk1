@@ -509,80 +509,26 @@ export const AccountsPage: React.FC = () => {
 
       {/* Account Picker & Statement Controls Bar */}
       <Card padding="md" className="border-slate-200 shadow-xs print:hidden space-y-4">
-        {/* Category Tabs for Accounts */}
+        {/* Category Dropdown for Accounts */}
         {!isAgent && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs border-b border-slate-100">
-            <button
-              onClick={() => setCategoryFilter('all')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer whitespace-nowrap ${
-                categoryFilter === 'all' ? 'bg-[#0e2c4c] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+          <div className="flex items-center gap-2 pb-1 text-xs border-b border-slate-100">
+            <label className="font-bold text-slate-600 uppercase tracking-wider whitespace-nowrap">
+              Ledger Category
+            </label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20 cursor-pointer"
             >
-              All Ledgers ({accounts.length})
-            </button>
-            <button
-              onClick={() => setCategoryFilter('agent')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                categoryFilter === 'agent' ? 'bg-[#0e2c4c] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Users className="w-3 h-3" />
-              <span>Agents</span>
-            </button>
-            <button
-              onClick={() => setCategoryFilter('hotel')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                categoryFilter === 'hotel' ? 'bg-[#0e2c4c] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Building2 className="w-3 h-3" />
-              <span>Hotels</span>
-            </button>
-            <button
-              onClick={() => setCategoryFilter('vendor')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                categoryFilter === 'vendor' ? 'bg-[#0e2c4c] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Building2 className="w-3 h-3" />
-              <span>Vendors (Shirkas)</span>
-            </button>
-            <button
-              onClick={() => setCategoryFilter('bank')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                categoryFilter === 'bank' ? 'bg-[#0e2c4c] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Landmark className="w-3 h-3" />
-              <span>Banks</span>
-            </button>
-            <button
-              onClick={() => setCategoryFilter('cash')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                categoryFilter === 'cash' ? 'bg-[#0e2c4c] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Wallet className="w-3 h-3" />
-              <span>Cash Tills</span>
-            </button>
-            <button
-              onClick={() => setCategoryFilter('customer')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                categoryFilter === 'customer' ? 'bg-[#0e2c4c] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Users className="w-3 h-3" />
-              <span>Clients (B2C)</span>
-            </button>
-            <button
-              onClick={() => setCategoryFilter('income')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1 ${
-                categoryFilter === 'income' ? 'bg-[#0e2c4c] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Sparkles className="w-3 h-3 text-[#c9a227]" />
-              <span>System Income</span>
-            </button>
+              <option value="all">All Ledgers ({accounts.length})</option>
+              <option value="agent">Agents</option>
+              <option value="hotel">Hotels</option>
+              <option value="vendor">Vendors (Shirkas)</option>
+              <option value="bank">Banks</option>
+              <option value="cash">Cash Tills</option>
+              <option value="customer">Clients (B2C)</option>
+              <option value="income">System Income</option>
+            </select>
           </div>
         )}
 

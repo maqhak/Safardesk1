@@ -14,6 +14,7 @@ import { AIRPORTS_DATA } from '../data/airports';
 import { LedgerAccountDoc } from '../types/agent';
 import { UserProfile } from '../types/auth';
 import { logAuditEvent } from './userService';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 
 const VENDORS_COLLECTION = 'vendors';
 const HOTELS_COLLECTION = 'hotels';
@@ -231,11 +232,14 @@ export async function createVendor(
     createdBy: actor.uid,
   };
 
+  const cleanVendor = stripUndefinedDeep(newVendor);
+  const cleanLedger = stripUndefinedDeep(ledgerDoc);
+
   try {
     if (!isConfigPlaceholder) {
       await Promise.all([
-        setDoc(doc(db, VENDORS_COLLECTION, vendorId), newVendor),
-        setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerDoc.id), ledgerDoc),
+        setDoc(doc(db, VENDORS_COLLECTION, vendorId), cleanVendor),
+        setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerDoc.id), cleanLedger),
       ]);
     }
   } catch (err) {
@@ -243,7 +247,17 @@ export async function createVendor(
   }
 
   const vendors = await fetchVendors();
-  localStorage.setItem(LOCAL_STORAGE_VENDORS_KEY, JSON.stringify([newVendor, ...vendors]));
+  localStorage.setItem(LOCAL_STORAGE_VENDORS_KEY, JSON.stringify([cleanVendor, ...vendors]));
+
+  // Also persist the auto-created ledger account locally (same key the ledger pages read)
+  try {
+    const LEDGER_LOCAL_KEY = 'safardesk_ledger_accounts_v3';
+    const stored = localStorage.getItem(LEDGER_LOCAL_KEY);
+    const existing: any[] = stored ? JSON.parse(stored) : [];
+    if (!existing.some((a) => a.id === cleanLedger.id)) {
+      localStorage.setItem(LEDGER_LOCAL_KEY, JSON.stringify([cleanLedger, ...existing]));
+    }
+  } catch { /* best-effort */ }
 
   // Log audit
   await logAuditEvent({
@@ -277,7 +291,7 @@ export async function updateVendor(
 
   try {
     if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, VENDORS_COLLECTION, vendorId), { ...updated } as any);
+      await updateDoc(doc(db, VENDORS_COLLECTION, vendorId), stripUndefinedDeep({ ...updated }) as any);
     }
   } catch (err) {
     console.warn('Firestore update vendor failed:', err);
@@ -800,4 +814,95 @@ export async function toggleAirlineStatus(actor: UserProfile, airlineId: string)
 
 export async function fetchAirports(): Promise<AirportRef[]> {
   return AIRPORTS_DATA;
+}
+
+
+/**
+ * Repair: create missing ledger accounts for vendors that don't have one.
+ * (Old vendors were created before the auto-ledger fix, or their Firestore
+ * write failed on undefined fields.) Safe to run repeatedly — skips existing.
+ */
+export async function backfillMissingVendorLedgerAccounts(actor: UserProfile): Promise<{
+  created: number;
+  skipped: number;
+}> {
+  const { stripUndefinedDeep: strip } = await import('../utils/firestoreSanitize');
+  const vendors = await fetchVendors();
+
+  // Existing ledger account ids (Firestore + local)
+  let existingIds = new Set<string>();
+  try {
+    if (!isConfigPlaceholder) {
+      const snap = await getDocs(collection(db, LEDGER_ACCOUNTS_COLLECTION));
+      snap.docs.forEach((d) => existingIds.add(d.id));
+    }
+  } catch { /* fall through to local check */ }
+  try {
+    const stored = localStorage.getItem('safardesk_ledger_accounts_v3');
+    const local: any[] = stored ? JSON.parse(stored) : [];
+    local.forEach((a) => a && a.id && existingIds.add(a.id));
+  } catch { /* ignore */ }
+  try {
+    const stored2 = localStorage.getItem('safardesk_ledger_accounts_directory');
+    const local2: any[] = stored2 ? JSON.parse(stored2) : [];
+    local2.forEach((a) => a && a.id && existingIds.add(a.id));
+  } catch { /* ignore */ }
+
+  let created = 0;
+  let skipped = 0;
+  const newLocal: any[] = [];
+
+  for (const v of vendors) {
+    const ledgerId = `ledger-vnd-${v.id}`;
+    // Also match by linkedAgentId for older naming variants
+    const hasLedger = existingIds.has(ledgerId);
+    if (hasLedger) {
+      skipped += 1;
+      continue;
+    }
+    const ledgerDoc = strip({
+      id: ledgerId,
+      accountType: 'vendor',
+      linkedAgentId: v.id,
+      agentCode: v.vendorCode,
+      accountName: v.name,
+      openingBalance: 0,
+      currentBalanceSAR: 0,
+      currency: 'SAR',
+      createdAt: new Date().toISOString(),
+      createdBy: actor.uid,
+    });
+    try {
+      if (!isConfigPlaceholder) {
+        await setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerId), ledgerDoc);
+      }
+    } catch (err) {
+      console.warn('Backfill ledger write failed for vendor', v.id, err);
+    }
+    newLocal.push(ledgerDoc);
+    existingIds.add(ledgerId);
+    created += 1;
+  }
+
+  if (newLocal.length > 0) {
+    try {
+      const KEY = 'safardesk_ledger_accounts_v3';
+      const stored = localStorage.getItem(KEY);
+      const existing: any[] = stored ? JSON.parse(stored) : [];
+      localStorage.setItem(KEY, JSON.stringify([...newLocal, ...existing]));
+    } catch { /* best-effort */ }
+  }
+
+  await logAuditEvent({
+    action: 'BACKFILL_VENDOR_LEDGERS',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: 'vendors',
+    targetUserName: 'vendor-ledger-backfill',
+    details: { created, skipped },
+  });
+
+  return { created, skipped };
 }

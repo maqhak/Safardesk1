@@ -595,24 +595,40 @@ export const INITIAL_LEDGER_ENTRIES: LedgerEntryDoc[] = [
  * Fetch all ledger accounts
  */
 export async function fetchLedgerAccounts(): Promise<LedgerAccountDoc[]> {
+  let firestoreAccounts: LedgerAccountDoc[] = [];
+  let firestoreOk = false;
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, ACCOUNTS_COLLECTION));
-      return snap.docs.map((d) => d.data() as LedgerAccountDoc);
+      firestoreAccounts = snap.docs.map((d) => d.data() as LedgerAccountDoc);
+      firestoreOk = true;
     }
   } catch (err) {
     console.warn('Could not read accounts from Firestore:', err);
   }
 
-  const stored = localStorage.getItem(LOCAL_STORAGE_ACCOUNTS_KEY);
-  if (stored) {
+  // Merge both local caches (agentService uses a different key) — Firestore wins on conflict
+  const readKey = (key: string): LedgerAccountDoc[] => {
     try {
-      return JSON.parse(stored);
+      const stored = localStorage.getItem(key);
+      return stored ? JSON.parse(stored) : [];
     } catch {
-      // fallback
+      return [];
     }
+  };
+  const localAccounts = [
+    ...readKey(LOCAL_STORAGE_ACCOUNTS_KEY),
+    ...readKey('safardesk_ledger_accounts_directory'),
+  ];
+
+  if (!firestoreOk) {
+    const seen = new Set<string>();
+    return localAccounts.filter((a) => a && a.id && !seen.has(a.id) && (seen.add(a.id), true));
   }
-  return [];
+
+  const seen = new Set(firestoreAccounts.map((a) => a.id));
+  const localOnly = localAccounts.filter((a) => a && a.id && !seen.has(a.id));
+  return [...firestoreAccounts, ...localOnly];
 }
 
 /** Create or update a ledger account (Firestore + localStorage fallback). */

@@ -27,7 +27,7 @@ import { useCan } from '../hooks/useCan';
 import { fetchVisas, VisaDoc, deleteVisasBatch } from '../services/visaService';
 import { fetchVendors } from '../services/masterService';
 import { fetchLedgerAccounts } from '../services/accountingService';
-import { createVisaDistributionBatch, fetchVisaInvoices } from '../services/visaDistributionService';
+import { createVisaDistributionBatch, fetchVisaInvoices, detectFailedDistributions, repairFailedDistributions, FailedDistributionInfo } from '../services/visaDistributionService';
 import { PACKAGE_TYPES } from '../types/visaDistribution';
 import { fetchAgents } from '../services/agentService';
 import { getCurrentRate } from '../services/exchangeRateService';
@@ -84,6 +84,8 @@ export const VisaDistributionPage: React.FC = () => {
 
   // Per group distribution mapping
   const [groupSelections, setGroupSelections] = useState<Map<string, GroupSelectionData>>(new Map());
+  const [failedDistribs, setFailedDistribs] = useState<FailedDistributionInfo[]>([]);
+  const [repairing, setRepairing] = useState<boolean>(false);
 
   // Per-pilgrim exclusion: unchecked pilgrims stay undistributed for a later batch
   const [excludedVisaIds, setExcludedVisaIds] = useState<Set<string>>(new Set());
@@ -171,6 +173,7 @@ export const VisaDistributionPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    detectFailedDistributions().then(setFailedDistribs).catch(() => {});
   }, []);
 
   // Filter undistributed visas
@@ -470,6 +473,26 @@ export const VisaDistributionPage: React.FC = () => {
     }
   };
 
+  const handleRepairFailed = async () => {
+    if (failedDistribs.length === 0) return;
+    const totalVisas = failedDistribs.reduce((s, d) => s + d.totalVisas, 0);
+    const confirmed = window.confirm(
+      `${failedDistribs.length} failed distribution(s) (${totalVisas} visas) were never saved. Reset them back to undistributed so you can distribute again cleanly?`
+    );
+    if (!confirmed) return;
+    setRepairing(true);
+    try {
+      const result = await repairFailedDistributions(failedDistribs.map((d) => d.id));
+      success(`Repaired: ${result.visas} visas reset to undistributed, ${result.ledgerEntries} orphaned ledger entries removed.`);
+      setFailedDistribs([]);
+      await loadData();
+    } catch (err: any) {
+      showError(err.message || 'Repair failed.');
+    } finally {
+      setRepairing(false);
+    }
+  };
+
   const [clearing, setClearing] = useState<boolean>(false);
 
   const handleClearUndistributed = async () => {
@@ -515,6 +538,31 @@ export const VisaDistributionPage: React.FC = () => {
               className="text-red-600 border-red-200 hover:bg-red-50"
             >
               <Trash2 className="w-4 h-4 mr-1" />
+
+      {/* Failed distribution repair banner */}
+      {failedDistribs.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-amber-50 border border-amber-300 rounded-xl">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">
+                {failedDistribs.length} distribution(s) failed to save ({failedDistribs.reduce((s, d) => s + d.totalVisas, 0)} visas)
+              </p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                These show as Distributed but were never actually saved. Reset them back to undistributed to distribute again cleanly — no duplicates.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleRepairFailed}
+            disabled={repairing}
+            className="bg-amber-600 hover:bg-amber-700 text-white shrink-0"
+          >
+            {repairing ? 'Repairing...' : 'Reset to Undistributed'}
+          </Button>
+        </div>
+      )}
               {clearing ? 'Clearing...' : `Clear Undistributed (${undistributedVisas.length})`}
             </Button>
             <Button

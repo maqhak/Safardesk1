@@ -11,7 +11,8 @@ import {
   FileText, 
   Sliders, 
   Check, 
-  ShieldAlert 
+  ShieldAlert,
+  Wrench
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -30,7 +31,8 @@ import {
   createVendor, 
   updateVendor, 
   toggleVendorStatus, 
-  generateNextVendorCode 
+  generateNextVendorCode,
+  backfillMissingVendorLedgerAccounts
 } from '../services/masterService';
 import { fetchLedgerAccounts } from '../services/agentService';
 import { formatMoney } from '../utils/formatters';
@@ -45,6 +47,7 @@ export const VendorsPage: React.FC = () => {
   const [vendors, setVendors] = useState<VendorDoc[]>([]);
   const [ledgers, setLedgers] = useState<LedgerAccountDoc[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [backfilling, setBackfilling] = useState(false);
   const [search, setSearch] = useState<string>('');
   const [nextCode, setNextCode] = useState<string>('VND-003');
 
@@ -81,7 +84,25 @@ export const VendorsPage: React.FC = () => {
   const [ledgerModalOpen, setLedgerModalOpen] = useState<boolean>(false);
   const [selectedLedger, setSelectedLedger] = useState<LedgerAccountDoc | null>(null);
 
-  const loadData = async () => {
+    const handleBackfillLedgers = async () => {
+    if (!userProfile) return;
+    const confirmed = window.confirm(
+      'Create missing ledger accounts for vendors that don\'t have one? Safe to run — existing ledgers are skipped.'
+    );
+    if (!confirmed) return;
+    setBackfilling(true);
+    try {
+      const result = await backfillMissingVendorLedgerAccounts(userProfile);
+      success(`Ledger repair done: ${result.created} created, ${result.skipped} already existed.`);
+      await loadData();
+    } catch (err: any) {
+      showError(err.message || 'Ledger repair failed.');
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
+const loadData = async () => {
     setLoading(true);
     try {
       const [vList, lList, code] = await Promise.all([
@@ -254,9 +275,14 @@ export const VendorsPage: React.FC = () => {
             leftIcon={<Search className="w-4 h-4" />}
           />
         </div>
-        <Button variant="outline" size="sm" leftIcon={<RefreshCw className="w-3.5 h-3.5" />} onClick={loadData}>
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" leftIcon={<Wrench className="w-3.5 h-3.5" />} onClick={handleBackfillLedgers} disabled={backfilling}>
+            {backfilling ? 'Repairing...' : 'Repair Ledger Accounts'}
+          </Button>
+          <Button variant="outline" size="sm" leftIcon={<RefreshCw className="w-3.5 h-3.5" />} onClick={loadData}>
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Vendors Table */}

@@ -8,7 +8,7 @@ import {
 import { VisaDoc, fetchVisas } from './visaService';
 import { fetchLedgerAccounts, fetchLedgerEntries, postBalancedTransaction } from './accountingService';
 import { LedgerEntryDoc, LedgerAccountDoc } from '../types/accounting';
-import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { logAuditEvent } from './userService';
 import { stripUndefinedDeep } from '../utils/firestoreSanitize';
@@ -489,4 +489,157 @@ export async function backfillInvoiceShirkaIds(): Promise<number> {
     localStorage.setItem(LOCAL_STORAGE_INVOICES_KEY, JSON.stringify(fresh));
   }
   return updated;
+}
+
+
+// ---------------------------------------------------------------------------
+// Repair: distributions that failed to sync to Firestore (the undefined-field
+// bug). They show as Distributed locally but were never actually saved.
+// This resets those visas back to undistributed and removes orphaned docs.
+// ---------------------------------------------------------------------------
+
+export interface FailedDistributionInfo {
+  id: string;
+  distributionNo: string;
+  date: string;
+  totalVisas: number;
+}
+
+function readLocal<T>(key: string): T[] {
+  try {
+    return JSON.parse(localStorage.getItem(key) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+/** Distributions that exist locally but never reached Firestore. */
+export async function detectFailedDistributions(): Promise<FailedDistributionInfo[]> {
+  const localDistribs = readLocal<any>(LOCAL_STORAGE_DISTRIB_KEY);
+  if (localDistribs.length === 0) return [];
+
+  let firestoreIds = new Set<string>();
+  if (!isConfigPlaceholder) {
+    try {
+      const snap = await getDocs(collection(db, DISTRIB_COLLECTION));
+      firestoreIds = new Set(snap.docs.map((d) => d.id));
+    } catch {
+      return []; // can't verify — don't touch anything
+    }
+  }
+
+  return localDistribs
+    .filter((d: any) => d && d.id && !firestoreIds.has(d.id))
+    .map((d: any) => ({
+      id: d.id,
+      distributionNo: d.distributionNo || d.id,
+      date: d.date || '',
+      totalVisas: d.totalVisas || 0,
+    }));
+}
+
+/**
+ * Repair failed distributions: reset their visas to undistributed,
+ * delete orphaned Firestore ledger entries, and clean localStorage.
+ * Only touches distributions that never reached Firestore — real ones are safe.
+ */
+export async function repairFailedDistributions(ids: string[]): Promise<{
+  distributions: number;
+  visas: number;
+  ledgerEntries: number;
+}> {
+  const idSet = new Set(ids);
+  let visaCount = 0;
+  let entryCount = 0;
+
+  const localDistribs = readLocal<any>(LOCAL_STORAGE_DISTRIB_KEY);
+  const localInvoices = readLocal<any>(LOCAL_STORAGE_INVOICES_KEY);
+  const localEntries = readLocal<LedgerEntryDoc>(LOCAL_STORAGE_ENTRIES_KEY);
+  const localVisas = readLocal<VisaDoc>(LOCAL_STORAGE_VISAS_KEY);
+
+  // Invoice numbers belonging to failed distributions (to find orphaned ledger entries)
+  const failedInvoiceNos = new Set<string>();
+  const failedVisaIds = new Set<string>();
+  localDistribs.forEach((d: any) => {
+    if (!d || !idSet.has(d.id)) return;
+    (d.groups || []).forEach((g: any) => {
+      (g.visaIds || []).forEach((vId: string) => failedVisaIds.add(vId));
+    });
+  });
+  localInvoices.forEach((inv: any) => {
+    if (inv && idSet.has(inv.distributionId) && inv.invoiceNo) {
+      failedInvoiceNos.add(inv.invoiceNo);
+    }
+  });
+
+  // 1. Delete orphaned Firestore ledger entries (they synced; invoices didn't)
+  if (!isConfigPlaceholder && failedInvoiceNos.size > 0) {
+    try {
+      const nos = [...failedInvoiceNos];
+      // Firestore 'in' supports max 10 per query — chunk it
+      for (let i = 0; i < nos.length; i += 10) {
+        const chunk = nos.slice(i, i + 10);
+        const q = query(collection(db, ENTRIES_COLLECTION), where('invoiceRef', 'in', chunk));
+        const snap = await getDocs(q);
+        for (const d of snap.docs) {
+          await deleteDoc(d.ref);
+          entryCount += 1;
+        }
+      }
+    } catch (err) {
+      console.warn('Could not delete orphaned ledger entries:', err);
+    }
+  }
+
+  // 2. Reset visas (Firestore + localStorage): only those tied to failed distributions
+  const resetVisa = (v: any) => {
+    if (!v || !failedVisaIds.has(v.id)) return v;
+    if (v.status === 'Distributed' || v.distributionId) {
+      visaCount += 1;
+      const { agentId: _a, distributionId: _d, vendorId: _v, shirkaId: _s, shirkaName: _sn, ...rest } = v;
+      return { ...rest, status: 'Pending' };
+    }
+    return v;
+  };
+
+  const updatedLocalVisas = localVisas.map(resetVisa);
+  localStorage.setItem(LOCAL_STORAGE_VISAS_KEY, JSON.stringify(updatedLocalVisas));
+
+  if (!isConfigPlaceholder) {
+    try {
+      const snap = await getDocs(collection(db, VISAS_COLLECTION));
+      const batch: Promise<void>[] = [];
+      snap.docs.forEach((d) => {
+        const v = d.data() as any;
+        if (v && failedVisaIds.has(v.id) && (v.status === 'Distributed' || v.distributionId)) {
+          const { agentId: _a, distributionId: _dd, vendorId: _v, shirkaId: _s, shirkaName: _sn, ...rest } = v;
+          batch.push(setDoc(d.ref, stripUndefinedDeep({ ...rest, status: 'Pending' })));
+        }
+      });
+      await Promise.all(batch);
+    } catch (err) {
+      console.warn('Could not reset visas in Firestore:', err);
+    }
+  }
+
+  // 3. Clean localStorage: remove failed distributions, their invoices, their entries
+  const remainingDistribs = localDistribs.filter((d: any) => !idSet.has(d?.id));
+  const remainingInvoices = localInvoices.filter((inv: any) => !idSet.has(inv?.distributionId));
+  const remainingEntries = localEntries.filter((e: any) => !(e?.invoiceRef && failedInvoiceNos.has(e.invoiceRef)));
+  localStorage.setItem(LOCAL_STORAGE_DISTRIB_KEY, JSON.stringify(remainingDistribs));
+  localStorage.setItem(LOCAL_STORAGE_INVOICES_KEY, JSON.stringify(remainingInvoices));
+  localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(remainingEntries));
+
+  await logAuditEvent({
+    action: 'REPAIR_FAILED_DISTRIBUTIONS',
+    userId: 'system',
+    userName: 'system',
+    userEmail: '',
+    userRole: 'owner',
+    targetUserId: ids.join(','),
+    targetUserName: 'failed-distribution-repair',
+    details: { distributions: ids.length, visas: visaCount, ledgerEntries: entryCount },
+  });
+
+  return { distributions: ids.length, visas: visaCount, ledgerEntries: entryCount };
 }
