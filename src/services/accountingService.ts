@@ -11,7 +11,7 @@ import { db, isConfigPlaceholder } from './firebase';
 import { aoaToCSV, downloadCSVText } from '../utils/csv';
 import { getCurrentRate } from './exchangeRateService';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 const ACCOUNTS_COLLECTION = 'ledger_accounts';
 const ENTRIES_COLLECTION = 'ledger_entries';
@@ -1273,7 +1273,7 @@ export function exportLedgerToPDF(statement: LedgerStatementSummary, companyName
     ]);
   });
 
-  (doc as any).autoTable({
+  autoTable(doc, {
     startY: accY + 3,
     head: [['S#', 'DATE', 'INV/VOU', 'DESCRIPTION', 'PNR', 'TICKET #', 'SECTOR', 'DEBIT', 'CREDIT', 'BALANCE']],
     body,
