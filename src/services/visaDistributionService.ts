@@ -11,6 +11,7 @@ import { LedgerEntryDoc, LedgerAccountDoc } from '../types/accounting';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { logAuditEvent } from './userService';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 import { getCurrentRate } from './exchangeRateService';
 import { UserProfile } from '../types/auth';
 
@@ -75,6 +76,7 @@ export async function createVisaDistributionBatch(params: {
     groupCode: string;
     groupName: string;
     visaIds: string[];
+    packageType?: string;
     exchangeRateSARPKR: number; // Fix #29: manually entered per-agent SAR->PKR rate
     commission?: {
       enabled: boolean;
@@ -153,6 +155,7 @@ export async function createVisaDistributionBatch(params: {
       visaCount,
       sellingPricePerVisa: data.sellingPricePerVisa,
       buyingPricePerVisa: data.buyingPricePerVisa,
+      packageType: data.packageType || undefined,
     });
     existing.totalVisas += visaCount;
     existing.sellingTotalSAR += lineSelling;
@@ -371,13 +374,14 @@ export async function createVisaDistributionBatch(params: {
   if (!isConfigPlaceholder) {
     try {
       await Promise.all([
-        setDoc(doc(db, DISTRIB_COLLECTION, distribution.id), distribution),
-        ...createdInvoices.map((inv) => setDoc(doc(db, INVOICES_COLLECTION, inv.id), inv)),
-        ...updatedVisas.map((v) => setDoc(doc(db, VISAS_COLLECTION, v.id), v)),
-        ...newLedgerEntries.map((e) => setDoc(doc(db, ENTRIES_COLLECTION, e.id), e)),
+        setDoc(doc(db, DISTRIB_COLLECTION, distribution.id), stripUndefinedDeep(distribution)),
+        ...createdInvoices.map((inv) => setDoc(doc(db, INVOICES_COLLECTION, inv.id), stripUndefinedDeep(inv))),
+        ...updatedVisas.map((v) => setDoc(doc(db, VISAS_COLLECTION, v.id), stripUndefinedDeep(v))),
+        ...newLedgerEntries.map((e) => setDoc(doc(db, ENTRIES_COLLECTION, e.id), stripUndefinedDeep(e))),
       ]);
     } catch (err) {
       console.warn('Could not sync visa distribution batch to Firestore:', err);
+      throw err;
     }
   }
 

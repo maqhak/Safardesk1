@@ -447,6 +447,7 @@ export const VisaDistributionPage: React.FC = () => {
           groupCode: g.groupCode,
           groupName: g.groupName,
           visaIds: g.visaIds,
+          packageType: (g as any).packageType || undefined,
           exchangeRateSARPKR: g.exchangeRateSARPKR,
           commission: g.commission,
         });
