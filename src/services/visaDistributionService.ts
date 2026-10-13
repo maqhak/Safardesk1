@@ -108,6 +108,12 @@ export async function createVisaDistributionBatch(params: {
       createdAt: now,
       createdBy: params.createdBy,
     };
+    // BUG FIX: the margin account was previously built in-memory only and never
+    // persisted, so its entries matched no account doc and "Income — Visa Margin"
+    // never showed in Balances. Persist it, mirroring the vendor account block below.
+    try {
+      await saveLedgerAccount(marginAccount);
+    } catch { /* entries below still carry the correct accountId */ }
   }
 
   const distribId = `distrib-${Date.now()}`;
