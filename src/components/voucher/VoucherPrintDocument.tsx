@@ -122,8 +122,9 @@ export const VoucherPrintDocument: React.FC<{
         .fsv-root { position:absolute; left:-12000px; top:0; width:210mm; font-family:Arial,Helvetica,sans-serif; color:#111; background:var(--fsv-pagebg); }
         .fsv-root.fsv-preview { position:static; width:210mm; margin:0 auto; box-shadow:0 4px 24px rgba(0,0,0,.25); }
         @media print {
-          .fsv-root { position:static; width:auto; }
+          .fsv-root { position:static; width:auto; height:297mm; overflow:hidden; }
           .fsv-root.fsv-preview { box-shadow:none; margin:0; }
+          .fsv-page { height:297mm; overflow:hidden; }
           @page { size:A4; margin:0; }
         }
         .fsv-page { width:210mm; height:297mm; overflow:hidden; position:relative; background:#fff; }
@@ -198,7 +199,7 @@ export const VoucherPrintDocument: React.FC<{
 
       <div className="fsv-page">
         <div className={`fsv-watermark ${wm.cls}`}><span>{wm.text}</span></div>
-        <div ref={innerRef} className="fsv-fit" style={{ transform: `scale(${scale})` }}>
+        <div ref={innerRef} className="fsv-fit" style={{ zoom: scale, transformOrigin: 'top left' }}>
 
           <div className="fsv-vhead">
             <div className="fsv-sketch"><div className="fsv-arch"><img src={imgKaaba} alt="Kaaba Shareef" /></div><div className="fsv-under">Shirka: {(voucher as any).shirkaName || "—"}</div></div>

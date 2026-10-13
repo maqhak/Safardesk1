@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer, ShieldAlert } from 'lucide-react';
 import { VoucherDoc } from '../types/voucher';
 import { fetchVouchers } from '../services/voucherService';
+import { fetchVisas } from '../services/visaService';
+import { VoucherPrintDocument } from '../components/voucher/VoucherPrintDocument';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { Card } from '../components/ui/Card';
@@ -20,6 +22,7 @@ export const VoucherSharedView: React.FC = () => {
   const { userProfile, role } = useAuth();
   const { profile: company } = useCompany();
   const [voucher, setVoucher] = useState<VoucherDoc | null>(null);
+  const [groupCode, setGroupCode] = useState('');
   const [loading, setLoading] = useState(true);
   const [denied, setDenied] = useState(false);
 
@@ -34,6 +37,15 @@ export const VoucherSharedView: React.FC = () => {
           setDenied(true);
         } else {
           setVoucher(found);
+          try {
+            const visas = await fetchVisas();
+            const m = new Map<string, string>();
+            visas.forEach((v: any) => m.set(v.id, v.groupCode || ''));
+            for (const id of found.visaIds || []) {
+              const g = m.get(id);
+              if (g) { setGroupCode(g); break; }
+            }
+          } catch { /* group code is display-only */ }
         }
       } catch {
         setVoucher(null);
@@ -73,16 +85,23 @@ export const VoucherSharedView: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto py-6 px-4">
+    <div className="max-w-5xl mx-auto py-6 px-4">
       <div className="flex items-center justify-between mb-4 print:hidden">
         <Button variant="outline" size="sm" onClick={() => navigate(-1)} rightIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
           Back
         </Button>
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          <span>Official Voucher • Read-only shared link</span>
+        </div>
         <Button variant="primary" size="sm" onClick={() => window.print()} rightIcon={<Printer className="w-3.5 h-3.5" />}>
           Print Voucher
         </Button>
       </div>
 
+      {/* OFFICIAL voucher document (same F&S A4 design as print) */}
+      <VoucherPrintDocument voucher={voucher} company={company} groupCode={groupCode} theme="color" preview />
+
+      <div className="print:hidden mt-4">
       <Card className="p-6 sm:p-8">
         {/* Letterhead */}
         <div className="border-b-2 border-slate-900 pb-4 mb-5">
@@ -171,6 +190,7 @@ export const VoucherSharedView: React.FC = () => {
           {' '}• Read-only shared link — no changes can be made from this view.
         </p>
       </Card>
+      </div>
     </div>
   );
 };

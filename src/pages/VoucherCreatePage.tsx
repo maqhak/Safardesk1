@@ -224,6 +224,10 @@ export const VoucherCreatePage: React.FC = () => {
   const [vendorsMaster, setVendorsMaster] = useState<any[]>([]);
   const [hotelsMaster, setHotelsMaster] = useState<HotelDoc[]>([]);
 
+  // Hotel Name dropdown: rows switched to manual typing (hotel not in
+  // the Hotel Master) are tracked here so the text box stays visible.
+  const [manualHotelIds, setManualHotelIds] = useState<Set<string>>(new Set());
+
   // ---- Row 1: pax qty (readonly) | copy from ----
   const [copyFromId, setCopyFromId] = useState('');
 
@@ -959,8 +963,8 @@ export const VoucherCreatePage: React.FC = () => {
                   <thead>
                     <tr className="bg-slate-50 text-slate-600 uppercase text-[10px] tracking-wide">
                       <th className="text-left p-2 font-bold">Sector</th>
-                      <th className="text-left p-2 font-bold">H. Remarks</th>
                       <th className="text-left p-2 font-bold">Hotel</th>
+                      <th className="text-left p-2 font-bold">H. Remarks</th>
                       <th className="text-left p-2 font-bold">Room Type</th>
                       <th className="text-left p-2 font-bold">Check-In</th>
                       <th className="text-left p-2 font-bold">Nights</th>
@@ -981,29 +985,66 @@ export const VoucherCreatePage: React.FC = () => {
                           />
                         </td>
                         <td className="p-1.5">
-                          <input
-                            type="text" value={row.remarks}
-                            onChange={(e) => updateHotelRow(row.id, { remarks: e.target.value })}
-                            placeholder="Remarks" maxLength={100} className={`${inputCls} !p-1.5`}
-                          />
-                        </td>
-                        <td className="p-1.5">
-                          <input
-                            type="text" value={row.hotelName}
-                            list={`hotel-master-${row.id}`}
-                            onChange={(e) => updateHotelRow(row.id, { hotelName: e.target.value })}
-                            placeholder="Hotel name" className={`${inputCls} !p-1.5`}
-                          />
-                          <datalist id={`hotel-master-${row.id}`}>
-                            {hotelSuggestions.map((h) => (
-                              <option key={h.id} value={h.name}>{h.city || ''}</option>
-                            ))}
-                          </datalist>
+                          {!isAgent ? (
+                            <>
+                              <select
+                                value={manualHotelIds.has(row.id) ? '__manual__' : (hotelSuggestions.some((h) => h.name === row.hotelName) ? row.hotelName : (row.hotelName ? '__manual__' : ''))}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  if (v === '__manual__') {
+                                    setManualHotelIds((prev) => new Set(prev).add(row.id));
+                                  } else {
+                                    setManualHotelIds((prev) => { const n = new Set(prev); n.delete(row.id); return n; });
+                                    updateHotelRow(row.id, { hotelName: v });
+                                  }
+                                }}
+                                className={`${inputCls} !p-1.5`}
+                              >
+                                <option value="">-- Select Hotel --</option>
+                                <optgroup label="Makkah">
+                                  {hotelSuggestions.filter((h) => /makk|mecca/i.test(h.city || '')).map((h) => (
+                                    <option key={h.id} value={h.name}>{h.name}</option>
+                                  ))}
+                                </optgroup>
+                                <optgroup label="Madina">
+                                  {hotelSuggestions.filter((h) => /madin|medina|madinah/i.test(h.city || '')).map((h) => (
+                                    <option key={h.id} value={h.name}>{h.name}</option>
+                                  ))}
+                                </optgroup>
+                                <optgroup label="Other">
+                                  {hotelSuggestions.filter((h) => !/makk|mecca|madin|medina|madinah/i.test(h.city || '')).map((h) => (
+                                    <option key={h.id} value={h.name}>{h.name}{h.city ? ` (${h.city})` : ''}</option>
+                                  ))}
+                                </optgroup>
+                                <option value="__manual__">✏️ Other — type manually</option>
+                              </select>
+                              {(manualHotelIds.has(row.id) || (row.hotelName && !hotelSuggestions.some((h) => h.name === row.hotelName))) && (
+                                <input
+                                  type="text" value={row.hotelName}
+                                  onChange={(e) => updateHotelRow(row.id, { hotelName: e.target.value })}
+                                  placeholder="Type hotel name" className={`${inputCls} !p-1.5 mt-1`}
+                                />
+                              )}
+                            </>
+                          ) : (
+                            <input
+                              type="text" value={row.hotelName}
+                              onChange={(e) => updateHotelRow(row.id, { hotelName: e.target.value })}
+                              placeholder="Hotel name" className={`${inputCls} !p-1.5`}
+                            />
+                          )}
                           <datalist id="hotel-sector-list">
                             {HOTEL_SECTOR_OPTIONS.map((o) => (
                               <option key={o.value} value={o.value}>{o.label}</option>
                             ))}
                           </datalist>
+                        </td>
+                        <td className="p-1.5">
+                          <input
+                            type="text" value={row.remarks}
+                            onChange={(e) => updateHotelRow(row.id, { remarks: e.target.value })}
+                            placeholder="Remarks" maxLength={100} className={`${inputCls} !p-1.5`}
+                          />
                         </td>
                         <td className="p-1.5">
                           <select value={row.roomType} onChange={(e) => updateHotelRow(row.id, { roomType: e.target.value })} className={`${inputCls} !p-1.5`}>
