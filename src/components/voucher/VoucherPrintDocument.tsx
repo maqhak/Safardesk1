@@ -160,13 +160,13 @@ export const VoucherPrintDocument: React.FC<{
         .fsv-watermark.ok span { color:#15803d; }
         .fsv-watermark.no span { color:#b91c1c; }
         .fsv-fit { width:210mm; transform-origin:top left; position:relative; padding:7mm 8mm; display:flex; flex-direction:column; box-sizing:border-box; min-height:297mm; }
-        .fsv-fit > * { flex-shrink:0; }
+        .fsv-fit > * { flex-shrink:0; min-width:0; }
         .fsv-vhead { display:flex; align-items:stretch; justify-content:space-between; gap:4mm; }
         .fsv-sketch { width:44mm; }
         .fsv-sketch .fsv-arch { width:44mm; height:30mm; overflow:hidden; border:1.2mm solid var(--fsv-acc); border-radius:22mm 22mm 3mm 3mm; background:#eee; }
         .fsv-sketch img { width:100%; height:100%; object-fit:cover; display:block; filter:var(--fsv-imgf); }
         .fsv-under { text-align:center; font-size:3.2mm; font-weight:bold; margin-top:1.5mm; }
-        .fsv-brand { flex:1; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+        .fsv-brand { flex:1; min-width:0; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; }
         .fsv-mono { width:26mm; height:26mm; border:1mm solid var(--fsv-acc); border-radius:50%; display:flex; align-items:center; justify-content:center; position:relative; margin-bottom:1.5mm; }
         .fsv-mono::after { content:""; position:absolute; inset:1.6mm; border:.5mm solid var(--fsv-acc); border-radius:50%; }
         .fsv-mono b { font-family:Georgia,serif; font-size:8mm; letter-spacing:.5mm; color:var(--fsv-pri); }
@@ -178,14 +178,14 @@ export const VoucherPrintDocument: React.FC<{
         .fsv-ribbon::before { left:14mm; } .fsv-ribbon::after { right:14mm; }
         .fsv-ribbon h2 { font-family:Georgia,serif; font-size:5.4mm; letter-spacing:2.6mm; font-weight:normal; }
         .fsv-metabar { display:flex; border:.45mm solid var(--fsv-pri); border-top:none; font-size:3mm; }
-        .fsv-metabar>div { flex:1; padding:1.6mm 3mm; display:flex; align-items:center; gap:2.5mm; }
+        .fsv-metabar>div { flex:1; min-width:0; padding:1.6mm 3mm; display:flex; align-items:center; gap:2.5mm; }
         .fsv-metabar>div+div { border-left:.45mm solid var(--fsv-pri); }
         .fsv-metabar .fsv-lbl { font-size:2.4mm; color:#555; letter-spacing:.6mm; }
         .fsv-metabar .fsv-val { font-weight:bold; font-size:3.4mm; }
         .fsv-counts { display:flex; border:.45mm solid var(--fsv-pri); border-top:none; }
-        .fsv-counts .fsv-grp { display:flex; flex:1; }
+        .fsv-counts .fsv-grp { display:flex; flex:1; min-width:0; }
         .fsv-counts .fsv-grp+.fsv-grp { border-left:.45mm solid var(--fsv-pri); }
-        .fsv-c { flex:1; text-align:center; padding:1.5mm 1mm; }
+        .fsv-c { flex:1; min-width:0; text-align:center; padding:1.5mm 1mm; }
         .fsv-c+.fsv-c { border-left:.25mm solid #999; }
         .fsv-c .fsv-k { font-size:2.3mm; color:#555; letter-spacing:.5mm; }
         .fsv-c .fsv-v { font-size:3.6mm; font-weight:bold; margin-top:.6mm; }
@@ -215,7 +215,7 @@ export const VoucherPrintDocument: React.FC<{
         .fsv-cols2 { display:flex; gap:3mm; }
         .fsv-cols2>.fsv-half { flex:1; min-width:0; }
         .fsv-mutwrap { display:flex; gap:3mm; }
-        .fsv-mutwrap table { flex:1; }
+        .fsv-mutwrap table { flex:1; min-width:0; }
         table.fsv-vt.fsv-mut td, table.fsv-vt.fsv-mut th { padding:.95mm 1.2mm; }
         table.fsv-vt.fsv-mut td { font-size:2.85mm; }
         table.fsv-vt.fsv-mut .fsv-nm { font-weight:bold; }
@@ -232,7 +232,7 @@ export const VoucherPrintDocument: React.FC<{
         .fsv-qrbox { border:.6mm dashed #555; margin:2mm; min-height:24mm; display:flex; flex:1; flex-direction:column; align-items:center; justify-content:center; gap:1.5mm; color:#555; padding:2mm; }
         .fsv-qrbox span { font-size:2.5mm; font-weight:bold; letter-spacing:.4mm; }
         .fsv-contact { display:flex; border:.45mm solid var(--fsv-pri); margin-top:2.4mm; }
-        .fsv-contact>div { flex:1; padding:1.8mm 3mm; display:flex; align-items:center; gap:2.5mm; font-size:3mm; }
+        .fsv-contact>div { flex:1; min-width:0; padding:1.8mm 3mm; display:flex; align-items:center; gap:2.5mm; font-size:3mm; }
         .fsv-contact>div+div { border-left:.45mm solid var(--fsv-pri); }
         .fsv-contact .fsv-k { font-size:2.4mm; color:#555; letter-spacing:.5mm; }
         .fsv-contact .fsv-v { font-weight:bold; font-size:3.3mm; }

@@ -7,6 +7,7 @@ import {
 } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { TicketDoc } from '../types/ticket';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 import { UserProfile } from '../types/auth';
 import { LedgerEntryDoc } from '../types/agent';
 import { logAuditEvent } from './userService';
@@ -50,24 +51,33 @@ const INITIAL_TICKETS: TicketDoc[] = [
 ];
 
 export async function fetchTickets(): Promise<TicketDoc[]> {
+  let firestoreTickets: TicketDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, TICKETS_COLLECTION));
-      return snap.docs.map((d) => d.data() as TicketDoc);
+      firestoreTickets = snap.docs.map((d) => {
+        const data = d.data() as TicketDoc;
+        return { ...data, id: data.id || d.id };
+      });
     }
   } catch (err) {
     console.warn('Could not read tickets from Firestore:', err);
   }
 
+  // Merge local-only tickets (e.g. saved before the Firestore fix) — Firestore wins on conflict.
+  let localTickets: TicketDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_TICKETS_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      localTickets = JSON.parse(stored);
     } catch {
-      // fallback
+      localTickets = [];
     }
   }
-  return [];
+  const byId = new Map<string, TicketDoc>();
+  for (const tk of localTickets) if (tk?.id) byId.set(tk.id, tk);
+  for (const tk of firestoreTickets) if (tk?.id) byId.set(tk.id, tk);
+  return Array.from(byId.values());
 }
 
 function findBuyerAccount(accounts: any[], buyerId: string): any | undefined {
@@ -143,16 +153,18 @@ export async function createTicket(
     createdByName: actor.name || actor.email,
   };
 
-  try {
-    if (!isConfigPlaceholder) {
-      await setDoc(doc(db, TICKETS_COLLECTION, ticketId), newTicket);
+  if (!isConfigPlaceholder) {
+    try {
+      await setDoc(doc(db, TICKETS_COLLECTION, ticketId), stripUndefinedDeep(newTicket));
+    } catch (err) {
+      // No false success: if Firestore rejects it, the sale must not look saved.
+      throw new Error('Ticket could not be saved to Firebase. Please try again.');
     }
-  } catch (err) {
-    console.warn('Firestore write failed for ticket:', err);
   }
 
   const existing = await fetchTickets();
-  localStorage.setItem(LOCAL_STORAGE_TICKETS_KEY, JSON.stringify([newTicket, ...existing]));
+  const merged = [newTicket, ...existing.filter((tk) => tk.id !== ticketId)];
+  localStorage.setItem(LOCAL_STORAGE_TICKETS_KEY, JSON.stringify(merged));
 
   await postTicketSaleToLedger(actor, newTicket);
 
@@ -170,10 +182,20 @@ export async function createTicket(
   return newTicket;
 }
 
+export interface TicketRefundDetails {
+  reason: string;
+  refundDate?: string;
+  refundStatus?: string;
+  refundPenaltySAR?: number;
+  refundAirlineReceivableSAR?: number;
+  refundCustomerPayableSAR?: number;
+  refundNote?: string;
+}
+
 export async function refundTicket(
   actor: UserProfile,
   ticketId: string,
-  refundReason: string
+  details: TicketRefundDetails
 ): Promise<TicketDoc> {
   const tickets = await fetchTickets();
   const index = tickets.findIndex((t) => t.id === ticketId);
@@ -181,26 +203,45 @@ export async function refundTicket(
     throw new Error('Ticket not found');
   }
 
+  const now = new Date().toISOString();
   const updated: TicketDoc = {
     ...tickets[index],
     status: 'Refunded',
-    updatedAt: new Date().toISOString(),
+    updatedAt: now,
+    refundedAt: now,
+    refundedBy: actor.name || actor.email,
+    refundDate: details.refundDate,
+    refundStatus: details.refundStatus,
+    refundPenaltySAR: details.refundPenaltySAR ?? 0,
+    refundAirlineReceivableSAR: details.refundAirlineReceivableSAR,
+    refundCustomerPayableSAR: details.refundCustomerPayableSAR,
+    refundNote: details.refundNote || details.reason,
   };
 
   tickets[index] = updated;
   localStorage.setItem(LOCAL_STORAGE_TICKETS_KEY, JSON.stringify(tickets));
 
-  await postTicketRefundReversal(actor, updated, refundReason);
+  await postTicketRefundReversal(actor, updated, details.reason);
 
-  try {
-    if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, TICKETS_COLLECTION, ticketId), {
+  if (!isConfigPlaceholder) {
+    try {
+      await updateDoc(doc(db, TICKETS_COLLECTION, ticketId), stripUndefinedDeep({
         status: 'Refunded',
-        updatedAt: updated.updatedAt,
-      });
+        updatedAt: now,
+        refundedAt: now,
+        refundedBy: actor.name || actor.email,
+        refundDate: details.refundDate || null,
+        refundStatus: details.refundStatus || null,
+        refundPenaltySAR: details.refundPenaltySAR ?? 0,
+        refundAirlineReceivableSAR: details.refundAirlineReceivableSAR ?? null,
+        refundCustomerPayableSAR: details.refundCustomerPayableSAR ?? null,
+        refundNote: details.refundNote || details.reason,
+      }));
+    } catch (err) {
+      // No false success: surface the real error. Next fetchTickets() merge
+      // lets Firestore (still Issued) win over the local Refunded copy.
+      throw new Error('Ticket refund could not be saved to Firebase. Please try again.');
     }
-  } catch (err) {
-    console.warn('Could not update refunded ticket in Firestore:', err);
   }
 
   await logAuditEvent({
@@ -211,7 +252,7 @@ export async function refundTicket(
     userRole: actor.role,
     targetUserId: ticketId,
     targetUserName: updated.pnr,
-    details: { refundReason },
+    details: { reason: details.reason, refundPenaltySAR: details.refundPenaltySAR ?? 0 },
   });
 
   return updated;
