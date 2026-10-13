@@ -97,6 +97,14 @@ export const VoucherPrintDocument: React.FC<{
     : voucher.voucherNo;
   const brandShort = (company.companyName || 'S').split(/\s+/).filter(w => /[a-zA-Z]/.test(w[0] || '')).map(w => w[0]).join('').slice(0, 3).toUpperCase();
 
+  // Status watermark (locked spec): Confirmed -> green APPROVED,
+  // Draft/Pending -> red NOT APPROVED, Cancelled -> CANCELLED
+  const wm = voucher.status === 'Confirmed'
+    ? { cls: 'ok', text: 'APPROVED' }
+    : voucher.status === 'Cancelled'
+    ? { cls: 'no', text: 'CANCELLED' }
+    : { cls: 'no', text: 'NOT APPROVED' };
+
   const isColor = theme === 'color';
   const cssVars: React.CSSProperties = {
     '--fsv-pri': isColor ? '#0e2a5c' : '#111',
