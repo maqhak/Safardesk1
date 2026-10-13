@@ -1244,82 +1244,194 @@ function fmtBalCrDr(n: number): string {
  */
 export function exportLedgerToPDF(statement: LedgerStatementSummary, companyName: string, companyCity?: string): void {
   const c = statement.currency;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageW = 210;
+  const NAVY: [number, number, number] = [14, 44, 76];
+  const GOLD: [number, number, number] = [201, 162, 39];
+  const DARK: [number, number, number] = [30, 41, 59];
+  const GREY: [number, number, number] = [100, 116, 139];
 
-  // Centered header like the sample
-  doc.setTextColor(20, 20, 20);
+  // Landscape A4 — same breathing room as the printed statement
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const pageW = 297;
+  const pageH = 210;
+  const margin = 12;
+  const printDate = new Date().toLocaleDateString('en-GB');
+
+  const money = (n: number) => n !== 0 ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
+  const moneyBlank = (n: number) => n !== 0 ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+
+  // ---- Header (matches the print view) ----
+  doc.setTextColor(...NAVY);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text(companyName, pageW / 2, 14, { align: 'center' });
-  doc.setFontSize(9);
+  doc.setFontSize(17);
+  doc.text(companyName.toUpperCase(), margin, 14);
+
+  // Gold accent line under company name
+  doc.setFillColor(...GOLD);
+  doc.rect(margin, 16.5, 40, 1, 'F');
+
+  doc.setTextColor(...DARK);
   doc.setFont('helvetica', 'normal');
-  if (companyCity) doc.text(`${companyCity} Office`, pageW / 2, 19, { align: 'center' });
-  const periodLine = statement.startDate && statement.endDate
-    ? `From ${fmtDateDMY(statement.startDate)} TO ${fmtDateDMY(statement.endDate)}`
-    : statement.periodLabel;
-  doc.setFontSize(8.5);
-  doc.text(periodLine, pageW / 2, companyCity ? 23.5 : 20, { align: 'center' });
+  doc.setFontSize(8);
+  if (companyCity) doc.text(`${companyCity} Office`, margin, 21);
 
-  // Account name, left, bold (like "LEADING TRAVEL & TOURS")
+  // Right block: STATEMENT OF ACCOUNT badge
+  const badgeText = 'STATEMENT OF ACCOUNT';
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  const accY = companyCity ? 29 : 26;
-  doc.text(statement.account.title.toUpperCase(), 10, accY);
+  const badgeW = doc.getTextWidth(badgeText) + 8;
+  doc.setFillColor(...NAVY);
+  doc.rect(pageW - margin - badgeW, 7, badgeW, 7, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.text(badgeText, pageW - margin - badgeW / 2, 12, { align: 'center' });
 
-  const money = (n: number) => n > 0 ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+  doc.setTextColor(...GREY);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`Currency: ${c}`, pageW - margin, 18, { align: 'right' });
+  doc.text(`Print Date: ${printDate}`, pageW - margin, 22.5, { align: 'right' });
+
+  // ---- Account info block (like print) ----
+  const infoY = 28;
+  doc.setDrawColor(203, 213, 225);
+  doc.line(margin, infoY, pageW - margin, infoY);
+
+  doc.setTextColor(...GREY);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.text('ACCOUNT TITLE & CODE', margin, infoY + 4.5);
+  doc.text('STATEMENT PERIOD', pageW - margin, infoY + 4.5, { align: 'right' });
+
+  doc.setTextColor(...DARK);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text(`${statement.account.title} (${statement.account.accountCode})`, margin, infoY + 10);
+  doc.setFontSize(9);
+  doc.text(statement.periodLabel || 'All Time', pageW - margin, infoY + 10, { align: 'right' });
+
+  doc.setTextColor(...GREY);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`Type: ${statement.account.accountType}`, margin, infoY + 14.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...NAVY);
+  doc.text(
+    `Closing Balance: ${c} ${money(statement.closingBalance)}`,
+    pageW - margin, infoY + 14.5, { align: 'right' }
+  );
+
+  // ---- Table (same columns as print) ----
+  const showRate = c === 'PKR';
+  const headRow = ['DATE', 'TYPE', 'TRANS.#', 'PARTICULARS', 'INV-REF'];
+  if (showRate) headRow.push('RATE');
+  headRow.push(`DEBIT (${c})`, `CREDIT (${c})`, `BALANCE (${c})`);
 
   const body: string[][] = [];
   // Opening balance row
-  body.push([
-    '', '', '', 'Previous Balance (B/F)', '', '', '',
-    '', '',
-    fmtBalCrDr(statement.previousBalance),
-  ]);
-  statement.rows.forEach((r, i) => {
+  const openingRow = [statement.startDate || '—', 'Opening', '—', 'Previous Balance (B/F)', '—'];
+  if (showRate) openingRow.push('—');
+  openingRow.push('0.00', '0.00', money(statement.previousBalance));
+  body.push(openingRow);
+
+  statement.rows.forEach((r) => {
     const e = r.entry;
-    const s = toSampleLedgerRow(e.particulars, e.invoiceRef, e.transNo, (e as any).voucherNo);
-    const debit = c === 'SAR' ? e.debitSAR : e.debitPKR;
-    const credit = c === 'SAR' ? e.creditSAR : e.creditPKR;
-    body.push([
-      String(i + 1),
+    const debit = c === 'SAR' ? e.debitSAR : c === 'PKR' ? e.debitPKR : (e.debitSAR || 0) / 3.75;
+    const credit = c === 'SAR' ? e.creditSAR : c === 'PKR' ? e.creditPKR : (e.creditSAR || 0) / 3.75;
+    const row = [
       fmtDateDMY(e.date),
-      s.invVou,
-      s.description + (e.isVoid ? ' (VOIDED)' : ''),
-      s.pnr,
-      s.ticketNo,
-      s.sector,
-      money(debit),
-      money(credit),
-      fmtBalCrDr(r.runningBalance),
-    ]);
+      e.entryType || '',
+      e.transNo || '',
+      e.particulars + (e.isVoid ? ' (VOIDED)' : ''),
+      e.invoiceRef || '—',
+    ];
+    if (showRate) row.push(e.rate ? e.rate.toFixed(2) : '—');
+    row.push(moneyBlank(debit || 0), moneyBlank(credit || 0), money(r.runningBalance));
+    body.push(row);
   });
 
+  // Column widths (landscape A4 usable width = 273mm)
+  const colStyles: Record<number, any> = {
+    0: { cellWidth: 22 },
+    1: { cellWidth: 20 },
+    2: { cellWidth: 24 },
+    3: { cellWidth: 'auto' },
+    4: { cellWidth: 24 },
+  };
+  let idx = 5;
+  if (showRate) {
+    colStyles[idx] = { cellWidth: 16, halign: 'right' };
+    idx += 1;
+  }
+  colStyles[idx] = { cellWidth: 28, halign: 'right' };
+  colStyles[idx + 1] = { cellWidth: 28, halign: 'right' };
+  colStyles[idx + 2] = { cellWidth: 30, halign: 'right' };
+
   autoTable(doc, {
-    startY: accY + 3,
-    head: [['S#', 'DATE', 'INV/VOU', 'DESCRIPTION', 'PNR', 'TICKET #', 'SECTOR', 'DEBIT', 'CREDIT', 'BALANCE']],
+    startY: infoY + 19,
+    head: [headRow],
     body,
     theme: 'grid',
-    styles: { fontSize: 7, cellPadding: 1.1, lineWidth: 0.1, textColor: [20, 20, 20] },
-    headStyles: { fillColor: [255, 255, 255], textColor: [20, 20, 20], fontStyle: 'bold', fontSize: 7 },
-    columnStyles: {
-      0: { cellWidth: 8, halign: 'center' },
-      1: { cellWidth: 17 },
-      2: { cellWidth: 17 },
-      3: { cellWidth: 'auto' },
-      4: { cellWidth: 19 },
-      5: { cellWidth: 24 },
-      6: { cellWidth: 20 },
-      7: { cellWidth: 17, halign: 'right' },
-      8: { cellWidth: 17, halign: 'right' },
-      9: { cellWidth: 24, halign: 'right' },
+    styles: {
+      font: 'helvetica',
+      fontSize: 8,
+      cellPadding: 1.8,
+      lineWidth: 0.1,
+      lineColor: [203, 213, 225],
+      textColor: DARK,
+      valign: 'middle',
     },
+    headStyles: {
+      fillColor: NAVY,
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 8,
+    },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: colStyles,
+    // Opening row: amber tint like print
+    didParseCell: (data: any) => {
+      if (data.row.index === 0 && data.section === 'body') {
+        data.cell.styles.fillColor = [255, 251, 235];
+        data.cell.styles.fontStyle = 'bold';
+      }
+    },
+    // Footer on every page: page number + totals on last page
     didDrawPage: (d: any) => {
-      doc.setFontSize(7);
-      doc.setTextColor(120, 120, 120);
-      doc.text(`Page ${d.pageNumber}`, pageW - 10, 292, { align: 'right' });
+      doc.setFontSize(7.5);
+      doc.setTextColor(...GREY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(
+        `${companyName} — Statement of Account — ${statement.account.title} (${statement.account.accountCode})`,
+        margin, pageH - 8
+      );
+      doc.text(`Page ${d.pageNumber} of ${d.pageCount || ''}`, pageW - margin, pageH - 8, { align: 'right' });
     },
   });
+
+  // ---- Totals footer (after table, on the last page) ----
+  const afterY = (doc as any).lastAutoTable.finalY + 6;
+  doc.setDrawColor(...NAVY);
+  doc.setLineWidth(0.4);
+  doc.line(margin, afterY, pageW - margin, afterY);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(...DARK);
+  doc.text('PERIOD TOTALS', margin, afterY + 5.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.text(`Total Debit: ${c} ${money(statement.totalDebit)}`, margin, afterY + 10.5);
+  doc.text(`Total Credit: ${c} ${money(statement.totalCredit)}`, margin + 70, afterY + 10.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...NAVY);
+  doc.text(`Closing Balance: ${c} ${money(statement.closingBalance)}`, pageW - margin, afterY + 10.5, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...GREY);
+  doc.text(
+    `Total Mofa PAX: ${statement.totalMofaPax || 0}    Total Hotel PAX: ${statement.totalHotelPax || 0}`,
+    margin, afterY + 15.5
+  );
 
   doc.save(ledgerDownloadName(statement, 'pdf'));
 }
