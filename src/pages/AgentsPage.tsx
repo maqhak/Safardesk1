@@ -59,7 +59,8 @@ import {
   resetAgentPasswordByOwner, 
   getAgentBalance,
   generateNextAgentCode,
-  repairMissingAgentLedgers
+  repairMissingAgentLedgers,
+  getAgentIdentityIds
 } from '../services/agentService';
 import { TENANT } from '../config';
 import { getCurrentRate } from '../services/exchangeRateService';
@@ -342,12 +343,14 @@ Please keep these credentials safe and change password after first login.`;
       ]);
       const acc = accounts.find((a) => a.linkedAgentId === agent.id);
       const accId = acc?.id || null;
+      // Invoices store the LEDGER account ID, not the agent master ID — match any identity.
+      const invoiceMatchIds = await getAgentIdentityIds(agent.id).catch(() => [agent.id]);
       setProfileTimeline({
         accountId: accId,
         vouchers: vouchers.filter((v: any) => v.agentId === agent.id),
         tickets: tickets.filter((t: any) => t.buyerId === agent.id),
         jvs: accId ? jvs.filter((jv: any) => (jv.lines || []).some((l: any) => l.accountId === accId)) : [],
-        invoices: invoices.filter((inv: any) => inv.agentId === agent.id),
+        invoices: invoices.filter((inv: any) => invoiceMatchIds.includes(inv.agentId)),
         payments: accId ? payments.filter((p: any) => p.fromAccountId === accId || p.toAccountId === accId) : [],
         entries: accId ? entries.filter((e: any) => e.accountId === accId) : [],
       });

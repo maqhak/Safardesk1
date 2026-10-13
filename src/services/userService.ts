@@ -17,6 +17,7 @@ import { db, handleFirestoreError, OperationType, isConfigPlaceholder } from './
 import { firebaseConfig } from '../config';
 import { UserDoc, UserProfile, UserRole, StaffPermissions, AuditLogEntry } from '../types/auth';
 import { createDefaultPermissions } from '../utils/permissions';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 
 const USERS_COLLECTION = 'users';
 const AUDIT_COLLECTION = 'auditLog';
@@ -110,10 +111,10 @@ export async function logAuditEvent(entry: Omit<AuditLogEntry, 'timestamp'>): Pr
 
   try {
     if (!isConfigPlaceholder) {
-      await addDoc(collection(db, AUDIT_COLLECTION), {
+      await addDoc(collection(db, AUDIT_COLLECTION), stripUndefinedDeep({
         ...auditData,
         serverCreatedAt: serverTimestamp(),
-      });
+      }));
     }
   } catch (err) {
     console.warn('Could not write to auditLog collection:', err);
@@ -131,25 +132,33 @@ export async function logAuditEvent(entry: Omit<AuditLogEntry, 'timestamp'>): Pr
 export async function fetchAllUsers(): Promise<UserDoc[]> {
   // Firestore is the source of truth when configured — empty means empty (fresh tenant,
   // so the AuthContext bootstrap correctly assigns 'owner' to the very first user).
+  let firestoreUsers: UserDoc[] = [];
   if (!isConfigPlaceholder) {
     try {
       const snap = await getDocs(collection(db, USERS_COLLECTION));
-      return snap.docs.map((d) => d.data() as UserDoc);
+      firestoreUsers = snap.docs.map((d) => {
+        const data = d.data() as UserDoc;
+        return { ...data, uid: (data as any).uid || d.id };
+      });
     } catch (err) {
       console.warn('Error reading users from Firestore:', err);
     }
   }
 
-  // Fallback to localStorage cache (offline / unconfigured backend)
+  // Merge local-only users (offline / unconfigured backend) — Firestore wins on uid conflict.
+  let localUsers: UserDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_USERS_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      localUsers = JSON.parse(stored);
     } catch {
-      // ignore
+      localUsers = [];
     }
   }
-  return [];
+  const byUid = new Map<string, UserDoc>();
+  for (const u of localUsers) if ((u as any)?.uid) byUid.set((u as any).uid, u);
+  for (const u of firestoreUsers) if ((u as any)?.uid) byUid.set((u as any).uid, u);
+  return Array.from(byUid.values());
 }
 
 /**
@@ -234,7 +243,7 @@ export async function createStaffMember(
   // Write to Firestore users/{uid}
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, USERS_COLLECTION, newUser.uid), newUser);
+      await setDoc(doc(db, USERS_COLLECTION, newUser.uid), stripUndefinedDeep(newUser));
     }
   } catch (err) {
     console.warn('Could not write new user doc to Firestore:', err);
@@ -291,10 +300,10 @@ export async function updateStaffPermissions(
   // Update Firestore
   try {
     if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, USERS_COLLECTION, targetUserId), {
+      await updateDoc(doc(db, USERS_COLLECTION, targetUserId), stripUndefinedDeep({
         permissions: newPermissions,
         updatedAt: new Date().toISOString(),
-      });
+      }));
     }
   } catch (err) {
     console.warn('Could not update permissions in Firestore:', err);
@@ -352,10 +361,10 @@ export async function toggleUserActiveStatus(
   // Update in Firestore
   try {
     if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, USERS_COLLECTION, targetUserId), {
+      await updateDoc(doc(db, USERS_COLLECTION, targetUserId), stripUndefinedDeep({
         isActive: newActiveState,
         updatedAt: new Date().toISOString(),
-      });
+      }));
     }
   } catch (err) {
     console.warn('Could not update user active status in Firestore:', err);
@@ -421,10 +430,10 @@ export async function resetUserPasswordByOwner(
   // In Firestore, save a temporary credentials note / timestamp
   try {
     if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, USERS_COLLECTION, targetUserId), {
+      await updateDoc(doc(db, USERS_COLLECTION, targetUserId), stripUndefinedDeep({
         temporaryPasswordIssuedAt: new Date().toISOString(),
         mustChangePasswordOnLogin: true,
-      });
+      }));
     }
   } catch (err) {
     console.warn('Could not mark temporary password flag in Firestore:', err);
@@ -490,10 +499,10 @@ export async function uploadProfilePicture(uid: string, file: File): Promise<str
 export async function saveProfilePictureUrl(uid: string, photoURL: string): Promise<void> {
   const { updateDoc: _updateDoc, doc: _doc } = await import('firebase/firestore');
   const { db: _db } = await import('./firebase');
-  await _updateDoc(_doc(_db, 'users', uid), {
+  await _updateDoc(_doc(_db, 'users', uid), stripUndefinedDeep({
     photoURL,
     updatedAt: new Date().toISOString(),
-  });
+  }));
 }
 
 /**
@@ -502,10 +511,10 @@ export async function saveProfilePictureUrl(uid: string, photoURL: string): Prom
 export async function removeProfilePicture(uid: string): Promise<void> {
   const { updateDoc: _updateDoc, doc: _doc } = await import('firebase/firestore');
   const { db: _db } = await import('./firebase');
-  await _updateDoc(_doc(_db, 'users', uid), {
+  await _updateDoc(_doc(_db, 'users', uid), stripUndefinedDeep({
     photoURL: '',
     updatedAt: new Date().toISOString(),
-  });
+  }));
 }
 
 /**
@@ -517,10 +526,10 @@ export async function updateUserProfile(
 ): Promise<void> {
   const { updateDoc: _updateDoc, doc: _doc } = await import('firebase/firestore');
   const { db: _db } = await import('./firebase');
-  await _updateDoc(_doc(_db, 'users', uid), {
+  await _updateDoc(_doc(_db, 'users', uid), stripUndefinedDeep({
     ...data,
     updatedAt: new Date().toISOString(),
-  });
+  }));
 }
 
 /**

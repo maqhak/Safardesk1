@@ -6,6 +6,7 @@ import {
   updateDoc 
 } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 import { ExchangeRateDoc } from '../types/finance';
 import { UserProfile } from '../types/auth';
 import { logAuditEvent } from './userService';
@@ -44,24 +45,33 @@ const INITIAL_RATES: ExchangeRateDoc[] = [
 ];
 
 export async function fetchExchangeRates(): Promise<ExchangeRateDoc[]> {
+  let firestoreRates: ExchangeRateDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, EXCHANGE_RATES_COLLECTION));
-      return snap.docs.map((d) => d.data() as ExchangeRateDoc);
+      firestoreRates = snap.docs.map((d) => {
+        const data = d.data() as ExchangeRateDoc;
+        return { ...data, id: (data as any).id || d.id };
+      });
     }
   } catch (err) {
     console.warn('Could not read exchange rates from Firestore:', err);
   }
 
+  // Merge local-only rates (e.g. saved before a Firestore sync) — Firestore wins on conflict.
+  let localRates: ExchangeRateDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_RATES_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      localRates = JSON.parse(stored);
     } catch {
-      // fallback
+      localRates = [];
     }
   }
-  return [];
+  const byId = new Map<string, ExchangeRateDoc>();
+  for (const r of localRates) if (r?.id) byId.set(r.id, r);
+  for (const r of firestoreRates) if (r?.id) byId.set(r.id, r);
+  return Array.from(byId.values());
 }
 
 export async function createExchangeRate(
@@ -93,7 +103,7 @@ export async function createExchangeRate(
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, EXCHANGE_RATES_COLLECTION, rateId), newRate);
+      await setDoc(doc(db, EXCHANGE_RATES_COLLECTION, rateId), stripUndefinedDeep(newRate));
     }
   } catch (err) {
     console.warn('Firestore write failed for exchange rate:', err);

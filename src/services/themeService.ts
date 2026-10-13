@@ -10,6 +10,7 @@
 
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 
 const SETTINGS_COLLECTION = 'settings';
 const THEME_DOC = 'theme';
@@ -155,7 +156,7 @@ export async function saveTheme(actorUid: string, theme: Partial<ThemeConfig>): 
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, SETTINGS_COLLECTION, THEME_DOC), payload, { merge: true });
+      await setDoc(doc(db, SETTINGS_COLLECTION, THEME_DOC), stripUndefinedDeep(payload), { merge: true });
     }
   } catch (err) {
     console.error('Could not save theme to Firestore:', err);

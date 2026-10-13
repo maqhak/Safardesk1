@@ -3,6 +3,7 @@ import {
   AiVerificationResult 
 } from '../types/payment';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 import { db, auth, storage, isConfigPlaceholder } from './firebase';
 import { GoogleAuthProvider, signInWithPopup, User } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -95,7 +96,7 @@ export async function connectGoogleDrive(currentUser?: { name?: string; email?: 
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, INTEGRATIONS_DOC_PATH), integrationDoc);
+      await setDoc(doc(db, INTEGRATIONS_DOC_PATH), stripUndefinedDeep(integrationDoc));
     }
   } catch (err) {
     console.warn('Could not save settings/integrations in Firestore:', err);
@@ -152,7 +153,7 @@ async function touchDriveAuthAt(): Promise<void> {
     if (!isConfigPlaceholder) {
       const snap = await getDoc(doc(db, INTEGRATIONS_DOC_PATH));
       if (snap.exists()) {
-        await setDoc(doc(db, INTEGRATIONS_DOC_PATH), { lastAuthAt: at, updatedAt: at }, { merge: true } as any);
+        await setDoc(doc(db, INTEGRATIONS_DOC_PATH), stripUndefinedDeep({ lastAuthAt: at, updatedAt: at }), { merge: true } as any);
       }
     }
   } catch { /* non-fatal */ }
@@ -243,7 +244,7 @@ export async function disconnectGoogleDrive(): Promise<void> {
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, INTEGRATIONS_DOC_PATH), disconnected);
+      await setDoc(doc(db, INTEGRATIONS_DOC_PATH), stripUndefinedDeep(disconnected));
     }
   } catch (err) {
     console.warn('Could not update settings/integrations:', err);
@@ -452,7 +453,7 @@ export async function saveGeminiApiKey(apiKey: string): Promise<void> {
   localStorage.setItem(LOCAL_STORAGE_INTEGRATION_KEY, JSON.stringify(updated));
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, INTEGRATIONS_DOC_PATH), updated);
+      await setDoc(doc(db, INTEGRATIONS_DOC_PATH), stripUndefinedDeep(updated));
     }
   } catch (err) {
     console.warn('Could not save Gemini key to Firestore:', err);
@@ -465,7 +466,7 @@ export async function clearGeminiApiKey(): Promise<void> {
   localStorage.setItem(LOCAL_STORAGE_INTEGRATION_KEY, JSON.stringify(updated));
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, INTEGRATIONS_DOC_PATH), updated);
+      await setDoc(doc(db, INTEGRATIONS_DOC_PATH), stripUndefinedDeep(updated));
     }
   } catch (err) {
     console.warn('Could not clear Gemini key in Firestore:', err);

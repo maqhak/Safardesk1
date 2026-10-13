@@ -2,6 +2,7 @@ import { UserProfile } from '../types/auth';
 import { logAuditEvent } from './userService';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 
 const LOCAL_STORAGE_RATES_KEY = 'safardesk_exchange_rates_master_v2';
 const SETTINGS_COLLECTION = 'settings';
@@ -88,7 +89,7 @@ export async function updateExchangeRate(
     if (!isConfigPlaceholder) {
       await setDoc(
         doc(db, SETTINGS_COLLECTION, RATES_DOC),
-        { rates, updatedAt: new Date().toISOString(), updatedBy: actor.uid },
+        stripUndefinedDeep({ rates, updatedAt: new Date().toISOString(), updatedBy: actor.uid }),
         { merge: true }
       );
     }

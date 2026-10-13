@@ -9,6 +9,7 @@ import { db, isConfigPlaceholder } from './firebase';
 import { CompanyProfile, NumberSequenceType, SequenceCounters } from '../types/company';
 import { UserProfile } from '../types/auth';
 import { logAuditEvent } from './userService';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 import { TENANT } from '../config';
 
 const SETTINGS_COLLECTION = 'settings';
@@ -68,7 +69,7 @@ export async function fetchCompanyProfile(): Promise<CompanyProfile> {
         return data;
       } else {
         // Bootstrap document on first load
-        await setDoc(doc(db, SETTINGS_COLLECTION, COMPANY_DOC), DEFAULT_COMPANY_PROFILE);
+        await setDoc(doc(db, SETTINGS_COLLECTION, COMPANY_DOC), stripUndefinedDeep(DEFAULT_COMPANY_PROFILE));
         localStorage.setItem(LOCAL_STORAGE_COMPANY_KEY, JSON.stringify(DEFAULT_COMPANY_PROFILE));
         return DEFAULT_COMPANY_PROFILE;
       }
@@ -115,7 +116,7 @@ export async function saveCompanyProfile(
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, SETTINGS_COLLECTION, COMPANY_DOC), updatedProfile);
+      await setDoc(doc(db, SETTINGS_COLLECTION, COMPANY_DOC), stripUndefinedDeep(updatedProfile));
     }
   } catch (err) {
     console.error('Could not write settings/company to Firestore:', err);

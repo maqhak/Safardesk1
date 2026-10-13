@@ -39,6 +39,7 @@ import { VoucherQuickModal } from '../components/accounting/VoucherQuickModal';
 import { ReceiptViewerModal } from '../components/accounting/ReceiptViewerModal';
 import { fetchVisas, fetchVisaRequests, VisaDoc, VisaRequestDoc } from '../services/visaService';
 import { fetchVouchers } from '../services/voucherService';
+import { getAgentIdentityIds } from '../services/agentService';
 import { VoucherDoc } from '../types/voucher';
 import { downloadCSV } from '../utils/csv';
 
@@ -94,7 +95,8 @@ export const AgentPortalPage: React.FC = () => {
   };
 
   const reloadAgentData = () => {
-    Promise.all([fetchLedgerAccounts(), fetchLedgerEntries(), fetchVisas(), fetchVisaRequests(), fetchVouchers().catch(() => [])]).then(([accs, ents, visaList, reqList, vList]) => {
+    const myAgentId = userProfile?.agentId;
+    Promise.all([fetchLedgerAccounts(), fetchLedgerEntries(), fetchVisas(), fetchVisaRequests(), fetchVouchers().catch(() => []), myAgentId ? getAgentIdentityIds(myAgentId).catch(() => [myAgentId]) : Promise.resolve([] as string[])]).then(([accs, ents, visaList, reqList, vList, identityIds]) => {
       // Find matching agent account — never fall back to another account
       const found = accs.find((a) => a.linkedId === userProfile?.agentId || a.linkedId === userProfile?.uid) || null;
       setAgentAccount(found);
@@ -103,8 +105,9 @@ export const AgentPortalPage: React.FC = () => {
       } else {
         setAgentEntries([]);
       }
-      const myAgentId = userProfile?.agentId;
-      setAgentVisas(visaList.filter((v) => v.agentId && v.agentId === myAgentId));
+      // Visas store the LEDGER account ID, not the agent master ID — match any identity.
+      const visaMatchIds = identityIds.length > 0 ? identityIds : (myAgentId ? [myAgentId] : []);
+      setAgentVisas(visaList.filter((v) => v.agentId && visaMatchIds.includes(v.agentId)));
       setAgentRequests(reqList.filter((r) => r.agentId === myAgentId));
       setAgentVouchers((vList as VoucherDoc[]).filter((v) => v.agentId === myAgentId && v.status !== 'Cancelled'));
     });

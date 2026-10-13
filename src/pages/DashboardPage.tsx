@@ -24,6 +24,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { fetchVouchers } from '../services/voucherService';
 import { fetchVisas, VisaDoc } from '../services/visaService';
+import { getAgentIdentityIds } from '../services/agentService';
 import { fetchLedgerEntries, fetchLedgerAccounts } from '../services/accountingService';
 import { useCurrentRate, updateExchangeRate, formatConvertedMoney } from '../services/exchangeRateService';
 import { VoucherDoc } from '../types/voucher';
@@ -39,6 +40,17 @@ export const DashboardPage: React.FC = () => {
   const [entries, setEntries] = useState<LedgerEntryDoc[]>([]);
   const [accounts, setAccounts] = useState<LedgerAccountDoc[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Agent identity IDs: visas store the LEDGER account ID, not the agent master ID.
+  const [agentIdentityIds, setAgentIdentityIds] = useState<string[]>([]);
+  useEffect(() => {
+    const masterId = userProfile?.agentId;
+    if (!masterId) {
+      setAgentIdentityIds([]);
+      return;
+    }
+    getAgentIdentityIds(masterId).then(setAgentIdentityIds).catch(() => setAgentIdentityIds([masterId]));
+  }, [userProfile?.agentId]);
 
   // Period Switcher for Account Summary
   const [accountPeriod, setAccountPeriod] = useState<'all' | 'month' | 'today'>('all');
@@ -366,7 +378,7 @@ export const DashboardPage: React.FC = () => {
           />
           <StatCard
             label="My Issued Visas"
-            value={visas.filter(v => v.agentId === userProfile?.agentId).length}
+            value={visas.filter(v => (agentIdentityIds.length > 0 ? agentIdentityIds : [userProfile?.agentId]).includes(v.agentId || '')).length}
             icon={<FileCheck className="w-5 h-5" />}
           />
           <StatCard

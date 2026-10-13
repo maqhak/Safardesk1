@@ -11,6 +11,7 @@ import { CustomerDoc } from '../types/customer';
 import { LedgerAccountDoc } from '../types/agent';
 import { UserProfile } from '../types/auth';
 import { logAuditEvent } from './userService';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 
 const CUSTOMERS_COLLECTION = 'customers';
 const LEDGER_ACCOUNTS_COLLECTION = 'ledger_accounts';
@@ -54,24 +55,33 @@ const INITIAL_CUSTOMERS: CustomerDoc[] = [
 ];
 
 export async function fetchCustomers(): Promise<CustomerDoc[]> {
+  let firestoreCustomers: CustomerDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, CUSTOMERS_COLLECTION));
-      return snap.docs.map((d) => d.data() as CustomerDoc);
+      firestoreCustomers = snap.docs.map((d) => {
+        const data = d.data() as CustomerDoc;
+        return { ...data, id: (data as any).id || d.id };
+      });
     }
   } catch (err) {
     console.warn('Could not read customers from Firestore:', err);
   }
 
+  // Merge local-only customers — Firestore wins on id conflict.
+  let localCustomers: CustomerDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_CUSTOMERS_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      localCustomers = JSON.parse(stored);
     } catch {
-      // fallback
+      localCustomers = [];
     }
   }
-  return [];
+  const byId = new Map<string, CustomerDoc>();
+  for (const c of localCustomers) if ((c as any)?.id) byId.set((c as any).id, c);
+  for (const c of firestoreCustomers) if ((c as any)?.id) byId.set((c as any).id, c);
+  return Array.from(byId.values());
 }
 
 export async function createCustomer(
@@ -117,9 +127,9 @@ export async function createCustomer(
 
   try {
     if (!isConfigPlaceholder) {
-      const writes = [setDoc(doc(db, CUSTOMERS_COLLECTION, customerId), newCustomer)];
+      const writes = [setDoc(doc(db, CUSTOMERS_COLLECTION, customerId), stripUndefinedDeep(newCustomer))];
       if (ledgerDoc) {
-        writes.push(setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerDoc.id), ledgerDoc));
+        writes.push(setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerDoc.id), stripUndefinedDeep(ledgerDoc)));
       }
       await Promise.all(writes);
     }
@@ -161,7 +171,7 @@ export async function updateCustomer(
 
   try {
     if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, CUSTOMERS_COLLECTION, customerId), updated as any);
+      await updateDoc(doc(db, CUSTOMERS_COLLECTION, customerId), stripUndefinedDeep(updated) as any);
     }
   } catch (err) {
     console.warn('Firestore update customer failed:', err);

@@ -16,6 +16,7 @@ import { getCurrentRate } from '../services/exchangeRateService';
 import { AgentDoc, LedgerAccountDoc, AgentBalanceInfo } from '../types/agent';
 import { UserProfile, UserDoc } from '../types/auth';
 import { logAuditEvent, fetchAllUsers } from './userService';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 
 const AGENTS_COLLECTION = 'agents';
 const LEDGER_ACCOUNTS_COLLECTION = 'ledger_accounts';
@@ -124,24 +125,33 @@ const INITIAL_LEDGER_ACCOUNTS: LedgerAccountDoc[] = [
  * Get all ledger accounts
  */
 export async function fetchLedgerAccounts(): Promise<LedgerAccountDoc[]> {
+  let firestoreLedgers: LedgerAccountDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, LEDGER_ACCOUNTS_COLLECTION));
-      return snap.docs.map((d) => d.data() as LedgerAccountDoc);
+      firestoreLedgers = snap.docs.map((d) => {
+        const data = d.data() as LedgerAccountDoc;
+        return { ...data, id: (data as any).id || d.id };
+      });
     }
   } catch (err) {
     console.warn('Could not read ledger accounts from Firestore:', err);
   }
 
+  // Merge local-only ledger accounts — Firestore wins on id conflict.
+  let localLedgers: LedgerAccountDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_LEDGERS_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      localLedgers = JSON.parse(stored);
     } catch {
-      // fallback
+      localLedgers = [];
     }
   }
-  return [];
+  const byId = new Map<string, LedgerAccountDoc>();
+  for (const l of localLedgers) if ((l as any)?.id) byId.set((l as any).id, l);
+  for (const l of firestoreLedgers) if ((l as any)?.id) byId.set((l as any).id, l);
+  return Array.from(byId.values());
 }
 
 /**
@@ -172,24 +182,33 @@ export async function getAgentIdentityIds(agentMasterId: string): Promise<string
 }
 
 export async function fetchAgents(): Promise<AgentDoc[]> {
+  let firestoreAgents: AgentDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, AGENTS_COLLECTION));
-      return snap.docs.map((d) => d.data() as AgentDoc);
+      firestoreAgents = snap.docs.map((d) => {
+        const data = d.data() as AgentDoc;
+        return { ...data, id: (data as any).id || d.id };
+      });
     }
   } catch (err) {
     console.warn('Could not read agents from Firestore:', err);
   }
 
+  // Merge local-only agents — Firestore wins on id conflict.
+  let localAgents: AgentDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_AGENTS_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      localAgents = JSON.parse(stored);
     } catch {
-      // fallback
+      localAgents = [];
     }
   }
-  return [];
+  const byId = new Map<string, AgentDoc>();
+  for (const a of localAgents) if ((a as any)?.id) byId.set((a as any).id, a);
+  for (const a of firestoreAgents) if ((a as any)?.id) byId.set((a as any).id, a);
+  return Array.from(byId.values());
 }
 
 /**
@@ -368,9 +387,9 @@ export async function createAgentWithCredentials(
   try {
     if (!isConfigPlaceholder) {
       await Promise.all([
-        setDoc(doc(db, USERS_COLLECTION, userUid), userDocData),
-        setDoc(doc(db, AGENTS_COLLECTION, agentId), agentDocData),
-        setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerDocData.id), ledgerDocData),
+        setDoc(doc(db, USERS_COLLECTION, userUid), stripUndefinedDeep(userDocData)),
+        setDoc(doc(db, AGENTS_COLLECTION, agentId), stripUndefinedDeep(agentDocData)),
+        setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerDocData.id), stripUndefinedDeep(ledgerDocData)),
       ]);
     }
   } catch (err) {
@@ -438,14 +457,14 @@ export async function updateAgent(
 
   try {
     if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, AGENTS_COLLECTION, agentId), { ...updated } as any);
+      await updateDoc(doc(db, AGENTS_COLLECTION, agentId), stripUndefinedDeep({ ...updated }) as any);
 
       // If companyName or contact changed, sync linked ledger and users
       if (updateData.companyName && current.userId) {
-        await updateDoc(doc(db, USERS_COLLECTION, current.userId), {
+        await updateDoc(doc(db, USERS_COLLECTION, current.userId), stripUndefinedDeep({
           agencyName: updateData.companyName,
           name: updateData.contactPerson || current.contactPerson,
-        });
+        }));
       }
     }
   } catch (err) {
@@ -492,16 +511,16 @@ export async function toggleAgentStatus(
 
   try {
     if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, AGENTS_COLLECTION, agentId), {
+      await updateDoc(doc(db, AGENTS_COLLECTION, agentId), stripUndefinedDeep({
         isActive: newActiveState,
         updatedAt: new Date().toISOString(),
-      });
+      }));
 
       if (agent.userId) {
-        await updateDoc(doc(db, USERS_COLLECTION, agent.userId), {
+        await updateDoc(doc(db, USERS_COLLECTION, agent.userId), stripUndefinedDeep({
           isActive: newActiveState,
           updatedAt: new Date().toISOString(),
-        });
+        }));
       }
     }
   } catch (err) {
@@ -555,10 +574,10 @@ export async function resetAgentPasswordByOwner(
 
   try {
     if (!isConfigPlaceholder && agent.userId) {
-      await updateDoc(doc(db, USERS_COLLECTION, agent.userId), {
+      await updateDoc(doc(db, USERS_COLLECTION, agent.userId), stripUndefinedDeep({
         temporaryPasswordIssuedAt: new Date().toISOString(),
         mustChangePasswordOnLogin: true,
-      });
+      }));
     }
   } catch (err) {
     console.warn('Firestore password reset note failed:', err);
@@ -619,7 +638,7 @@ export async function repairMissingAgentLedgers(actor: UserProfile): Promise<str
       createdBy: actor.uid,
     };
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerId), ledgerDoc);
+      await setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerId), stripUndefinedDeep(ledgerDoc));
     }
     // Update local cache
     const cached = await fetchLedgerAccounts();

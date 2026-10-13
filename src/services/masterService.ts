@@ -30,12 +30,12 @@ const INITIAL_VENDORS: VendorDoc[] = [
   {
     id: 'vnd-001',
     vendorCode: 'VND-001',
-    name: 'Al-Haramain Group (Shirka)',
+    name: 'Al-Haramain Group (Sub-Vendor)',
     country: 'Saudi Arabia',
     city: 'Makkah',
     contactPerson: 'Sheikh Mansoor Al-Harbi',
     mobile: '+966 55 981 2938',
-    email: 'operations@alharamain-shirka.com.sa',
+    email: 'operations@alharamain-sub-vendor.com.sa',
     notes: 'Primary Saudi visa and ground service provider in Makkah.',
     isActive: true,
     createdAt: '2026-01-10T00:00:00Z',
@@ -167,24 +167,33 @@ const INITIAL_VEHICLES: VehicleDoc[] = [
 // --- VENDORS SERVICE ---
 
 export async function fetchVendors(): Promise<VendorDoc[]> {
+  let firestoreVendors: VendorDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, VENDORS_COLLECTION));
-      return snap.docs.map((d) => d.data() as VendorDoc);
+      firestoreVendors = snap.docs.map((d) => {
+        const data = d.data() as VendorDoc;
+        return { ...data, id: (data as any).id || d.id };
+      });
     }
   } catch (err) {
     console.warn('Could not read vendors from Firestore:', err);
   }
 
+  // Merge local-only vendors — Firestore wins on conflict.
+  let localVendors: VendorDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_VENDORS_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      localVendors = JSON.parse(stored);
     } catch {
-      // fallback
+      localVendors = [];
     }
   }
-  return [];
+  const byId = new Map<string, VendorDoc>();
+  for (const v of localVendors) if (v?.id) byId.set(v.id, v);
+  for (const v of firestoreVendors) if (v?.id) byId.set(v.id, v);
+  return Array.from(byId.values());
 }
 
 export async function generateNextVendorCode(): Promise<string> {
@@ -259,7 +268,7 @@ export async function createVendor(
   }
 
   const vendors = await fetchVendors();
-  localStorage.setItem(LOCAL_STORAGE_VENDORS_KEY, JSON.stringify([cleanVendor, ...vendors]));
+  localStorage.setItem(LOCAL_STORAGE_VENDORS_KEY, JSON.stringify([cleanVendor, ...vendors.filter((v) => v.id !== vendorId)]));
 
   // Also persist the auto-created ledger account locally (same key the ledger pages read)
   try {
@@ -334,7 +343,7 @@ export async function toggleVendorStatus(actor: UserProfile, vendorId: string): 
   const newState = !v.isActive;
   try {
     if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, VENDORS_COLLECTION, vendorId), { isActive: newState });
+      await updateDoc(doc(db, VENDORS_COLLECTION, vendorId), stripUndefinedDeep({ isActive: newState }));
     }
   } catch (err) {
     console.warn('Toggle vendor status failed:', err);
@@ -358,24 +367,33 @@ export async function toggleVendorStatus(actor: UserProfile, vendorId: string): 
 // --- HOTELS SERVICE ---
 
 export async function fetchHotels(): Promise<HotelDoc[]> {
+  let firestoreHotels: HotelDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, HOTELS_COLLECTION));
-      return snap.docs.map((d) => d.data() as HotelDoc);
+      firestoreHotels = snap.docs.map((d) => {
+        const data = d.data() as HotelDoc;
+        return { ...data, id: (data as any).id || d.id };
+      });
     }
   } catch (err) {
     console.warn('Could not read hotels from Firestore:', err);
   }
 
+  // Merge local-only hotels — Firestore wins on conflict.
+  let localHotels: HotelDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_HOTELS_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      localHotels = JSON.parse(stored);
     } catch {
-      // fallback
+      localHotels = [];
     }
   }
-  return [];
+  const byId = new Map<string, HotelDoc>();
+  for (const h of localHotels) if (h?.id) byId.set(h.id, h);
+  for (const h of firestoreHotels) if (h?.id) byId.set(h.id, h);
+  return Array.from(byId.values());
 }
 
 export async function createHotel(
@@ -394,14 +412,14 @@ export async function createHotel(
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, HOTELS_COLLECTION, hotelId), newHotel);
+      await setDoc(doc(db, HOTELS_COLLECTION, hotelId), stripUndefinedDeep(newHotel));
     }
   } catch (err) {
     console.warn('Firestore write failed for hotel:', err);
   }
 
   const hotels = await fetchHotels();
-  localStorage.setItem(LOCAL_STORAGE_HOTELS_KEY, JSON.stringify([newHotel, ...hotels]));
+  localStorage.setItem(LOCAL_STORAGE_HOTELS_KEY, JSON.stringify([newHotel, ...hotels.filter((h) => h.id !== hotelId)]));
 
   await logAuditEvent({
     action: 'CREATE_HOTEL',
@@ -434,7 +452,7 @@ export async function updateHotel(
 
   try {
     if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, HOTELS_COLLECTION, hotelId), { ...updated } as any);
+      await updateDoc(doc(db, HOTELS_COLLECTION, hotelId), stripUndefinedDeep({ ...updated }) as any);
     }
   } catch (err) {
     console.warn('Firestore update hotel failed:', err);
@@ -465,7 +483,7 @@ export async function toggleHotelStatus(actor: UserProfile, hotelId: string): Pr
   const newState = !h.isActive;
   try {
     if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, HOTELS_COLLECTION, hotelId), { isActive: newState });
+      await updateDoc(doc(db, HOTELS_COLLECTION, hotelId), stripUndefinedDeep({ isActive: newState }));
     }
   } catch (err) {
     console.warn('Toggle hotel status failed:', err);
@@ -528,24 +546,33 @@ export async function deleteOrDeactivateHotel(actor: UserProfile, hotelId: strin
 // --- VEHICLES SERVICE ---
 
 export async function fetchVehicles(): Promise<VehicleDoc[]> {
+  let firestoreVehicles: VehicleDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, VEHICLES_COLLECTION));
-      return snap.docs.map((d) => d.data() as VehicleDoc);
+      firestoreVehicles = snap.docs.map((d) => {
+        const data = d.data() as VehicleDoc;
+        return { ...data, id: (data as any).id || d.id };
+      });
     }
   } catch (err) {
     console.warn('Could not read vehicles from Firestore:', err);
   }
 
+  // Merge local-only vehicles — Firestore wins on conflict.
+  let localVehicles: VehicleDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_VEHICLES_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      localVehicles = JSON.parse(stored);
     } catch {
-      // fallback
+      localVehicles = [];
     }
   }
-  return [];
+  const byId = new Map<string, VehicleDoc>();
+  for (const v of localVehicles) if (v?.id) byId.set(v.id, v);
+  for (const v of firestoreVehicles) if (v?.id) byId.set(v.id, v);
+  return Array.from(byId.values());
 }
 
 export async function updateVehicleReferenceRate(
@@ -677,24 +704,33 @@ export async function deleteVehicle(actor: UserProfile, vehicleId: string): Prom
 // --- AIRLINES SERVICE ---
 
 export async function fetchAirlines(): Promise<AirlineDoc[]> {
+  let firestoreAirlines: AirlineDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, AIRLINES_COLLECTION));
-      return snap.docs.map((d) => d.data() as AirlineDoc);
+      firestoreAirlines = snap.docs.map((d) => {
+        const data = d.data() as AirlineDoc;
+        return { ...data, id: (data as any).id || d.id };
+      });
     }
   } catch (err) {
     console.warn('Could not read airlines from Firestore:', err);
   }
 
+  // Merge local-only airlines — Firestore wins on conflict.
+  let localAirlines: AirlineDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_AIRLINES_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      localAirlines = JSON.parse(stored);
     } catch {
-      // fallback
+      localAirlines = [];
     }
   }
-  return [];
+  const byId = new Map<string, AirlineDoc>();
+  for (const a of localAirlines) if (a?.id) byId.set(a.id, a);
+  for (const a of firestoreAirlines) if (a?.id) byId.set(a.id, a);
+  return Array.from(byId.values());
 }
 
 export async function createAirline(
@@ -723,7 +759,7 @@ export async function createAirline(
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, AIRLINES_COLLECTION, airlineId), newAirline);
+      await setDoc(doc(db, AIRLINES_COLLECTION, airlineId), stripUndefinedDeep(newAirline));
     }
   } catch (err) {
     console.warn('Firestore write failed for airline:', err);
@@ -772,7 +808,7 @@ export async function updateAirline(
 
   try {
     if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, AIRLINES_COLLECTION, airlineId), updated as any);
+      await updateDoc(doc(db, AIRLINES_COLLECTION, airlineId), stripUndefinedDeep(updated) as any);
     }
   } catch (err) {
     console.warn('Firestore update airline failed:', err);
@@ -803,7 +839,7 @@ export async function toggleAirlineStatus(actor: UserProfile, airlineId: string)
   const newState = !a.isActive;
   try {
     if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, AIRLINES_COLLECTION, airlineId), { isActive: newState });
+      await updateDoc(doc(db, AIRLINES_COLLECTION, airlineId), stripUndefinedDeep({ isActive: newState }));
     }
   } catch (err) {
     console.warn('Toggle airline status failed:', err);
@@ -879,7 +915,7 @@ export async function backfillMissingVendorLedgerAccounts(actor: UserProfile): P
           const snap = await getDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerId));
           const existing = snap.exists() ? (snap.data() as any) : null;
           if (existing && (!existing.title || !existing.accountCode)) {
-            await setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerId), {
+            await setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerId), stripUndefinedDeep({
               title: v.name,
               accountCode: v.vendorCode,
               linkedId: v.id,
@@ -887,7 +923,7 @@ export async function backfillMissingVendorLedgerAccounts(actor: UserProfile): P
               isActive: true,
               openingBalanceSAR: 0,
               openingBalancePKR: 0,
-            }, { merge: true });
+            }), { merge: true });
             repaired += 1;
           }
         } catch (err) {

@@ -8,6 +8,7 @@ import {
 } from '../types/accounting';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 import { aoaToCSV, downloadCSVText } from '../utils/csv';
 import { getCurrentRate } from './exchangeRateService';
 import { jsPDF } from 'jspdf';
@@ -69,7 +70,7 @@ export const INITIAL_LEDGER_ACCOUNTS: LedgerAccountDoc[] = [
     id: 'acc-vnd-001',
     accountCode: 'VND-001',
     accountType: 'vendor',
-    title: 'Al-Haramain Group (Shirka)',
+    title: 'Al-Haramain Group (Sub-Vendor)',
     linkedId: 'vnd-001',
     isSystem: false,
     isActive: true,
@@ -660,7 +661,7 @@ export async function saveLedgerAccount(account: LedgerAccountDoc): Promise<Ledg
   const next = i >= 0 ? accounts.map((a, j) => (j === i ? account : a)) : [account, ...accounts];
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, ACCOUNTS_COLLECTION, account.id), account);
+      await setDoc(doc(db, ACCOUNTS_COLLECTION, account.id), stripUndefinedDeep(account));
     }
   } catch (err) {
     console.warn('Could not save ledger account to Firestore:', err);
@@ -672,30 +673,30 @@ export async function saveLedgerAccount(account: LedgerAccountDoc): Promise<Ledg
  * Fetch all ledger entries (optionally filtered by accountId)
  */
 export async function fetchLedgerEntries(accountId?: string): Promise<LedgerEntryDoc[]> {
+  let firestoreEntries: LedgerEntryDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, ENTRIES_COLLECTION));
-      const list = snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as LedgerEntryDoc));
-      if (accountId) {
-        return list.filter((e) => e.accountId === accountId);
-      }
-      return list;
+      firestoreEntries = snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as LedgerEntryDoc));
     }
   } catch (err) {
     console.warn('Could not read ledger entries from Firestore:', err);
   }
 
-  // localStorage fallback only when Firestore is unconfigured or unreachable
-  let list: LedgerEntryDoc[] = [];
-
+  // Merge local-only entries (e.g. saved before a Firestore sync) — Firestore wins on conflict.
+  let localEntries: LedgerEntryDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_ENTRIES_KEY);
   if (stored) {
     try {
-      list = JSON.parse(stored);
+      localEntries = JSON.parse(stored);
     } catch {
-      list = [];
+      localEntries = [];
     }
   }
+  const byId = new Map<string, LedgerEntryDoc>();
+  for (const e of localEntries) if (e?.id) byId.set(e.id, e);
+  for (const e of firestoreEntries) if (e?.id) byId.set(e.id, e);
+  const list = Array.from(byId.values());
 
   if (accountId) {
     return list.filter((e) => e.accountId === accountId);
@@ -785,8 +786,8 @@ export async function postBalancedTransaction(params: {
   try {
     if (!isConfigPlaceholder) {
       await Promise.all([
-        setDoc(doc(db, ENTRIES_COLLECTION, debitEntry.id), debitEntry),
-        setDoc(doc(db, ENTRIES_COLLECTION, creditEntry.id), creditEntry),
+        setDoc(doc(db, ENTRIES_COLLECTION, debitEntry.id), stripUndefinedDeep(debitEntry)),
+        setDoc(doc(db, ENTRIES_COLLECTION, creditEntry.id), stripUndefinedDeep(creditEntry)),
       ]);
     }
   } catch (err) {
@@ -933,7 +934,7 @@ export async function voidLedgerEntry(
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, ENTRIES_COLLECTION, entryId), updatedEntry);
+      await setDoc(doc(db, ENTRIES_COLLECTION, entryId), stripUndefinedDeep(updatedEntry));
     }
   } catch (err) {
     console.warn('Could not sync void to Firestore:', err);
@@ -965,7 +966,7 @@ export async function voidLedgerEntry(
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, ENTRIES_COLLECTION, reversal.id), reversal);
+      await setDoc(doc(db, ENTRIES_COLLECTION, reversal.id), stripUndefinedDeep(reversal));
     }
   } catch (err) {
     console.warn('Could not sync void reversal to Firestore:', err);
@@ -1589,7 +1590,7 @@ export async function cacheAccountBalancesSnapshot(summary: BalancesSummaryData)
   try {
     if (!isConfigPlaceholder) {
       await Promise.all(
-        updatedAccounts.map((a) => setDoc(doc(db, ACCOUNTS_COLLECTION, a.id), a, { merge: true }))
+        updatedAccounts.map((a) => setDoc(doc(db, ACCOUNTS_COLLECTION, a.id), stripUndefinedDeep(a), { merge: true }))
       );
     }
   } catch (err) {

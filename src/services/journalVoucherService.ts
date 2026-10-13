@@ -8,6 +8,7 @@ import {
 import { LedgerAccountDoc, LedgerEntryDoc } from '../types/accounting';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 import { fetchLedgerAccounts, fetchLedgerEntries, voidLedgerEntry } from './accountingService';
 import { uploadReceipt } from './driveService';
 import { getCurrentRate } from './exchangeRateService';
@@ -105,7 +106,7 @@ export const INITIAL_JOURNAL_VOUCHERS: JournalVoucherDoc[] = [
     date: '2026-10-01',
     tag: 'Direct Settlement',
     exchangeRate: 74.50,
-    detailsBox: 'Direct settlement: Al-Barakah representative in Makkah handed 5,000 SAR directly to Al-Haramain Shirka for transport buses.',
+    detailsBox: 'Direct settlement: Al-Barakah representative in Makkah handed 5,000 SAR directly to Al-Haramain Sub-Vendor for transport buses.',
     totalDebitSAR: 5000,
     totalCreditSAR: 5000,
     lines: [
@@ -160,28 +161,33 @@ export const INITIAL_JOURNAL_VOUCHERS: JournalVoucherDoc[] = [
 ];
 
 export async function fetchJournalVouchers(): Promise<JournalVoucherDoc[]> {
+  let firestoreJVs: JournalVoucherDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, JV_COLLECTION));
-      return snap.docs.map((d) => d.data() as JournalVoucherDoc);
+      firestoreJVs = snap.docs.map((d) => {
+        const data = d.data() as JournalVoucherDoc;
+        return { ...data, id: (data as any).id || d.id };
+      });
     }
   } catch (err) {
     console.warn('Could not read journal vouchers from Firestore:', err);
   }
 
-  // localStorage fallback only when Firestore is unconfigured or unreachable
-  let list: JournalVoucherDoc[] = [];
-
+  // Merge local-only JVs (e.g. saved before a Firestore sync) — Firestore wins on conflict.
+  let localJVs: JournalVoucherDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_JV_KEY);
   if (stored) {
     try {
-      list = JSON.parse(stored);
+      localJVs = JSON.parse(stored);
     } catch {
-      list = [];
+      localJVs = [];
     }
   }
-
-  return list;
+  const byId = new Map<string, JournalVoucherDoc>();
+  for (const jv of localJVs) if (jv?.id) byId.set(jv.id, jv);
+  for (const jv of firestoreJVs) if (jv?.id) byId.set(jv.id, jv);
+  return Array.from(byId.values());
 }
 
 export async function getNextJVNumber(): Promise<string> {
@@ -447,7 +453,7 @@ export async function createJournalVoucher(params: {
   if (!isConfigPlaceholder) {
     try {
       await Promise.all(
-        newLedgerEntries.map((e) => setDoc(doc(db, ENTRIES_COLLECTION, e.id), e))
+        newLedgerEntries.map((e) => setDoc(doc(db, ENTRIES_COLLECTION, e.id), stripUndefinedDeep(e)))
       );
     } catch (e) {
       console.warn('Could not sync JV ledger entries to Firestore:', e);
@@ -490,7 +496,7 @@ export async function createJournalVoucher(params: {
 
   if (!isConfigPlaceholder) {
     try {
-      await setDoc(doc(db, JV_COLLECTION, newJV.id), newJV);
+      await setDoc(doc(db, JV_COLLECTION, newJV.id), stripUndefinedDeep(newJV));
     } catch (e) {
       console.warn('Could not sync JV to Firestore:', e);
     }
@@ -551,7 +557,7 @@ export async function voidJournalVoucher(
 
   if (!isConfigPlaceholder) {
     try {
-      await setDoc(doc(db, JV_COLLECTION, jvId), updatedJV);
+      await setDoc(doc(db, JV_COLLECTION, jvId), stripUndefinedDeep(updatedJV));
     } catch (e) {
       console.warn('Could not sync voided JV to Firestore:', e);
     }

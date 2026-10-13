@@ -2,6 +2,7 @@ import { collection, getDocs, setDoc, doc, deleteDoc } from 'firebase/firestore'
 import { db, isConfigPlaceholder } from './firebase';
 import { logAuditEvent } from './userService';
 import { UserProfile } from '../types/auth';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 
 const VISAS_COLLECTION = 'visas';
 const VISA_IMPORTS_COLLECTION = 'visa_imports';
@@ -23,19 +24,33 @@ export interface VisaRequestDoc {
 }
 
 export async function fetchVisaRequests(): Promise<VisaRequestDoc[]> {
+  let firestoreRequests: VisaRequestDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, VISA_REQUESTS_COLLECTION));
-      return snap.docs.map((d) => d.data() as VisaRequestDoc);
+      firestoreRequests = snap.docs.map((d) => {
+        const data = d.data() as VisaRequestDoc;
+        return { ...data, id: (data as any).id || d.id };
+      });
     }
   } catch (err) {
     console.warn('Could not read visa requests from Firestore:', err);
   }
+
+  // Merge local-only requests — Firestore wins on conflict.
+  let localRequests: VisaRequestDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_VISA_REQUESTS_KEY);
   if (stored) {
-    try { return JSON.parse(stored); } catch { /* fallback */ }
+    try {
+      localRequests = JSON.parse(stored);
+    } catch {
+      localRequests = [];
+    }
   }
-  return [];
+  const byId = new Map<string, VisaRequestDoc>();
+  for (const r of localRequests) if (r?.id) byId.set(r.id, r);
+  for (const r of firestoreRequests) if (r?.id) byId.set(r.id, r);
+  return Array.from(byId.values());
 }
 
 export async function submitVisaRequest(
@@ -54,13 +69,13 @@ export async function submitVisaRequest(
   };
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, VISA_REQUESTS_COLLECTION, req.id), req);
+      await setDoc(doc(db, VISA_REQUESTS_COLLECTION, req.id), stripUndefinedDeep(req));
     }
   } catch (err) {
     console.warn('Could not sync visa request to Firestore:', err);
   }
   const existing = await fetchVisaRequests();
-  localStorage.setItem(LOCAL_STORAGE_VISA_REQUESTS_KEY, JSON.stringify([req, ...existing]));
+  localStorage.setItem(LOCAL_STORAGE_VISA_REQUESTS_KEY, JSON.stringify([req, ...existing.filter((r) => r.id !== req.id)]));
   await logAuditEvent({
     action: 'SUBMIT_VISA_REQUEST',
     userId: actor.uid,
@@ -182,7 +197,7 @@ export async function saveVisasBatch(newVisas: VisaDoc[]): Promise<void> {
 
   if (!isConfigPlaceholder) {
     try {
-      await Promise.all(newVisas.map((v) => setDoc(doc(db, VISAS_COLLECTION, v.id), v)));
+      await Promise.all(newVisas.map((v) => setDoc(doc(db, VISAS_COLLECTION, v.id), stripUndefinedDeep(v))));
     } catch (err: any) {
       console.warn('Could not save visa batch to Firestore:', err);
       // Surface Firestore errors so the user knows data may not be synced
@@ -198,7 +213,7 @@ export async function saveVisaImportBatch(batch: VisaImportBatchDoc): Promise<vo
 
   if (!isConfigPlaceholder) {
     try {
-      await setDoc(doc(db, VISA_IMPORTS_COLLECTION, batch.id), batch);
+      await setDoc(doc(db, VISA_IMPORTS_COLLECTION, batch.id), stripUndefinedDeep(batch));
     } catch (err) {
       console.warn('Could not save visa import batch to Firestore:', err);
     }

@@ -8,6 +8,7 @@
 
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 
 const SETTINGS_COLLECTION = 'settings';
 const TENANT_DOC = 'tenant';
@@ -71,7 +72,7 @@ export async function saveTenantBranding(
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, SETTINGS_COLLECTION, TENANT_DOC), payload, { merge: true });
+      await setDoc(doc(db, SETTINGS_COLLECTION, TENANT_DOC), stripUndefinedDeep(payload), { merge: true });
     }
   } catch (err) {
     console.error('Could not write settings/tenant to Firestore:', err);
