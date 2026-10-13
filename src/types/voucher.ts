@@ -104,6 +104,7 @@ export interface VoucherDoc {
   shirkaVendorId?: string; // Which vendor company this voucher was made for
   shirkaId?: string; // Which sub-Shirka (empty = vendor company itself)
   shirkaName?: string; // Denormalized Shirka display name
+  subShirkaName?: string; // Denormalized Sub-Shirka display name (resolved from shirkaId at creation; print doc also resolves it live from the voucher's visas for older vouchers)
   makkahStaffName?: string; // Editable per voucher, all roles
   makkahStaffPhone?: string;
   madinaStaffName?: string;
@@ -164,6 +165,7 @@ export interface VoucherEditPayload {
   shirkaVendorId?: string;
   shirkaId?: string;
   shirkaName?: string;
+  subShirkaName?: string;
   makkahStaffName?: string;
   makkahStaffPhone?: string;
   madinaStaffName?: string;

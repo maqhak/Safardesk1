@@ -664,12 +664,20 @@ export const VoucherCreatePage: React.FC = () => {
       return vnd ? vnd.name : '';
     };
 
+    const resolveSubShirkaName = (): string => {
+      if (!shirkaVendorId || !shirkaId) return '';
+      const vnd: any = (vendorsMaster || []).find((x: any) => x.id === shirkaVendorId);
+      const shk = (vnd?.shirkas || []).find((s: any) => s.id === shirkaId);
+      return shk ? shk.name : '';
+    };
+
     return {
       visaIds: selectedVisaIds,
       agentId,
       shirkaVendorId: shirkaVendorId || undefined,
       shirkaId: shirkaId || undefined,
       shirkaName: shirkaVendorId ? resolveVendorName(shirkaVendorId) || undefined : undefined,
+      subShirkaName: resolveSubShirkaName() || undefined,
       leaderName: leaderName.trim() || undefined,
       leaderContact: leaderContact.trim() || undefined,
       packageType: effectivePackageType || undefined,

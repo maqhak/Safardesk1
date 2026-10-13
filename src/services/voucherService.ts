@@ -657,6 +657,7 @@ async function applyEditPayload(
     shirkaVendorId: payload.shirkaVendorId,
     shirkaId: (payload as any).shirkaId,
     shirkaName: (payload as any).shirkaName,
+    subShirkaName: (payload as any).subShirkaName,
     passengers: payload.passengers,
     sectors: payload.sectors,
     hotelStays: payload.hotelStays,

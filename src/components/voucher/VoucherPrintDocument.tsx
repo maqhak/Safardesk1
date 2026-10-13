@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'react-qr-code';
 import { VoucherDoc, DEFAULT_PACKAGE_INCLUDES } from '../../types/voucher';
 import { CompanyProfile } from '../../types/company';
+import { fetchVendors } from '../../services/masterService';
+import { fetchVisas } from '../../services/visaService';
 import kaabaSketch from '../../assets/voucher/kaaba-sketch.jpg';
 import madinahSketch from '../../assets/voucher/madinah-sketch.jpg';
 import kaabaColor from '../../assets/voucher/kaaba-color.jpg';
@@ -26,6 +28,54 @@ export const VoucherPrintDocument: React.FC<{
 }> = ({ voucher, company, groupCode, theme = 'bw', preview = false }) => {
   const innerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+
+  // Sub-Shirka display name: resolved live from the voucher's visas
+  // (their shirkaIds -> vendor master shirkas array), plus the voucher's
+  // own shirkaId as fallback. Multi-shirka visas -> comma-separated list.
+  // Stored subShirkaName (saved at creation) is the fallback. If nothing
+  // resolves, the row is omitted entirely — never fabricated, never crash.
+  const [subShirkaDisplay, setSubShirkaDisplay] = useState<string>(
+    (voucher as any).subShirkaName || ''
+  );
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [vendors, visas] = await Promise.all([
+          fetchVendors().catch(() => [] as any[]),
+          fetchVisas().catch(() => [] as any[]),
+        ]);
+        if (cancelled) return;
+        const nameByShirkaId = new Map<string, string>();
+        (vendors || []).forEach((v: any) => {
+          (v?.shirkas || []).forEach((s: any) => {
+            if (s?.id && s?.name && !nameByShirkaId.has(s.id)) {
+              nameByShirkaId.set(s.id, s.name);
+            }
+          });
+        });
+        const ids: string[] = [];
+        const pushId = (id: any) => {
+          if (typeof id === 'string' && id && !ids.includes(id)) ids.push(id);
+        };
+        (visas || [])
+          .filter((v: any) => (voucher.visaIds || []).includes(v.id))
+          .forEach((v: any) => pushId(v.shirkaId));
+        pushId((voucher as any).shirkaId);
+        const names = ids
+          .map((id) => nameByShirkaId.get(id))
+          .filter((n): n is string => !!n);
+        const uniqueNames = [...new Set(names)];
+        if (cancelled) return;
+        if (uniqueNames.length > 0) setSubShirkaDisplay(uniqueNames.join(', '));
+        else if ((voucher as any).subShirkaName) setSubShirkaDisplay((voucher as any).subShirkaName);
+        else setSubShirkaDisplay('');
+      } catch {
+        if (!cancelled) setSubShirkaDisplay((voucher as any).subShirkaName || '');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [voucher]);
 
   // Fit to ONE A4 page: measure the NATURAL content height (zoom briefly
   // reset to 1 — a zoomed scrollHeight lies) and shrink to fit. Re-measure
@@ -55,7 +105,7 @@ export const VoucherPrintDocument: React.FC<{
       clearTimeout(t2);
       imgs.forEach((img) => img.removeEventListener('load', measure));
     };
-  }, [voucher]);
+  }, [voucher, subShirkaDisplay]);
 
   const pax = voucher.passengers || [];
   const adults = pax.filter(p => p.ageType === 'Adult').length;
@@ -267,6 +317,9 @@ export const VoucherPrintDocument: React.FC<{
             <div><span className="fsv-lbl">VOUCHER NO.</span><span className="fsv-val">{voucher.voucherNo}</span></div>
             {((voucher as any).shirkaName || (voucher as any).shirkaVendorId) && (
               <div style={{ justifyContent: 'center' }}><span className="fsv-lbl">SHIRKA</span><span className="fsv-val">{(voucher as any).shirkaName || (voucher as any).shirkaVendorId}</span></div>
+            )}
+            {subShirkaDisplay && (
+              <div style={{ justifyContent: 'center' }}><span className="fsv-lbl">SUB-SHIRKA</span><span className="fsv-val">{subShirkaDisplay}</span></div>
             )}
             <div style={{ justifyContent: 'flex-end' }}><span className="fsv-lbl">DATE CREATED</span><span className="fsv-val">{createdStr}</span></div>
           </div>
