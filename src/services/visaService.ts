@@ -147,7 +147,7 @@ export async function fetchVisas(): Promise<VisaDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, VISAS_COLLECTION));
-      firestoreVisas = snap.docs.map((d) => d.data() as VisaDoc);
+      firestoreVisas = snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as VisaDoc));
       firestoreOk = true;
     }
   } catch (err) {
