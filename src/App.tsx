@@ -7,6 +7,7 @@ import { CompanyProvider } from './contexts/CompanyContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { BrandedLoader } from './components/ui/BrandedLoader';
 import { AppShell } from './components/layout/AppShell';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
 
 // Pages — lazy loaded for faster initial load (code splitting)
 const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
@@ -94,7 +95,9 @@ export default function App() {
               <Route
                 element={
                   <ProtectedRoute>
-                    <AppShell />
+                    <ErrorBoundary>
+                      <AppShell />
+                    </ErrorBoundary>
                   </ProtectedRoute>
                 }
               >

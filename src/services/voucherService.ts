@@ -56,11 +56,34 @@ const INITIAL_VOUCHERS: VoucherDoc[] = [
   }
 ];
 
+/** Fill safe defaults so a malformed voucher doc can never crash a render. */
+export function normalizeVoucher(raw: any): VoucherDoc {
+  const v = { ...raw } as any;
+  if (!Array.isArray(v.passengers)) v.passengers = [];
+  if (!Array.isArray(v.sectors)) v.sectors = [];
+  if (!Array.isArray(v.hotelStays)) v.hotelStays = [];
+  if (!Array.isArray(v.charges)) v.charges = [];
+  if (!Array.isArray(v.visaIds)) v.visaIds = [];
+  if (!v.totals || typeof v.totals !== 'object') v.totals = {};
+  v.totals = {
+    hotelsSAR: v.totals.hotelsSAR || 0,
+    transportSAR: v.totals.transportSAR || 0,
+    otherSAR: v.totals.otherSAR || 0,
+    totalSAR: v.totals.totalSAR || 0,
+    totalPKR: v.totals.totalPKR || 0,
+    exchangeRate: v.totals.exchangeRate || 0,
+  };
+  if (!v.status) v.status = 'Draft';
+  if (!v.voucherNo) v.voucherNo = '';
+  if (!v.linkType) v.linkType = 'visa';
+  return v as VoucherDoc;
+}
+
 export async function fetchVouchers(): Promise<VoucherDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, VOUCHERS_COLLECTION));
-      return snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as VoucherDoc));
+      return snap.docs.map((d) => normalizeVoucher({ ...d.data(), id: (d.data() as any).id || d.id }));
     }
   } catch (err) {
     console.warn('Could not read vouchers from Firestore:', err);
@@ -69,7 +92,8 @@ export async function fetchVouchers(): Promise<VoucherDoc[]> {
   const stored = localStorage.getItem(LOCAL_STORAGE_VOUCHERS_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      return (Array.isArray(parsed) ? parsed : []).map((v: any) => normalizeVoucher(v));
     } catch {
       // fallback
     }
@@ -87,7 +111,7 @@ export async function fetchVouchersForAgent(agentId: string): Promise<VoucherDoc
     if (!isConfigPlaceholder && agentId) {
       const q = query(collection(db, VOUCHERS_COLLECTION), where('agentId', '==', agentId));
       const snap = await getDocs(q);
-      return snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as VoucherDoc));
+      return snap.docs.map((d) => normalizeVoucher({ ...d.data(), id: (d.data() as any).id || d.id }));
       return [];
     }
   } catch (err) {

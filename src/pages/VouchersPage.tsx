@@ -772,7 +772,7 @@ export const VouchersPage: React.FC = () => {
   };
 
   const filteredVouchers = vouchers.filter((v) => {
-    if (statusFilter !== 'all' && v.status.toLowerCase() !== statusFilter.toLowerCase()) return false;
+    if (statusFilter !== 'all' && (v.status || '').toLowerCase() !== statusFilter.toLowerCase()) return false;
     if (agentFilter !== 'all' && v.agentId !== agentFilter) return false;
     if (groupFilter.trim() && !voucherGroupCode(v).toLowerCase().includes(groupFilter.trim().toLowerCase())) return false;
     const d = (v.createdAt || '').split('T')[0];
@@ -780,8 +780,8 @@ export const VouchersPage: React.FC = () => {
     if (dateTo && d > dateTo) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
-      const paxMatch = v.passengers.some(p => p.name.toLowerCase().includes(q) || p.passportNumber.toLowerCase().includes(q));
-      return v.voucherNo.toLowerCase().includes(q) || paxMatch;
+      const paxMatch = (v.passengers || []).some(p => (p.name || '').toLowerCase().includes(q) || (p.passportNumber || '').toLowerCase().includes(q));
+      return (v.voucherNo || '').toLowerCase().includes(q) || paxMatch;
     }
     return true;
   });
@@ -799,11 +799,14 @@ export const VouchersPage: React.FC = () => {
     }
   };
 
-  const paxCounts = (v: VoucherDoc) => ({
-    adults: v.passengers.filter(p => p.ageType === 'Adult').length,
-    children: v.passengers.filter(p => p.ageType === 'Child').length,
-    infants: v.passengers.filter(p => p.ageType === 'Infant').length,
-  });
+  const paxCounts = (v: VoucherDoc) => {
+    const pax = v.passengers || [];
+    return {
+      adults: pax.filter(p => p.ageType === 'Adult').length,
+      children: pax.filter(p => p.ageType === 'Child').length,
+      infants: pax.filter(p => p.ageType === 'Infant').length,
+    };
+  };
 
   const exportFilteredExcel = () => {
     const rows = filteredVouchers.map(v => {
@@ -816,8 +819,8 @@ export const VouchersPage: React.FC = () => {
         'Adults': pc.adults,
         'Children': pc.children,
         'Infants': pc.infants,
-        'Total SAR': v.totals.totalSAR,
-        'Total PKR': Math.round(v.totals.totalPKR),
+        'Total SAR': (v.totals || {}).totalSAR || 0,
+        'Total PKR': Math.round((v.totals || {}).totalPKR || 0),
         'Status': v.status,
         'Created': (v.createdAt || '').split('T')[0],
       };
@@ -851,7 +854,7 @@ export const VouchersPage: React.FC = () => {
         <div>
           <div className="font-mono font-bold text-[var(--theme-primary)] text-xs">{row.voucherNo}</div>
           <div className="text-[10px] text-slate-500 uppercase font-semibold">
-            Link: {row.linkType} • {row.passengers.length} Pax
+            Link: {row.linkType} • {(row.passengers || []).length} Pax
           </div>
         </div>
       ),
@@ -861,8 +864,8 @@ export const VouchersPage: React.FC = () => {
       header: 'Primary Passenger',
       render: (row) => (
         <div>
-          <div className="font-bold text-slate-900 text-xs">{row.passengers[0]?.name || 'Group'}</div>
-          <div className="text-[11px] font-mono text-slate-500">{row.passengers[0]?.passportNumber}</div>
+          <div className="font-bold text-slate-900 text-xs">{(row.passengers || [])[0]?.name || 'Group'}</div>
+          <div className="text-[11px] font-mono text-slate-500">{(row.passengers || [])[0]?.passportNumber}</div>
         </div>
       ),
     },
@@ -1176,7 +1179,7 @@ export const VouchersPage: React.FC = () => {
         </div>
         <div className="mt-3 flex items-center justify-between">
           <div className="text-[11px] text-slate-500 font-semibold">
-            {filteredVouchers.length} of {vouchers.length} vouchers • SAR {filteredVouchers.reduce((s, v) => s + v.totals.totalSAR, 0).toLocaleString()}
+            {filteredVouchers.length} of {vouchers.length} vouchers • SAR {filteredVouchers.reduce((s, v) => s + ((v.totals || {}).totalSAR || 0), 0).toLocaleString()}
           </div>
           <Button variant="outline" onClick={exportFilteredExcel} disabled={filteredVouchers.length === 0}>
             Export CSV
