@@ -434,7 +434,7 @@ export async function cancelVoucher(actor: UserProfile, voucherId: string): Prom
 
   try {
     if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, VOUCHERS_COLLECTION, voucherId), updated as any);
+      await updateDoc(doc(db, VOUCHERS_COLLECTION, voucherId), stripUndefinedDeep(updated) as any);
     }
   } catch (err) {
     console.warn('Firestore cancel voucher failed:', err);
@@ -469,7 +469,7 @@ export async function markCommissionPaid(actor: UserProfile, voucherId: string):
 
   try {
     if (!isConfigPlaceholder) {
-      await updateDoc(doc(db, VOUCHERS_COLLECTION, voucherId), { commission: voucher.commission } as any);
+      await updateDoc(doc(db, VOUCHERS_COLLECTION, voucherId), stripUndefinedDeep({ commission: voucher.commission }) as any);
     }
   } catch (err) {
     console.warn('Mark commission paid failed:', err);
@@ -542,7 +542,7 @@ export async function requestVoucherEdit(
   await persistEditRequests(next);
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, EDIT_REQUESTS_COLLECTION, req.id), req as any);
+      await setDoc(doc(db, EDIT_REQUESTS_COLLECTION, req.id), stripUndefinedDeep(req) as any);
     }
   } catch (err) {
     console.warn('Could not save edit request to Firestore:', err);
@@ -709,7 +709,7 @@ export async function approveVoucherEdit(
   await persistEditRequests(next);
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, EDIT_REQUESTS_COLLECTION, requestId), next.find((r) => r.id === requestId) as any);
+      await setDoc(doc(db, EDIT_REQUESTS_COLLECTION, requestId), stripUndefinedDeep(next.find((r) => r.id === requestId)) as any);
     }
   } catch (err) {
     console.warn('Could not update edit request in Firestore:', err);
@@ -745,7 +745,7 @@ export async function rejectVoucherEdit(
   await persistEditRequests(next);
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, EDIT_REQUESTS_COLLECTION, requestId), next.find((r) => r.id === requestId) as any);
+      await setDoc(doc(db, EDIT_REQUESTS_COLLECTION, requestId), stripUndefinedDeep(next.find((r) => r.id === requestId)) as any);
     }
   } catch (err) {
     console.warn('Could not update edit request in Firestore:', err);

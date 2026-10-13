@@ -11,7 +11,14 @@
  */
 export function stripUndefinedDeep<T>(value: T): T {
   if (Array.isArray(value)) {
-    return value.map((v) => stripUndefinedDeep(v)) as unknown as T;
+    // Drop undefined elements: Firestore rejects undefined even inside arrays
+    // (an object key can be omitted, but an array slot cannot be undefined).
+    const cleaned: unknown[] = [];
+    for (const v of value) {
+      if (v === undefined) continue;
+      cleaned.push(stripUndefinedDeep(v));
+    }
+    return cleaned as unknown as T;
   }
   if (value !== null && typeof value === 'object') {
     const out: Record<string, unknown> = {};
