@@ -27,16 +27,34 @@ export const VoucherPrintDocument: React.FC<{
   const innerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 
+  // Fit to ONE A4 page: measure the NATURAL content height (zoom briefly
+  // reset to 1 — a zoomed scrollHeight lies) and shrink to fit. Re-measure
+  // after images load + a delayed re-check so late content can't spill
+  // the voucher onto a second page.
   useEffect(() => {
-    const t = setTimeout(() => {
-      const el = innerRef.current;
-      if (!el) return;
+    const el = innerRef.current;
+    if (!el) return;
+    let cancelled = false;
+    const measure = () => {
+      if (cancelled) return;
+      const prevZoom = (el as HTMLElement).style.zoom;
+      (el as HTMLElement).style.zoom = '1';
       const h = el.scrollHeight;
+      (el as HTMLElement).style.zoom = prevZoom;
       const pagePx = 297 * 3.779527559 - 4; // A4 height px @96dpi
-      if (h > pagePx) setScale(Math.max(0.55, pagePx / h));
+      if (h > pagePx) setScale(Math.max(0.45, pagePx / h));
       else setScale(1);
-    }, 120);
-    return () => clearTimeout(t);
+    };
+    const t1 = setTimeout(measure, 120);
+    const t2 = setTimeout(measure, 600);
+    const imgs = Array.from(el.querySelectorAll('img'));
+    imgs.forEach((img) => img.addEventListener('load', measure));
+    return () => {
+      cancelled = true;
+      clearTimeout(t1);
+      clearTimeout(t2);
+      imgs.forEach((img) => img.removeEventListener('load', measure));
+    };
   }, [voucher]);
 
   const pax = voucher.passengers || [];

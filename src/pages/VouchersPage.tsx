@@ -32,6 +32,7 @@ import { AirportSelect, AirlineSelect } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { VoucherPrintDocument, VoucherPrintTheme } from '../components/voucher/VoucherPrintDocument';
+import { downloadVoucherPDF } from '../utils/voucherPrint';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { useDeepOpen } from '../hooks/useDeepOpen';
@@ -977,6 +978,15 @@ export const VouchersPage: React.FC = () => {
                 Disapprove
               </Button>
             </>
+          )}
+          {row.status !== 'Cancelled' && !editRequests.some((r) => r.voucherId === row.id && r.status === 'pending') && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => openEditVoucher(row)}
+            >
+              Edit
+            </Button>
           )}
           {isOwner && row.status !== 'Cancelled' && (
             <Button
@@ -2309,6 +2319,9 @@ export const VouchersPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Button variant="primary" onClick={() => window.print()} rightIcon={<Printer className="w-3.5 h-3.5" />}>
                   Print Voucher
+                </Button>
+                <Button variant="primary" onClick={() => downloadVoucherPDF(selectedVoucher.voucherNo)} rightIcon={<Download className="w-3.5 h-3.5" />}>
+                  Download PDF
                 </Button>
                 {isOwner && selectedVoucher.status === 'Pending Approval' && (
                   <>

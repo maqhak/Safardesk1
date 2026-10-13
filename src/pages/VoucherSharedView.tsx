@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Printer, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Download, Printer, ShieldAlert } from 'lucide-react';
 import { VoucherDoc } from '../types/voucher';
 import { fetchVouchers } from '../services/voucherService';
 import { fetchVisas } from '../services/visaService';
 import { VoucherPrintDocument } from '../components/voucher/VoucherPrintDocument';
+import { downloadVoucherPDF } from '../utils/voucherPrint';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { Card } from '../components/ui/Card';
@@ -93,6 +94,9 @@ export const VoucherSharedView: React.FC = () => {
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <span>Official Voucher • Read-only shared link</span>
         </div>
+        <Button variant="primary" size="sm" onClick={() => downloadVoucherPDF(voucher.voucherNo)} rightIcon={<Download className="w-3.5 h-3.5" />}>
+          Download PDF
+        </Button>
         <Button variant="primary" size="sm" onClick={() => window.print()} rightIcon={<Printer className="w-3.5 h-3.5" />}>
           Print Voucher
         </Button>
