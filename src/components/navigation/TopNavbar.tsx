@@ -69,6 +69,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
     name: 'Accounts', path: '/accounts', module: 'Accounts', icon: Calculator,
     children: [
       { name: 'Ledgers', path: '/accounts', module: 'Accounts' },
+      { name: 'Invoices', path: '/accounts/invoices', module: 'Accounts' },
       { name: 'Item/Service', path: '/accounts/item-service', module: 'Accounts' },
       { name: 'Balances Summary', path: '/accounts/balances', module: 'Accounts' },
       { name: 'Payments', path: '/accounts/payments', module: 'Accounts' },

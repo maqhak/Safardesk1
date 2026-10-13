@@ -28,6 +28,8 @@ const BalancesSummaryPage = lazy(() => import('./pages/BalancesSummaryPage').the
 const DayBookPage = lazy(() => import('./pages/DayBookPage').then(m => ({ default: m.DayBookPage })));
 const JournalVouchersPage = lazy(() => import('./pages/JournalVouchersPage').then(m => ({ default: m.JournalVouchersPage })));
 const ItemServicePage = lazy(() => import('./pages/ItemServicePage').then(m => ({ default: m.ItemServicePage })));
+const InvoicesPage = lazy(() => import('./pages/InvoicesPage').then(m => ({ default: m.InvoicesPage })));
+const InvoiceCreatePage = lazy(() => import('./pages/InvoiceCreatePage').then(m => ({ default: m.InvoiceCreatePage })));
 const MastersPage = lazy(() => import('./pages/MastersPage').then(m => ({ default: m.MastersPage })));
 const VendorsPage = lazy(() => import('./pages/VendorsPage').then(m => ({ default: m.VendorsPage })));
 const HotelsPage = lazy(() => import('./pages/HotelsPage').then(m => ({ default: m.HotelsPage })));
@@ -219,6 +221,22 @@ export default function App() {
                   element={
                     <ProtectedRoute requiredModule="Accounts">
                       <JournalVouchersPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/accounts/invoices"
+                  element={
+                    <ProtectedRoute requiredModule="Accounts">
+                      <InvoicesPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/accounts/invoices/new"
+                  element={
+                    <ProtectedRoute requiredModule="Accounts">
+                      <InvoiceCreatePage />
                     </ProtectedRoute>
                   }
                 />
