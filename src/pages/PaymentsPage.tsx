@@ -1342,7 +1342,7 @@ export const PaymentsPage: React.FC = () => {
                   <span className="text-[10px] font-bold text-rose-700 uppercase">Cr Bank</span>
                 </div>
                 <div className="font-bold text-slate-900 mt-2">Bank Transfer — Sent</div>
-                <div className="text-[10px] text-slate-500 mt-0.5">Outward wire to vendor/Shirka</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Outward wire to vendor/Sub-Vendor</div>
               </button>
             </div>
           </div>

@@ -963,7 +963,7 @@ export const JournalVouchersPage: React.FC = () => {
               <span className="text-[10px] text-slate-500 mt-1 block">
                 {tag === 'Adjustment' && 'General balance adjustment. No receipt required.'}
                 {tag === 'Netting' && 'Bilateral offset. System validates offset does not exceed outstanding balances.'}
-                {tag === 'Direct Settlement' && 'Sub-agent paid hotel/Shirka directly. Mandatory WhatsApp voice note or receipt.'}
+                {tag === 'Direct Settlement' && 'Sub-agent paid hotel/Sub-Vendor directly. Mandatory WhatsApp voice note or receipt.'}
               </span>
             </div>
 

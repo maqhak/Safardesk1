@@ -101,13 +101,15 @@ export const VouchersPage: React.FC = () => {
   // Pilgrim picker (agent-wise, searchable, multi-select) — no link types
   const [selectedVisaIds, setSelectedVisaIds] = useState<string[]>([]);
 
-  // ---- Shirka-first flow: Shirka is selected BEFORE pax; the picker only shows that Shirka's pax ----
-  // (legacy unstamped visas are always shown — they predate Shirka stamping)
+  // ---- Sub-Vendor-first flow: Sub-Vendor is selected BEFORE pax; the picker only shows that Sub-Vendor's pax ----
+  // (legacy unstamped visas are always shown — they predate Sub-Vendor stamping)
   const resolveShirkaName = (vendorId: string, shirkaId: string): string => {
     const vnd: any = (vendorsMaster || []).find((x: any) => x.id === vendorId);
     if (!vnd) return '';
     const shk = (vnd.shirkas || []).find((s: any) => s.id === shirkaId);
-    return shk ? `${vnd.name} — ${shk.name}` : vnd.name;
+    // shirkaName stores the Sub-Vendor name when a sub-vendor is selected,
+    // else the vendor company name (vendor-itself case).
+    return shk ? shk.name : vnd.name;
   };
 
   const [paxSearch, setPaxSearch] = useState<string>('');
@@ -523,9 +525,9 @@ export const VouchersPage: React.FC = () => {
       return null;
     }
 
-    // Shirka-first: a Shirka must be selected before pax (mixing is impossible — picker is pre-filtered)
+    // Sub-Vendor-first: a Sub-Vendor must be selected before pax (mixing is impossible — picker is pre-filtered)
     if (!voucherVendorId) {
-      showError('Please select a Shirka first (Step 1).');
+      showError('Please select a Sub-Vendor first (Step 1).');
       return null;
     }
 
@@ -1228,7 +1230,7 @@ export const VouchersPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => setBuilderOpen(false)}>Cancel</Button>
               {builderStep < 4 ? (
-                <Button variant="primary" size="sm" onClick={() => setBuilderStep((builderStep + 1) as any)} disabled={builderStep === 1 && !voucherVendorId} className="bg-[#0e2c4c] disabled:opacity-40" title={builderStep === 1 && !voucherVendorId ? 'Select a Shirka first' : ''}>
+                <Button variant="primary" size="sm" onClick={() => setBuilderStep((builderStep + 1) as any)} disabled={builderStep === 1 && !voucherVendorId} className="bg-[#0e2c4c] disabled:opacity-40" title={builderStep === 1 && !voucherVendorId ? 'Select a Sub-Vendor first' : ''}>
                   Next Step
                 </Button>
               ) : editingVoucherId ? (
@@ -1248,19 +1250,19 @@ export const VouchersPage: React.FC = () => {
           {/* Step 1: Select Pilgrims — agent-wise, searchable, multi-select */}
           {builderStep === 1 && (
             <div className="space-y-4">
-              {/* Step 1a: Shirka FIRST — mandatory, picker filters on it */}
+              {/* Step 1a: Sub-Vendor FIRST — mandatory, picker filters on it */}
               <div className="p-4 bg-[#0e2c4c]/5 border-2 border-[#0e2c4c]/25 rounded-xl">
                 <label className="block text-sm font-bold text-[var(--theme-primary)] mb-1">
-                  Step 1: Select Shirka <span className="text-red-500">*</span>
+                  Step 1: Select Sub-Vendor <span className="text-red-500">*</span>
                 </label>
-                <p className="text-[11px] text-slate-500 mb-2">Select the Shirka first — only that Shirka's pilgrims will appear below.</p>
+                <p className="text-[11px] text-slate-500 mb-2">Select the Sub-Vendor first — only that Sub-Vendor's pilgrims will appear below.</p>
                 <select
                   value={`${voucherVendorId}::${voucherShirkaId}`}
                   onChange={(e) => {
                     const [vid, sid] = e.target.value.split('::');
                     setVoucherVendorId(vid || '');
                     setVoucherShirkaId(sid || '');
-                    // Prune selected pax that don't belong to the newly selected Shirka
+                    // Prune selected pax that don't belong to the newly selected Sub-Vendor
                     if (vid) {
                       setSelectedVisaIds((prev) => prev.filter((id) => {
                         const vv = availableVisas.find((x) => x.id === id);
@@ -1271,7 +1273,7 @@ export const VouchersPage: React.FC = () => {
                   }}
                   className="w-full sm:w-96 p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
                 >
-                  <option value="::">-- Select Shirka (mandatory) --</option>
+                  <option value="::">-- Select Sub-Vendor (mandatory) --</option>
                   {vendorsMaster.filter((v: any) => v.isActive !== false).map((v: any) => {
                     const shirkas = (v.shirkas || []).filter((s: any) => s.isActive !== false);
                     if (shirkas.length === 0) {
@@ -1304,8 +1306,8 @@ export const VouchersPage: React.FC = () => {
               )}
               {(!editingVoucherId && !voucherVendorId) ? (
                 <div className="p-8 text-center bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl">
-                  <div className="text-sm font-bold text-slate-700">↑ Select a Shirka above first</div>
-                  <div className="text-[11px] text-slate-500 mt-1">Uske baad sirf usi Shirka ke pilgrims ki list yahan ayegi.</div>
+                  <div className="text-sm font-bold text-slate-700">↑ Select a Sub-Vendor above first</div>
+                  <div className="text-[11px] text-slate-500 mt-1">Uske baad sirf usi Sub-Vendor ke pilgrims ki list yahan ayegi.</div>
                 </div>
               ) : (
               <div className="space-y-3">
@@ -1958,12 +1960,12 @@ export const VouchersPage: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Reference</label>
+                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Reference Number</label>
                     <input
                       type="text"
                       value={voucherReference}
                       onChange={(e) => setVoucherReference(e.target.value)}
-                      placeholder="Reference number"
+                      placeholder="Reference Number"
                       className="w-full p-2 bg-white border border-slate-300 rounded-lg text-sm"
                     />
                   </div>

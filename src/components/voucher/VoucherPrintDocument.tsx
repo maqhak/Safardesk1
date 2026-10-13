@@ -29,13 +29,13 @@ export const VoucherPrintDocument: React.FC<{
   const innerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 
-  // Sub-Shirka display name: resolved live from the voucher's visas
+  // Sub-Vendor display name: resolved live from the voucher's visas
   // (their shirkaIds -> vendor master shirkas array), plus the voucher's
   // own shirkaId as fallback. Multi-shirka visas -> comma-separated list.
-  // Stored subShirkaName (saved at creation) is the fallback. If nothing
+  // Stored shirkaName (saved at creation) is the fallback. If nothing
   // resolves, the row is omitted entirely — never fabricated, never crash.
-  const [subShirkaDisplay, setSubShirkaDisplay] = useState<string>(
-    (voucher as any).subShirkaName || ''
+  const [subVendorDisplay, setSubVendorDisplay] = useState<string>(
+    (voucher as any).shirkaName || ''
   );
   useEffect(() => {
     let cancelled = false;
@@ -67,11 +67,11 @@ export const VoucherPrintDocument: React.FC<{
           .filter((n): n is string => !!n);
         const uniqueNames = [...new Set(names)];
         if (cancelled) return;
-        if (uniqueNames.length > 0) setSubShirkaDisplay(uniqueNames.join(', '));
-        else if ((voucher as any).subShirkaName) setSubShirkaDisplay((voucher as any).subShirkaName);
-        else setSubShirkaDisplay('');
+        if (uniqueNames.length > 0) setSubVendorDisplay(uniqueNames.join(', '));
+        else if ((voucher as any).shirkaName) setSubVendorDisplay((voucher as any).shirkaName);
+        else setSubVendorDisplay('');
       } catch {
-        if (!cancelled) setSubShirkaDisplay((voucher as any).subShirkaName || '');
+        if (!cancelled) setSubVendorDisplay((voucher as any).shirkaName || '');
       }
     })();
     return () => { cancelled = true; };
@@ -105,7 +105,7 @@ export const VoucherPrintDocument: React.FC<{
       clearTimeout(t2);
       imgs.forEach((img) => img.removeEventListener('load', measure));
     };
-  }, [voucher, subShirkaDisplay]);
+  }, [voucher, subVendorDisplay]);
 
   const pax = voucher.passengers || [];
   const adults = pax.filter(p => p.ageType === 'Adult').length;
@@ -298,7 +298,7 @@ export const VoucherPrintDocument: React.FC<{
         <div ref={innerRef} className="fsv-fit" style={{ zoom: scale, transformOrigin: 'top left' }}>
 
           <div className="fsv-vhead">
-            <div className="fsv-sketch"><div className="fsv-arch"><img src={imgKaaba} alt="Kaaba Shareef" /></div><div className="fsv-under">Shirka: {(voucher as any).shirkaName || "—"}</div></div>
+            <div className="fsv-sketch"><div className="fsv-arch"><img src={imgKaaba} alt="Kaaba Shareef" /></div><div className="fsv-under">Sub-Vendor: {subVendorDisplay || (voucher as any).shirkaName || "—"}</div></div>
             <div className="fsv-brand">
               {company.logoUrl ? (
                 <img className="fsv-logo" src={company.logoUrl} alt="Company logo" />
@@ -315,11 +315,11 @@ export const VoucherPrintDocument: React.FC<{
 
           <div className="fsv-metabar">
             <div><span className="fsv-lbl">VOUCHER NO.</span><span className="fsv-val">{voucher.voucherNo}</span></div>
-            {((voucher as any).shirkaName || (voucher as any).shirkaVendorId) && (
-              <div style={{ justifyContent: 'center' }}><span className="fsv-lbl">SHIRKA</span><span className="fsv-val">{(voucher as any).shirkaName || (voucher as any).shirkaVendorId}</span></div>
+            {(subVendorDisplay || (voucher as any).shirkaName) && (
+              <div style={{ justifyContent: 'center' }}><span className="fsv-lbl">SUB-VENDOR</span><span className="fsv-val">{subVendorDisplay || (voucher as any).shirkaName}</span></div>
             )}
-            {subShirkaDisplay && (
-              <div style={{ justifyContent: 'center' }}><span className="fsv-lbl">SUB-SHIRKA</span><span className="fsv-val">{subShirkaDisplay}</span></div>
+            {(voucher as any).reference && (
+              <div style={{ justifyContent: 'center' }}><span className="fsv-lbl">REFERENCE NUMBER</span><span className="fsv-val">{(voucher as any).reference}</span></div>
             )}
             <div style={{ justifyContent: 'flex-end' }}><span className="fsv-lbl">DATE CREATED</span><span className="fsv-val">{createdStr}</span></div>
           </div>

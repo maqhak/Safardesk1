@@ -274,7 +274,7 @@ export const VisasPage: React.FC = () => {
 
   const handleConfirmImport = async () => {
     if (!importVendorId) {
-      showError('Please select the Shirka for this upload first — every visa must carry a Shirka stamp.');
+      showError('Please select the Sub-Vendor for this upload first — every visa must carry a Sub-Vendor stamp.');
       return;
     }
     const shirkaName = resolveImportShirkaName();
@@ -338,7 +338,7 @@ export const VisasPage: React.FC = () => {
 
     try {
       if (!manualVendorId) {
-        showError('Please select the Shirka for this visa — every visa must carry a Shirka stamp.');
+        showError('Please select the Sub-Vendor for this visa — every visa must carry a Sub-Vendor stamp.');
         return;
       }
       const mvnd = vendors.find((x) => x.id === manualVendorId);
@@ -653,7 +653,7 @@ export const VisasPage: React.FC = () => {
             </div>
             <div className="max-w-md mx-auto text-left">
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Shirka for this upload <span className="text-red-500">*</span>
+                Sub-Vendor for this upload <span className="text-red-500">*</span>
               </label>
               <select
                 value={`${importVendorId}::${importShirkaId}`}
@@ -664,7 +664,7 @@ export const VisasPage: React.FC = () => {
                 }}
                 className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
               >
-                <option value="::">-- Select Shirka (whose visas are these?) --</option>
+                <option value="::">-- Select Sub-Vendor (whose visas are these?) --</option>
                 {vendors.map((v) => {
                   const shirkas = (v.shirkas || []).filter((s: any) => s.isActive !== false);
                   if (shirkas.length === 0) {
@@ -672,7 +672,7 @@ export const VisasPage: React.FC = () => {
                   }
                   return (
                     <optgroup key={v.id} label={`${v.name}${v.vendorCode ? ` (${v.vendorCode})` : ''}`}>
-                      <option value={`${v.id}::`}>{v.name} — Company itself (no sub-shirka)</option>
+                      <option value={`${v.id}::`}>{v.name} — Company itself (no Sub-Vendor)</option>
                       {shirkas.map((s: any) => (
                         <option key={s.id} value={`${v.id}::${s.id}`}>{s.name} — run by {s.operatorName}</option>
                       ))}
@@ -680,7 +680,7 @@ export const VisasPage: React.FC = () => {
                   );
                 })}
               </select>
-              <p className="text-[11px] text-slate-500 mt-1">Upload each Shirka's file separately — every visa will carry this Shirka's stamp.</p>
+              <p className="text-[11px] text-slate-500 mt-1">Upload each Sub-Vendor's file separately — every visa will carry this Sub-Vendor's stamp.</p>
             </div>
             <div>
               <label className={`inline-block px-4 py-2.5 font-bold rounded-xl text-xs shadow transition ${importVendorId ? 'bg-[#0e2c4c] hover:bg-[#1a4473] text-white cursor-pointer' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
@@ -694,7 +694,7 @@ export const VisasPage: React.FC = () => {
                 />
               </label>
               {!importVendorId && (
-                <p className="text-[11px] text-amber-700 font-semibold mt-2">Select a Shirka above first, then browse for the file.</p>
+                <p className="text-[11px] text-amber-700 font-semibold mt-2">Select a Sub-Vendor above first, then browse for the file.</p>
               )}
             </div>
           </div>
@@ -877,7 +877,7 @@ export const VisasPage: React.FC = () => {
 
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Shirka <span className="text-red-500">*</span>
+              Sub-Vendor <span className="text-red-500">*</span>
             </label>
             <select
               value={`${manualVendorId}::${manualShirkaId}`}
@@ -889,7 +889,7 @@ export const VisasPage: React.FC = () => {
               required
               className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
             >
-              <option value="::">-- Select Shirka --</option>
+              <option value="::">-- Select Sub-Vendor --</option>
               {vendors.map((v) => {
                 const shirkas = (v.shirkas || []).filter((s: any) => s.isActive !== false);
                 if (shirkas.length === 0) {

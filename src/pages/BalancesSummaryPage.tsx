@@ -303,7 +303,7 @@ export const BalancesSummaryPage: React.FC = () => {
             {(currency === 'SAR' ? summary.totalPayableSAR : summary.totalPayablePKR).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </div>
           <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-            <span>Hotels, Shirkas & Vendors</span>
+            <span>Hotels, Sub-Vendors & Vendors</span>
             <span className="font-mono text-slate-600">
               {currency === 'SAR' ? `≈ PKR ${summary.totalPayablePKR.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : `≈ SAR ${summary.totalPayableSAR.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
             </span>

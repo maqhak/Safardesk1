@@ -13,7 +13,8 @@ import { fetchCustomers } from '../services/customerService';
 import { fetchAgents } from '../services/agentService';
 import { fetchVendors, fetchAirlines } from '../services/masterService';
 import { getCurrentRate } from '../services/exchangeRateService';
-import { AirlineDoc, AirportRef } from '../types/master';
+import { AirlineDoc } from '../types/master';
+import { TicketSector } from '../types/ticket';
 
 const inputCls = "w-full p-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20";
 const labelCls = "block text-[11px] uppercase font-bold text-slate-600 mb-1";
@@ -40,12 +41,23 @@ export const TicketSalePage: React.FC = () => {
   const [supplierName, setSupplierName] = useState('');
   const [serviceProvider, setServiceProvider] = useState('');
 
-  // Route
+  // Route — multi-destination sectors: one ticket, one passenger, 3–4+ legs
+  // (e.g. ISB → DXB → JED → ISB). No cap; add as many legs as needed.
   const [routeType, setRouteType] = useState('One Way');
-  const [sectorFrom, setSectorFrom] = useState<AirportRef | null>(null);
-  const [sectorTo, setSectorTo] = useState<AirportRef | null>(null);
-  const [flightNo, setFlightNo] = useState('');
-  const [flightDate, setFlightDate] = useState('');
+  const [sectors, setSectors] = useState<TicketSector[]>([{ from: null, to: null, flightDate: '', flightNo: '' }]);
+  const updateSector = (idx: number, patch: Partial<TicketSector>) => {
+    setSectors(prev => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+  };
+  const addSector = () => {
+    // Chain: the next leg starts where the previous one landed.
+    setSectors(prev => {
+      const last = prev[prev.length - 1];
+      return [...prev, { from: last?.to || null, to: null, flightDate: '', flightNo: '' }];
+    });
+  };
+  const removeSector = (idx: number) => {
+    setSectors(prev => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)));
+  };
 
   // Passenger
   const [ticketNo, setTicketNo] = useState('');
@@ -135,20 +147,40 @@ export const TicketSalePage: React.FC = () => {
     if (!pnr.trim()) { showError('Please enter PNR.'); return; }
     if (!ticketNo.trim()) { showError('Please enter ticket number.'); return; }
     if (!surname.trim() || !givenName.trim()) { showError('Please enter passenger name.'); return; }
+    const validSectors = sectors.filter(s => s.from && s.to);
+    if (validSectors.length === 0) { showError('Please add at least one sector (From and To).'); return; }
 
     setSaving(true);
     try {
       const rate = parseFloat(exchangeRate) || getCurrentRate('SAR-PKR');
+      // Resolve the Shirka display name (shirkaId may be a vendor id or a nested shirka id)
+      let shirkaName = '';
+      if (shirkaId) {
+        for (const v of vendors as any[]) {
+          if (v.id === shirkaId) { shirkaName = v.name || ''; break; }
+          const s = (v.shirkas || []).find((x: any) => x.id === shirkaId);
+          if (s) { shirkaName = s.name || ''; break; }
+        }
+      }
       await createTicket(userProfile, {
         pnr: pnr.trim().toUpperCase(),
         airline,
-        flightNo: flightNo.trim(),
-        sectorFrom,
-        sectorTo,
-        flightDate: flightDate || issueDate,
+        sectors: validSectors.map(s => ({
+          ...s,
+          flightNo: s.flightNo.trim().toUpperCase(),
+          flightDate: s.flightDate || issueDate,
+        })),
+        flightNo: (validSectors[0]?.flightNo || '').trim().toUpperCase(),
+        sectorFrom: validSectors[0]?.from || null,
+        sectorTo: validSectors[0]?.to || null,
+        flightDate: validSectors[0]?.flightDate || issueDate,
         passengers: [{
           name: `${title} ${givenName} ${surname}`.trim(),
+          title,
           passportNumber: passportNo.trim(),
+          cnic: cnic.trim() || undefined,
+          passportExpiry: passportExpiry || undefined,
+          nationality: nationality.trim() || undefined,
           ageType: 'Adult',
           ticketNo: ticketNo.trim(),
         }],
@@ -174,7 +206,24 @@ export const TicketSalePage: React.FC = () => {
           amountSAR: parseFloat(commissionAmt) || 0,
           isPaid: false,
         },
-      } as any);
+        invoiceDate,
+        invoiceStatus,
+        issueDate,
+        orderRef: orderRef.trim() || undefined,
+        note: note.trim() || undefined,
+        postTo: postTo.trim() || undefined,
+        routeType,
+        shirkaId: shirkaId || undefined,
+        shirkaName: shirkaName || undefined,
+        airlineChargesSAR: parseFloat(airlineCharges) || 0,
+        airlinePayableSAR: calc.airlinePayable,
+        chargesSAR: parseFloat(charges) || 0,
+        custWhPercent: parseFloat(custWhPct) || 0,
+        custWhAmountSAR: calc.custWhAmt,
+        discountPercent: parseFloat(discountPct) || 0,
+        discountAmountSAR: calc.discountAmt,
+        customerReceivableSAR: calc.customerReceivable,
+      });
       success('Ticket sale saved.');
       navigate('/tickets');
     } catch (err: any) {
@@ -267,15 +316,11 @@ export const TicketSalePage: React.FC = () => {
               <option>One Way</option><option>Return</option><option>Multi City</option>
             </select>
           </div>
-          <div><label className={labelCls}>From</label><AirportSelect value={sectorFrom} onChange={setSectorFrom} placeholder="Origin" /></div>
-          <div><label className={labelCls}>To</label><AirportSelect value={sectorTo} onChange={setSectorTo} placeholder="Destination" /></div>
-          <div><label className={labelCls}>Flight No</label><input value={flightNo} onChange={e => setFlightNo(e.target.value.toUpperCase())} className={inputCls} placeholder="PK-740" /></div>
-          <div><label className={labelCls}>Flight Date</label><input type="date" value={flightDate} onChange={e => setFlightDate(e.target.value)} className={inputCls} /></div>
           <div><label className={labelCls}>Airline (Supplier)</label><input value={supplierName} onChange={e => setSupplierName(e.target.value)} className={inputCls} placeholder="Supplier airline" /></div>
           <div><label className={labelCls}>Service Provider</label><input value={serviceProvider} onChange={e => setServiceProvider(e.target.value)} className={inputCls} placeholder="GDS / consolidator" /></div>
-          <div><label className={labelCls}>Shirka</label>
+          <div><label className={labelCls}>Sub-Vendor</label>
             <select value={shirkaId} onChange={e => setShirkaId(e.target.value)} className={inputCls}>
-              <option value="">-- Select Shirka --</option>
+              <option value="">-- Select Sub-Vendor --</option>
               {vendors.map((v: any) => (
                 <optgroup key={v.id} label={v.name}>
                   <option value={v.id}>{v.name} (Company)</option>
@@ -285,6 +330,31 @@ export const TicketSalePage: React.FC = () => {
                 </optgroup>
               ))}
             </select>
+          </div>
+        </div>
+
+        {/* Sectors — multi-destination itinerary (one ticket, one passenger) */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-2">
+            <label className={labelCls}>Sectors</label>
+            <button type="button" onClick={addSector} className="text-xs font-bold text-[#0e2c4c] bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg">
+              + Add Sector
+            </button>
+          </div>
+          <div className="space-y-2">
+            {sectors.map((s, idx) => (
+              <div key={idx} className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3 items-end">
+                <div><label className={labelCls}>From {idx > 0 && <span className="text-slate-400">· Leg {idx + 1}</span>}</label><AirportSelect value={s.from} onChange={v => updateSector(idx, { from: v })} placeholder="Origin" /></div>
+                <div><label className={labelCls}>To</label><AirportSelect value={s.to} onChange={v => updateSector(idx, { to: v })} placeholder="Destination" /></div>
+                <div><label className={labelCls}>Flight No</label><input value={s.flightNo} onChange={e => updateSector(idx, { flightNo: e.target.value.toUpperCase() })} className={inputCls} placeholder="PK-740" /></div>
+                <div className="flex gap-2">
+                  <div className="flex-1"><label className={labelCls}>Travel Date</label><input type="date" value={s.flightDate} onChange={e => updateSector(idx, { flightDate: e.target.value })} className={inputCls} /></div>
+                  {sectors.length > 1 && (
+                    <button type="button" onClick={() => removeSector(idx)} title="Remove sector" className="mb-[1px] px-2.5 rounded-lg border border-slate-300 bg-white text-slate-500 hover:text-red-600 hover:border-red-300 text-sm font-bold">×</button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </Card>

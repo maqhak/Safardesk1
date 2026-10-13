@@ -13,7 +13,7 @@ import { fetchAgents, getAgentIdentityIds } from '../services/agentService';
 import { fetchVendors } from '../services/masterService';
 
 /**
- * STEP 1 of voucher creation: select Agent + Shirka + Passengers.
+ * STEP 1 of voucher creation: select Agent + Vendor + Sub-Vendor + Passengers.
  * The voucher form (/vouchers/new) is only reachable from here —
  * exactly the selected passengers are carried through.
  */
@@ -106,7 +106,7 @@ export const VoucherSelectPage: React.FC = () => {
 
   const handleContinue = () => {
     if (!agentId) { showError('Please select an Agent first.'); return; }
-    if (!shirkaVendorId) { showError('Please select a Shirka.'); return; }
+    if (!shirkaVendorId) { showError('Please select a Vendor.'); return; }
     if (selectedVisaIds.length === 0) { showError('Please select at least one passenger.'); return; }
     navigate('/vouchers/new', {
       state: { preselectedVisaIds: selectedVisaIds, agentId, shirkaVendorId, shirkaId },
@@ -118,7 +118,7 @@ export const VoucherSelectPage: React.FC = () => {
 
   return (
     <div className="pb-16">
-      <PageHeader title="New Voucher — Select Passengers" subtitle="Step 1: choose agent, shirka and passengers. Step 2 is the voucher form." />
+      <PageHeader title="New Voucher — Select Passengers" subtitle="Step 1: choose agent, vendor, sub-vendor and passengers. Step 2 is the voucher form." />
 
       <div className="px-4 sm:px-6 space-y-4 max-w-5xl mx-auto">
         {loading ? (
@@ -146,16 +146,16 @@ export const VoucherSelectPage: React.FC = () => {
             <Card className="p-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
-                  <label className={labelCls}>Shirka *</label>
+                  <label className={labelCls}>Vendor *</label>
                   <select value={shirkaVendorId} onChange={(e) => { setShirkaVendorId(e.target.value); setShirkaId(''); setSelectedVisaIds([]); }} className={inputCls}>
-                    <option value="">-- Select Shirka --</option>
+                    <option value="">-- Select Vendor --</option>
                     {(vendorsMaster || []).filter((v: any) => v.isActive !== false).map((v: any) => (
                       <option key={v.id} value={v.id}>{v.name}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className={labelCls}>Sub-Shirka</label>
+                  <label className={labelCls}>Sub-Vendor</label>
                   <select value={shirkaId} onChange={(e) => setShirkaId(e.target.value)} className={inputCls} disabled={!shirkaVendorId}>
                     <option value="">-- None --</option>
                     {((vendorsMaster || []).find((v: any) => v.id === shirkaVendorId)?.shirkas || []).map((s: any) => (

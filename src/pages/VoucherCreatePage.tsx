@@ -596,7 +596,7 @@ export const VoucherCreatePage: React.FC = () => {
       return null;
     }
     if (!shirkaVendorId) {
-      showError('Please select a Shirka first.');
+      showError('Please select a Sub-Vendor first.');
       return null;
     }
     if (retLeg.depDate && depLeg.arrDate && retLeg.depDate < depLeg.arrDate) {
@@ -676,8 +676,7 @@ export const VoucherCreatePage: React.FC = () => {
       agentId,
       shirkaVendorId: shirkaVendorId || undefined,
       shirkaId: shirkaId || undefined,
-      shirkaName: shirkaVendorId ? resolveVendorName(shirkaVendorId) || undefined : undefined,
-      subShirkaName: resolveSubShirkaName() || undefined,
+      shirkaName: shirkaVendorId ? (resolveSubShirkaName() || resolveVendorName(shirkaVendorId) || undefined) : undefined,
       leaderName: leaderName.trim() || undefined,
       leaderContact: leaderContact.trim() || undefined,
       packageType: effectivePackageType || undefined,
@@ -915,7 +914,7 @@ export const VoucherCreatePage: React.FC = () => {
             <Card className="p-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
-                  <label className={labelCls}>Reference</label>
+                  <label className={labelCls}>Reference Number</label>
                   <input type="text" value={voucherReference} onChange={(e) => setVoucherReference(e.target.value)} placeholder="Reference no." maxLength={15} className={inputCls} />
                 </div>
                 <div>
@@ -1299,7 +1298,7 @@ export const VoucherCreatePage: React.FC = () => {
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
                     <div className="md:col-span-2">
-                      <label className={labelCls}>Shirka <span className="text-red-500">*</span></label>
+                      <label className={labelCls}>Sub-Vendor <span className="text-red-500">*</span></label>
                       <select
                         value={`${shirkaVendorId}::${shirkaId}`}
                         onChange={(e) => {
@@ -1309,7 +1308,7 @@ export const VoucherCreatePage: React.FC = () => {
                         }}
                         className={inputCls}
                       >
-                        <option value="::">-- Select Shirka (mandatory) --</option>
+                        <option value="::">-- Select Sub-Vendor (mandatory) --</option>
                         {vendorsMaster.filter((v: any) => v.isActive !== false).map((v: any) => {
                           const shirkas = (v.shirkas || []).filter((s: any) => s.isActive !== false);
                           if (shirkas.length === 0) {
@@ -1357,7 +1356,7 @@ export const VoucherCreatePage: React.FC = () => {
                     </div>
                   ) : !shirkaVendorId ? (
                     <div className="p-6 text-center bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl text-sm font-bold text-slate-600">
-                      ↑ Select a Shirka above first
+                      ↑ Select a Sub-Vendor above first
                     </div>
                   ) : (
                     <div className="max-h-72 overflow-y-auto border border-slate-200 rounded-xl">
@@ -1369,7 +1368,7 @@ export const VoucherCreatePage: React.FC = () => {
                             <>
                               <div>
                                 <span className="font-bold text-[#0e2c4c]">{agentPendingCount}</span> pilgrim(s) of {agentName(agentId)} found,
-                                but none match Shirka "{selectedShirkaName || 'selected'}".
+                                but none match Sub-Vendor "{selectedShirkaName || 'selected'}".
                               </div>
                               <button
                                 type="button"

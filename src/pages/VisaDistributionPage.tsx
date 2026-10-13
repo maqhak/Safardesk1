@@ -425,7 +425,7 @@ export const VisaDistributionPage: React.FC = () => {
 
   const handleSaveDistribution = async () => {
     if (!canSave) {
-      showError('Please select a Shirka Vendor and assign at least one group to an agent with selling + buying prices.');
+      showError('Please select a Sub-Vendor and assign at least one group to an agent with selling + buying prices.');
       return;
     }
 
@@ -581,7 +581,7 @@ export const VisaDistributionPage: React.FC = () => {
         <div className="flex items-center justify-between border-b border-slate-200 pb-3">
           <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide flex items-center gap-2">
             <Building2 className="w-4 h-4 text-[var(--theme-primary)]" />
-            <span>Step 1: Source Shirka Vendor</span>
+            <span>Step 1: Source Sub-Vendor</span>
           </h3>
           <span className="text-[11px] text-slate-500 font-medium">Buying rate is entered per group below</span>
         </div>
@@ -589,7 +589,7 @@ export const VisaDistributionPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Shirka / Vendor Source *
+              Sub-Vendor / Vendor Source *
             </label>
             <select
               value={selectedVendorId}
@@ -597,7 +597,7 @@ export const VisaDistributionPage: React.FC = () => {
               required
               className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none"
             >
-              <option value="">-- Select Shirka Vendor --</option>
+              <option value="">-- Select Sub-Vendor --</option>
               {vendors.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name} ({v.city}, {v.country})
@@ -608,14 +608,14 @@ export const VisaDistributionPage: React.FC = () => {
 
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Shirka <span className="text-slate-400 font-semibold normal-case">(under this company)</span>
+              Sub-Vendor <span className="text-slate-400 font-semibold normal-case">(under this company)</span>
             </label>
             <select
               value={selectedShirkaId}
               onChange={(e) => setSelectedShirkaId(e.target.value)}
               className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none"
             >
-              <option value="">-- Company itself (no sub-Shirka) --</option>
+              <option value="">-- Company itself (no Sub-Vendor) --</option>
               {(vendors.find((v) => v.id === selectedVendorId)?.shirkas || []).filter((s) => s.isActive !== false).map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} — run by {s.operatorName}
@@ -891,11 +891,11 @@ export const VisaDistributionPage: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white/10 p-3 rounded-xl border border-white/10">
-            <span className="text-[10px] text-slate-300 uppercase font-bold block">Total Buying Cost (Shirka)</span>
+            <span className="text-[10px] text-slate-300 uppercase font-bold block">Total Buying Cost (Sub-Vendor)</span>
             <div className="text-xl font-mono font-bold text-rose-300 mt-1">
               SAR {summary.totalBuying.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </div>
-            <span className="text-[10px] text-slate-400">Payable to Shirka Vendor</span>
+            <span className="text-[10px] text-slate-400">Payable to Sub-Vendor</span>
           </div>
 
           <div className="bg-white/10 p-3 rounded-xl border border-white/10">

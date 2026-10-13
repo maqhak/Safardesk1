@@ -187,7 +187,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
               if (e.key === 'Enter' && query.trim() && searchResults.length > 0) { setExpanded(true); }
             }}
             onChange={(e) => { setQuery(e.target.value); setExpanded(false); }}
-            placeholder="Search vouchers by Voucher No, Passport Number, Group Code, Passenger Name, or Shirka..."
+            placeholder="Search vouchers by Voucher No, Passport Number, Group Code, Passenger Name, or Sub-Vendor..."
             className="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
           />
           {query && (
@@ -214,7 +214,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
               <div className="space-y-1">
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">Whole-Website Vouchers Search</h4>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Type to search live company vouchers by Voucher No, Passport Number, Group Code, Mutamer Name, or Shirka.
+                  Type to search live company vouchers by Voucher No, Passport Number, Group Code, Mutamer Name, or Sub-Vendor.
                 </p>
               </div>
 
@@ -262,7 +262,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                     <th className="py-2.5 px-3 font-bold">Group</th>
                     <th className="py-2.5 px-3 font-bold">Passenger</th>
                     <th className="py-2.5 px-3 font-bold">Passport</th>
-                    <th className="py-2.5 px-3 font-bold">Shirka</th>
+                    <th className="py-2.5 px-3 font-bold">Sub-Vendor</th>
                     <th className="py-2.5 px-3 font-bold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -320,7 +320,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                       <Badge variant="navy" size="sm">{groupCode || '—'}</Badge>
                       {shirkaName ? (
                         <span className="text-[11px] text-slate-500 font-medium">
-                          Shirka: <strong>{shirkaName}</strong>
+                          Sub-Vendor: <strong>{shirkaName}</strong>
                         </span>
                       ) : null}
                     </div>

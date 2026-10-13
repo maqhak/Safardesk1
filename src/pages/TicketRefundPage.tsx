@@ -7,7 +7,9 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { fetchTickets, TicketDoc } from '../services/ticketService';
+import { fetchTickets } from '../services/ticketService';
+import { getTicketSectors } from '../services/ticketService';
+import { TicketDoc } from '../types/ticket';
 import { getCurrentRate } from '../services/exchangeRateService';
 
 const inputCls = "w-full p-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20";
@@ -105,7 +107,14 @@ export const TicketRefundPage: React.FC = () => {
     setSaving(true);
     try {
       const { refundTicket } = await import('../services/ticketService');
-      await refundTicket(userProfile, ticketId, `Refund ${refundDate} — penalty ${refundPenalty || 0}`);
+      await refundTicket(userProfile, ticketId, {
+        reason: `Refund ${refundDate} — penalty ${refundPenalty || 0}`,
+        refundDate,
+        refundStatus,
+        refundPenaltySAR: parseFloat(refundPenalty) || 0,
+        refundAirlineReceivableSAR: calc.airlineReceivable,
+        refundCustomerPayableSAR: calc.customerPayable,
+      });
       success('Ticket refund recorded.');
       navigate('/tickets');
     } catch (err: any) {
@@ -160,6 +169,23 @@ export const TicketRefundPage: React.FC = () => {
           <div><label className={labelCls}>Service Provider</label><input value={serviceProvider} onChange={e => setServiceProvider(e.target.value)} className={inputCls} /></div>
         </div>
       </Card>
+
+      {/* Sectors — read-only itinerary of the selected ticket (no editing on refund) */}
+      {selectedTicket && (
+        <Card className="p-4">
+          <h3 className="text-xs font-bold text-[#0e2c4c] uppercase tracking-wider mb-3">Sectors (Itinerary)</h3>
+          <div className="space-y-2">
+            {getTicketSectors(selectedTicket).map((s, i, arr) => (
+              <div key={i} className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                <div><label className={labelCls}>From{arr.length > 1 ? ` — Leg ${i + 1}` : ''}</label><div className="p-2 bg-white border border-slate-300 rounded-lg text-sm">{s.from ? `${s.from.iata} — ${s.from.city || s.from.name || ''}` : '—'}</div></div>
+                <div><label className={labelCls}>To</label><div className="p-2 bg-white border border-slate-300 rounded-lg text-sm">{s.to ? `${s.to.iata} — ${s.to.city || s.to.name || ''}` : '—'}</div></div>
+                <div><label className={labelCls}>Flight No</label><div className="p-2 bg-white border border-slate-300 rounded-lg text-sm">{s.flightNo || '—'}</div></div>
+                <div><label className={labelCls}>Travel Date</label><div className="p-2 bg-white border border-slate-300 rounded-lg text-sm">{s.flightDate || '—'}</div></div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Passenger */}
       <Card className="p-4">

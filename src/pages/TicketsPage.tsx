@@ -29,9 +29,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { useDeepOpen } from '../hooks/useDeepOpen';
-import { TicketDoc, TicketPassenger } from '../types/ticket';
-import { AirlineDoc, AirportRef } from '../types/master';
-import { fetchTickets, createTicket, refundTicket } from '../services/ticketService';
+import { TicketDoc, TicketPassenger, TicketSector } from '../types/ticket';
+import { AirlineDoc } from '../types/master';
+import { fetchTickets, createTicket, refundTicket, getTicketSectors, getTicketRouteLabel } from '../services/ticketService';
 import { getCurrentRate, useCurrentRate } from '../services/exchangeRateService';
 
 // Convert any supported currency amount to SAR using settings rates
@@ -84,10 +84,22 @@ export const TicketsPage: React.FC = () => {
   const [saving, setSaving] = useState<boolean>(false);
   const [pnr, setPnr] = useState<string>('');
   const [airline, setAirline] = useState<AirlineDoc | null>(null);
-  const [flightNo, setFlightNo] = useState<string>('');
-  const [sectorFrom, setSectorFrom] = useState<AirportRef | null>(null);
-  const [sectorTo, setSectorTo] = useState<AirportRef | null>(null);
-  const [flightDate, setFlightDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  // Sectors — multi-destination itinerary: one ticket, one passenger, 3–4+ legs
+  // (e.g. ISB → DXB → JED → ISB). No cap; add as many legs as needed.
+  const [sectors, setSectors] = useState<TicketSector[]>([{ from: null, to: null, flightDate: new Date().toISOString().split('T')[0], flightNo: '' }]);
+  const updateSector = (idx: number, patch: Partial<TicketSector>) => {
+    setSectors(prev => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+  };
+  const addSector = () => {
+    // Chain: the next leg starts where the previous one landed.
+    setSectors(prev => {
+      const last = prev[prev.length - 1];
+      return [...prev, { from: last?.to || null, to: null, flightDate: last?.flightDate || new Date().toISOString().split('T')[0], flightNo: '' }];
+    });
+  };
+  const removeSector = (idx: number) => {
+    setSectors(prev => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)));
+  };
   const [departureTime, setDepartureTime] = useState<string>('08:00');
   const [arrivalTime, setArrivalTime] = useState<string>('12:00');
   const [supplierName, setSupplierName] = useState<string>('Saudia GDS Direct');
@@ -178,8 +190,13 @@ export const TicketsPage: React.FC = () => {
     e.preventDefault();
     if (!userProfile) return;
 
-    if (!pnr.trim() || !airline || !sectorFrom || !sectorTo || !purchaseCost || !salePricePKR) {
-      showError('Please complete all required fields (PNR, Airline, Sectors, Cost, Sale PKR).');
+    if (!pnr.trim() || !airline || !purchaseCost || !salePricePKR) {
+      showError('Please complete all required fields (PNR, Airline, Cost, Sale PKR).');
+      return;
+    }
+    const validSectors = sectors.filter(s => s.from && s.to);
+    if (validSectors.length === 0) {
+      showError('Please add at least one sector (From and To).');
       return;
     }
 
@@ -228,10 +245,15 @@ export const TicketsPage: React.FC = () => {
       await createTicket(userProfile, {
         pnr: pnr.trim().toUpperCase(),
         airline,
-        flightNo: flightNo.trim().toUpperCase(),
-        sectorFrom,
-        sectorTo,
-        flightDate,
+        sectors: validSectors.map(s => ({
+          ...s,
+          flightNo: s.flightNo.trim().toUpperCase(),
+          flightDate: s.flightDate || new Date().toISOString().split('T')[0],
+        })),
+        flightNo: (validSectors[0]?.flightNo || '').trim().toUpperCase(),
+        sectorFrom: validSectors[0]?.from || null,
+        sectorTo: validSectors[0]?.to || null,
+        flightDate: validSectors[0]?.flightDate || new Date().toISOString().split('T')[0],
         departureTime,
         arrivalTime,
         passengers,
@@ -260,7 +282,7 @@ export const TicketsPage: React.FC = () => {
       success(`Ticket PNR ${pnr.toUpperCase()} issued successfully and posted to ledger.`);
       setAddModalOpen(false);
       setPnr('');
-      setFlightNo('');
+      setSectors([{ from: null, to: null, flightDate: new Date().toISOString().split('T')[0], flightNo: '' }]);
       setPurchaseCost('');
       setSalePrice('');
       setSalePricePKR('');
@@ -281,15 +303,22 @@ export const TicketsPage: React.FC = () => {
   const filteredTickets = tickets.filter((t) =>
     t.pnr.toLowerCase().includes(search.toLowerCase()) ||
     t.flightNo.toLowerCase().includes(search.toLowerCase()) ||
+    getTicketRouteLabel(t).toLowerCase().includes(search.toLowerCase()) ||
     t.passengers.some((p) => p.name.toLowerCase().includes(search.toLowerCase()) || p.passportNumber.toLowerCase().includes(search.toLowerCase()))
   );
+
+  // Manifest: one card per sector leg flying on the picked date, so a
+  // multi-destination ticket appears under each of its legs' dates.
+  const manifestEntries = tickets.flatMap((t) =>
+    getTicketSectors(t).map((s, idx) => ({ ticket: t, sector: s, sectorIdx: idx }))
+  ).filter((e) => e.sector.flightDate === manifestDate);
 
   const exportTicketsExcel = () => {
     const rows = filteredTickets.map(tk => ({
       'PNR': tk.pnr,
       'Airline': tk.airline?.name || '',
       'Flight No': tk.flightNo,
-      'Sector': `${tk.sectorFrom?.iata || ''} → ${tk.sectorTo?.iata || ''}`,
+      'Sector': getTicketRouteLabel(tk),
       'Flight Date': tk.flightDate,
       'Buyer': tk.buyerName,
       'Passengers': tk.passengers.length,
@@ -324,7 +353,7 @@ export const TicketsPage: React.FC = () => {
       header: 'Sector',
       render: (row) => (
         <span className="text-xs font-semibold text-slate-700">
-          {row.sectorFrom?.iata} → {row.sectorTo?.iata}
+          {getTicketRouteLabel(row)}
         </span>
       ),
     },
@@ -483,20 +512,19 @@ export const TicketsPage: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            {tickets.filter((t) => t.flightDate === manifestDate).length === 0 ? (
+            {manifestEntries.length === 0 ? (
               <div className="p-12 text-center text-sm text-slate-500">No flights scheduled for {manifestDate}.</div>
             ) : (
-              tickets
-                .filter((t) => t.flightDate === manifestDate)
-                .map((t) => (
-                  <div key={t.id} className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+              manifestEntries
+                .map(({ ticket: t, sector: sec, sectorIdx }) => (
+                  <div key={`${t.id}-${sectorIdx}`} className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-[#0e2c4c]/10 flex items-center justify-center text-[var(--theme-primary)] font-bold">
                           {t.airline?.iataCode}
                         </div>
                         <div>
-                          <h4 className="font-bold text-slate-900 text-sm">Flight {t.airline?.iataCode} {t.flightNo} ({t.sectorFrom?.iata} → {t.sectorTo?.iata})</h4>
+                          <h4 className="font-bold text-slate-900 text-sm">Flight {t.airline?.iataCode} {sec.flightNo || t.flightNo} ({sec.from?.iata} → {sec.to?.iata})</h4>
                           <p className="text-xs text-slate-500">Departure: {t.departureTime || '00:00'} • PNR: <code>{t.pnr}</code></p>
                         </div>
                       </div>
@@ -552,44 +580,51 @@ export const TicketsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <Input
-                label="Flight Number"
-                placeholder="e.g. SV-734"
-                value={flightNo}
-                onChange={(e) => setFlightNo(e.target.value.toUpperCase())}
-                required
-              />
+          {/* Sectors — multi-destination itinerary (one ticket, one passenger) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">Sectors</label>
+              <Button type="button" variant="outline" size="sm" onClick={addSector}>+ Add Sector</Button>
             </div>
-            <div>
-              <AirportSelect
-                label="Origin (From)"
-                value={sectorFrom}
-                onChange={setSectorFrom}
-                required
-              />
-            </div>
-            <div>
-              <AirportSelect
-                label="Destination (To)"
-                value={sectorTo}
-                onChange={setSectorTo}
-                required
-              />
-            </div>
+            {sectors.map((s, idx) => (
+              <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                <AirportSelect
+                  label={`Origin (From)${idx > 0 ? ` — Leg ${idx + 1}` : ''}`}
+                  value={s.from}
+                  onChange={(v) => updateSector(idx, { from: v })}
+                  required
+                />
+                <AirportSelect
+                  label="Destination (To)"
+                  value={s.to}
+                  onChange={(v) => updateSector(idx, { to: v })}
+                  required
+                />
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <Input
+                      label="Flight Number"
+                      placeholder="e.g. SV-734"
+                      value={s.flightNo}
+                      onChange={(e) => updateSector(idx, { flightNo: e.target.value.toUpperCase() })}
+                    />
+                  </div>
+                  {sectors.length > 1 && (
+                    <button type="button" onClick={() => removeSector(idx)} title="Remove sector" className="mb-[1px] px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-slate-500 hover:text-red-600 hover:border-red-300 text-sm font-bold">×</button>
+                  )}
+                </div>
+                <Input
+                  label="Flight Date"
+                  type="date"
+                  value={s.flightDate}
+                  onChange={(e) => updateSector(idx, { flightDate: e.target.value })}
+                  required
+                />
+              </div>
+            ))}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <Input
-                label="Flight Date"
-                type="date"
-                value={flightDate}
-                onChange={(e) => setFlightDate(e.target.value)}
-                required
-              />
-            </div>
             <div>
               <Input
                 label="Departure Time"
@@ -602,7 +637,7 @@ export const TicketsPage: React.FC = () => {
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Ticket Purchase Source</label>
               <div className="grid grid-cols-3 gap-2">
                 {([
-                  { key: 'vendor', label: 'Vendor', desc: 'Consolidator / Shirka' },
+                  { key: 'vendor', label: 'Vendor', desc: 'Consolidator / Sub-Vendor' },
                   { key: 'airline', label: 'Direct Airline', desc: 'Airline stock / GDS' },
                   { key: 'customer', label: 'Customer', desc: 'Buy-back / reissue' },
                 ] as const).map((opt) => (
@@ -880,7 +915,7 @@ export const TicketsPage: React.FC = () => {
           footer={
             <div className="flex items-center justify-between w-full">
               {isOwner && selectedTicket.status !== 'Refunded' && (
-                <Button variant="danger" size="sm" onClick={async () => { await refundTicket(userProfile!, selectedTicket.id, 'Full refund'); success('Ticket refunded.'); setDetailModalOpen(false); await loadData(); }}>
+                <Button variant="danger" size="sm" onClick={async () => { await refundTicket(userProfile!, selectedTicket.id, { reason: 'Full refund', refundDate: new Date().toISOString().split('T')[0], refundStatus: 'Approved' }); success('Ticket refunded.'); setDetailModalOpen(false); await loadData(); }}>
                   Process Refund
                 </Button>
               )}
@@ -904,23 +939,30 @@ export const TicketsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Flight Details */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div>
-                <span className="text-slate-500 block">Flight</span>
-                <span className="font-bold text-slate-900 text-sm">{selectedTicket.airline?.iataCode} {selectedTicket.flightNo}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Route</span>
-                <span className="font-bold text-slate-900 text-sm">{selectedTicket.sectorFrom?.iata} → {selectedTicket.sectorTo?.iata}</span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Date & Time</span>
-                <span className="font-bold text-slate-900 text-sm">{selectedTicket.flightDate} ({selectedTicket.departureTime})</span>
-              </div>
-              <div>
-                <span className="text-slate-500 block">Buyer</span>
-                <span className="font-bold text-[var(--theme-primary)] text-sm">{selectedTicket.buyerName}</span>
+            {/* Flight Details — every sector leg of the itinerary */}
+            <div>
+              <h5 className="font-bold text-slate-900 mb-2">Flight Details</h5>
+              <div className="space-y-2">
+                {getTicketSectors(selectedTicket).map((s, i, arr) => (
+                  <div key={i} className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div>
+                      <span className="text-slate-500 block">Flight{arr.length > 1 ? ` — Leg ${i + 1}` : ''}</span>
+                      <span className="font-bold text-slate-900 text-sm">{selectedTicket.airline?.iataCode} {s.flightNo}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Route</span>
+                      <span className="font-bold text-slate-900 text-sm">{s.from?.iata} → {s.to?.iata}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Date & Time</span>
+                      <span className="font-bold text-slate-900 text-sm">{s.flightDate}{i === 0 && selectedTicket.departureTime ? ` (${selectedTicket.departureTime})` : ''}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">Buyer</span>
+                      <span className="font-bold text-[var(--theme-primary)] text-sm">{selectedTicket.buyerName}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 

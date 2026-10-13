@@ -6,7 +6,7 @@ import {
   updateDoc 
 } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
-import { TicketDoc } from '../types/ticket';
+import { TicketDoc, TicketSector } from '../types/ticket';
 import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 import { UserProfile } from '../types/auth';
 import { LedgerEntryDoc } from '../types/agent';
@@ -17,6 +17,33 @@ import { fetchLedgerAccounts, postBalancedTransaction } from './accountingServic
 const TICKETS_COLLECTION = 'tickets';
 const LEDGER_ENTRIES_COLLECTION = 'ledgerEntries';
 const LOCAL_STORAGE_TICKETS_KEY = 'safardesk_tickets_directory';
+
+/**
+ * Sectors for a ticket, with back-compat for old single-sector docs:
+ * new docs carry `sectors[]`; old docs only have sectorFrom/sectorTo/
+ * flightNo/flightDate, which are read back as one sector.
+ */
+export function getTicketSectors(ticket: TicketDoc): TicketSector[] {
+  if (ticket.sectors && ticket.sectors.length > 0) return ticket.sectors;
+  if (ticket.sectorFrom || ticket.sectorTo) {
+    return [{
+      from: ticket.sectorFrom || null,
+      to: ticket.sectorTo || null,
+      flightDate: ticket.flightDate || '',
+      flightNo: ticket.flightNo || '',
+    }];
+  }
+  return [];
+}
+
+/** Full route label for a ticket: "ISB → DXB → JED → ISB" (multi-leg) or "ISB → JED". */
+export function getTicketRouteLabel(ticket: TicketDoc): string {
+  const sectors = getTicketSectors(ticket);
+  if (sectors.length === 0) return '';
+  const stops = [sectors[0].from?.iata || ''];
+  for (const s of sectors) stops.push(s.to?.iata || '');
+  return stops.filter(Boolean).join(' → ');
+}
 
 const INITIAL_TICKETS: TicketDoc[] = [
   {
@@ -101,7 +128,7 @@ async function postTicketSaleToLedger(actor: UserProfile, ticket: TicketDoc): Pr
     date: new Date().toISOString().split('T')[0],
     entryType: 'Invoice',
     transNo: ticket.pnr,
-    particulars: `Ticket sale — PNR ${ticket.pnr} (${ticket.sectorFrom?.iata || ''}→${ticket.sectorTo?.iata || ''}, ${ticket.flightDate})`,
+    particulars: `Ticket sale — PNR ${ticket.pnr} (${getTicketRouteLabel(ticket) || `${ticket.sectorFrom?.iata || ''}→${ticket.sectorTo?.iata || ''}`}, ${ticket.flightDate})`,
     invoiceRef: ticket.pnr,
     rate: ticket.exchangeRateSARPKR || getCurrentRate('SAR-PKR'),
     debitAccountId: (receivable as any).id,
@@ -140,9 +167,33 @@ export async function createTicket(
   const salePriceSAR = Math.round((data.salePricePKR / rate) * 100) / 100;
   const marginSAR = Math.round((salePriceSAR - purchaseCostSAR) * 100) / 100;
 
+  // Keep the legacy single-sector fields in sync with sectors[0] so older
+  // views, reports and ledger particulars keep working on multi-sector docs.
+  const sectors = (data.sectors && data.sectors.length > 0) ? data.sectors : undefined;
+  const legacy = sectors ? {
+    sectorFrom: sectors[0].from,
+    sectorTo: sectors[0].to,
+    flightNo: sectors[0].flightNo,
+    flightDate: sectors[0].flightDate || data.flightDate,
+  } : {};
+
+  // Validate the ledger prerequisite BEFORE writing anything: previously the
+  // ticket was saved to Firestore first and the ledger posting threw after,
+  // leaving an orphan ticket in Firestore while the user saw an error —
+  // and a retry created a duplicate ticket.
+  {
+    const accounts = await fetchLedgerAccounts();
+    if (!findBuyerAccount(accounts, data.buyerId)) {
+      throw new Error(
+        'Ticket ledger posting failed: no ledger account found for the buyer. Create it in Masters first.'
+      );
+    }
+  }
+
   const ticketId = `tkt-${Date.now()}`;
   const newTicket: TicketDoc = {
     ...data,
+    ...legacy,
     exchangeRateSARPKR: rate,
     id: ticketId,
     marginSAR,

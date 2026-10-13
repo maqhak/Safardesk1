@@ -156,7 +156,7 @@ export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lo
     if (!userProfile) return;
 
     if (!name.trim() || !vendorId) {
-      showError('Hotel Name and Vendor (Shirka) are mandatory.');
+      showError('Hotel Name and Vendor (Sub-Vendor) are mandatory.');
       return;
     }
 
@@ -256,7 +256,7 @@ export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lo
     <div className="space-y-6">
       <PageHeader
         title={lockedCity ? `${cityLabel} Hotels` : 'Hotel Inventory'}
-        subtitle={lockedCity ? `${cityLabel} hotel inventory — seed ${cityLabel} hotels, link each hotel to its Shirka/vendor, set contracted bed rates.` : 'Makkah & Madinah hotel inventory — link each hotel to its Shirka/vendor, set contracted bed rates, track availability.'}
+        subtitle={lockedCity ? `${cityLabel} hotel inventory — seed ${cityLabel} hotels, link each hotel to its Sub-Vendor/vendor, set contracted bed rates.` : 'Makkah & Madinah hotel inventory — link each hotel to its Sub-Vendor/vendor, set contracted bed rates, track availability.'}
         breadcrumbs={[
           { label: 'Dashboard', href: '/' },
           { label: 'Inventory', href: '/inventory' },
@@ -310,7 +310,7 @@ export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lo
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search hotel name, city, Shirka vendor..."
+              placeholder="Search hotel name, city, Sub-Vendor..."
               className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:outline-none"
             />
           </div>
@@ -343,7 +343,7 @@ export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lo
               <tr>
                 <th className="py-3 px-3">Hotel Name & City</th>
                 <th className="py-3 px-3 text-center">Stars</th>
-                <th className="py-3 px-3">Shirka Vendor</th>
+                <th className="py-3 px-3">Sub-Vendor</th>
                 <th className="py-3 px-3">Bed Types & Nightly Rates (SAR)</th>
                 <th className="py-3 px-3">Availability Note</th>
                 <th className="py-3 px-3 text-center">Used Count</th>
@@ -383,7 +383,7 @@ export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lo
                         </span>
                       </td>
                       <td className="py-2.5 px-3">
-                        <div className="font-semibold text-slate-800">{vendorObj?.name || 'Shirka Vendor'}</div>
+                        <div className="font-semibold text-slate-800">{vendorObj?.name || 'Sub-Vendor'}</div>
                         <div className="text-[10px] font-mono text-slate-500">{vendorObj?.vendorCode}</div>
                       </td>
                       <td className="py-2.5 px-3">
@@ -448,7 +448,7 @@ export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lo
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editingHotel ? `Edit Hotel: ${editingHotel.name}` : 'Add New Contracted Hotel'}
-        subtitle="Provide hotel properties, Shirka supplier binding, and nightly bed type rates."
+        subtitle="Provide hotel properties, Sub-Vendor supplier binding, and nightly bed type rates."
         size="lg"
         footer={
           <div className="flex justify-end gap-2">
@@ -508,14 +508,14 @@ export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lo
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">Shirka / Vendor Source *</label>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">Sub-Vendor / Vendor Source *</label>
               <select
                 value={vendorId}
                 onChange={(e) => setVendorId(e.target.value)}
                 required
                 className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold"
               >
-                <option value="">-- Select Shirka Vendor --</option>
+                <option value="">-- Select Sub-Vendor --</option>
                 {vendors.map((v) => (
                   <option key={v.id} value={v.id}>{v.name} ({v.vendorCode})</option>
                 ))}

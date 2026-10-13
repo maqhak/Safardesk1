@@ -151,7 +151,7 @@ const loadData = async () => {
         defaultBuyingPricePerVisa: parseFloat(defBuyPrice) || undefined,
       });
 
-      success(`Vendor / Shirka "${name}" created with auto ledger account.`);
+      success(`Vendor / Sub-Vendor "${name}" created with auto ledger account.`);
       setAddModalOpen(false);
       setName('');
       setContactPerson('');
@@ -249,7 +249,7 @@ const loadData = async () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Saudi Shirka & Service Vendors"
+        title="Saudi Sub-Vendor & Service Vendors"
         subtitle="Manage official Saudi-side partners from whom visas and hotels are purchased. Sub-ledgers are auto-created."
         breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Masters', href: '/masters' }, { label: 'Vendors' }]}
         actions={
@@ -260,7 +260,7 @@ const loadData = async () => {
               leftIcon={<UserPlus className="w-3.5 h-3.5" />}
               onClick={() => setAddModalOpen(true)}
             >
-              Add Vendor / Shirka
+              Add Vendor / Sub-Vendor
             </Button>
           ) : null
         }
@@ -291,7 +291,7 @@ const loadData = async () => {
           <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase tracking-wider">
             <tr>
               <th className="py-3.5 px-4 w-28">Code</th>
-              <th className="py-3.5 px-4">Vendor / Shirka Name</th>
+              <th className="py-3.5 px-4">Vendor / Sub-Vendor Name</th>
               <th className="py-3.5 px-4">Contact Person & Mobile</th>
               <th className="py-3.5 px-4">Country</th>
               <th className="py-3.5 px-4 text-right">Payable Balance (SAR)</th>
@@ -321,7 +321,7 @@ const loadData = async () => {
                       <span className="font-semibold text-slate-900 block">{v.name}</span>
                       {(v.shirkas || []).length > 0 && (
                         <span className="text-[10px] font-bold text-[var(--theme-primary)] bg-[#0e2c4c]/10 px-1.5 py-0.5 rounded">
-                          {(v.shirkas || []).length} Shirka{(v.shirkas || []).length > 1 ? 's' : ''}: {(v.shirkas || []).map((s) => s.name).join(', ')}
+                          {(v.shirkas || []).length} Sub-Vendor{(v.shirkas || []).length > 1 ? 's' : ''}: {(v.shirkas || []).map((s) => s.name).join(', ')}
                         </span>
                       )}
                       <span className="text-xs text-slate-400 font-mono block">{v.email}</span>
@@ -382,7 +382,7 @@ const loadData = async () => {
       <Modal
         isOpen={addModalOpen}
         onClose={() => setAddModalOpen(false)}
-        title="Add Saudi Shirka / Service Vendor"
+        title="Add Saudi Sub-Vendor / Service Vendor"
         subtitle={`Auto-assigns code ${nextCode} and provisions ledger account`}
         size="lg"
         footer={
@@ -398,10 +398,10 @@ const loadData = async () => {
       >
         <form onSubmit={handleAddVendor} className="space-y-4">
           <Input
-            label="Vendor / Shirka Name"
+            label="Vendor / Sub-Vendor Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Al-Haramain Group (Shirka)"
+            placeholder="e.g. Al-Haramain Group (Sub-Vendor)"
             required
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -433,7 +433,7 @@ const loadData = async () => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="e.g. partner@shirka.com"
+              placeholder="e.g. partner@sub-vendor.com"
             />
           </div>
           <div>
@@ -515,10 +515,10 @@ const loadData = async () => {
           </div>
           {/* Sub-Shirkas under this company — one ledger for the company, Shirkas tracked separately */}
           <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/60">
-            <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">Shirkas under this company</div>
-            <p className="text-[11px] text-slate-500 mb-2">One company can run several Shirkas (A, B, C). Ledger stays one for the company — each Shirka is tracked separately by name and operator.</p>
+            <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">Sub-Vendors under this company</div>
+            <p className="text-[11px] text-slate-500 mb-2">One company can run several Sub-Vendors (A, B, C). Ledger stays one for the company — each Sub-Vendor is tracked separately by name and operator.</p>
             {editShirkas.length === 0 && (
-              <div className="text-[11px] text-slate-400 italic mb-2">No sub-Shirkas — the company itself acts as the Shirka.</div>
+              <div className="text-[11px] text-slate-400 italic mb-2">No Sub-Vendors — the company itself acts as the Sub-Vendor.</div>
             )}
             <div className="space-y-1.5 mb-2">
               {editShirkas.map((s) => (
@@ -541,7 +541,7 @@ const loadData = async () => {
               <input
                 value={newShirkaName}
                 onChange={(e) => setNewShirkaName(e.target.value)}
-                placeholder="Shirka name (e.g. Shirka A)"
+                placeholder="Sub-Vendor name (e.g. Sub-Vendor A)"
                 className="px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg"
               />
               <input
@@ -562,7 +562,7 @@ const loadData = async () => {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    if (!newShirkaName.trim() || !newShirkaOperator.trim()) { showError('Enter Shirka name and who runs it.'); return; }
+                    if (!newShirkaName.trim() || !newShirkaOperator.trim()) { showError('Enter Sub-Vendor name and who runs it.'); return; }
                     setEditShirkas([...editShirkas, { id: `sh-${Date.now()}`, name: newShirkaName.trim(), operatorName: newShirkaOperator.trim(), operatorMobile: newShirkaMobile.trim() || undefined, isActive: true }]);
                     setNewShirkaName(''); setNewShirkaOperator(''); setNewShirkaMobile('');
                   }}
@@ -611,7 +611,7 @@ const loadData = async () => {
               <Badge variant="navy">Verified Payable</Badge>
             </div>
             <p className="text-xs text-slate-500">
-              All hotel block purchases and visa quotas sourced from this Shirka are recorded in this sub-ledger.
+              All hotel block purchases and visa quotas sourced from this Sub-Vendor are recorded in this sub-ledger.
             </p>
           </div>
         )}

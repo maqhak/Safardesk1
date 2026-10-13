@@ -224,20 +224,20 @@ export const VisaInvoicesPage: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={async () => {
-                if (!confirm('Update old invoices with sub-shirka info from their distributions?')) return;
+                if (!confirm('Update old invoices with Sub-Vendor info from their distributions?')) return;
                 try {
                   const count = await backfillInvoiceShirkaIds();
                   if (count > 0) {
-                    success(`Updated ${count} old invoice(s) with sub-shirka!`);
+                    success(`Updated ${count} old invoice(s) with Sub-Vendor!`);
                     window.location.reload();
                   } else {
-                    info('All invoices already have sub-shirka info.');
+                    info('All invoices already have Sub-Vendor info.');
                   }
                 } catch (e: any) {
                   showError(e.message || 'Migration failed');
                 }
               }}
-              title="One-time: copy sub-shirka from distributions to old invoices"
+              title="One-time: copy Sub-Vendor from distributions to old invoices"
             >
               Fix Old Invoices
             </Button>
@@ -335,7 +335,7 @@ export const VisaInvoicesPage: React.FC = () => {
                 <th className="py-3 px-3">Invoice No.</th>
                 <th className="py-3 px-3">Date</th>
                 <th className="py-3 px-3">B2B Agent</th>
-                <th className="py-3 px-3">Shirka Vendor</th>
+                <th className="py-3 px-3">Sub-Vendor</th>
                 <th className="py-3 px-3 text-right">Selling (SAR)</th>
                 <th className="py-3 px-3 text-right">Buying (SAR)</th>
                 <th className="py-3 px-3 text-right">Margin (SAR)</th>
@@ -384,7 +384,7 @@ export const VisaInvoicesPage: React.FC = () => {
                         <div className="text-[10px] font-mono text-slate-500">[{agentObj?.accountCode}]</div>
                       </td>
                       <td className="py-2.5 px-3">
-                        <div className="font-medium text-slate-900">{vendorObj?.name || 'Shirka Vendor'}</div>
+                        <div className="font-medium text-slate-900">{vendorObj?.name || 'Sub-Vendor'}</div>
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 whitespace-nowrap">
                         SAR {inv.sellingTotalSAR.toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -495,14 +495,14 @@ export const VisaInvoicesPage: React.FC = () => {
                 <div className="font-mono text-xs text-slate-600">Code: {agentMap.get(selectedInvoice.agentId)?.accountCode}</div>
               </div>
               <div className="text-right">
-                <span className="text-[10px] text-slate-500 uppercase font-bold block">Source Shirka Vendor:</span>
+                <span className="text-[10px] text-slate-500 uppercase font-bold block">Source Sub-Vendor:</span>
                 <strong className="text-slate-900">{(() => {
                   const vendor = vendorMap.get(selectedInvoice.vendorId);
                   if (selectedInvoice.shirkaId && vendor?.shirkas) {
                     const sub = vendor.shirkas.find(s => s.id === selectedInvoice.shirkaId);
                     if (sub) return sub.name;
                   }
-                  return vendor?.name || 'Shirka';
+                  return vendor?.name || 'Sub-Vendor';
                 })()}</strong>
                 <div className="text-[11px] text-slate-500">{vendorMap.get(selectedInvoice.vendorId)?.city}, {vendorMap.get(selectedInvoice.vendorId)?.country}</div>
                 <div className="text-[11px] font-mono text-slate-600 mt-1">Exchange Rate: 1 SAR = {selectedInvoice.exchangeRate} PKR</div>

@@ -197,7 +197,7 @@ export const MovementReportsPage: React.FC = () => {
 
     // Detailed Grid
     lines.push('--- DETAILED GROUP/VOUCHER-WISE GRID ---');
-    lines.push('Group#,Shirka,Agent,From,Flight#/Bus#,Time,Uv#,Pax breakup (Paid/Infant/W-o-Bus),Ret-Flight#,Ret Date/Time,Tran By');
+    lines.push('Group#,Sub-Vendor,Agent,From,Flight#/Bus#,Time,Uv#,Pax breakup (Paid/Infant/W-o-Bus),Ret-Flight#,Ret Date/Time,Tran By');
     filteredRecords.forEach((r) => {
       lines.push(
         `"${r.groupNo}","${r.shirka}","${r.agent}","${r.from}","${r.flightOrBusNo}","${r.time}","${r.voucherNo}","Paid: ${r.paidPax}, Inf: ${r.infantPax}, W/O: ${r.woBusPax} (Total: ${r.totalPax})","${r.returnFlightNo}","${r.returnDateTime}","${r.transportBy}"`
@@ -375,7 +375,7 @@ export const MovementReportsPage: React.FC = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Flight#, shirka, agent, hotel, group#, voucher#..."
+                placeholder="Flight#, sub-vendor, agent, hotel, group#, voucher#..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800"
@@ -604,7 +604,7 @@ export const MovementReportsPage: React.FC = () => {
             <thead className="sticky top-0 z-10 bg-slate-100 text-slate-700 uppercase font-bold text-[10px] tracking-wider border-b border-slate-300 shadow-xs">
               <tr>
                 <th className="py-3 px-3">Group#</th>
-                <th className="py-3 px-3">Shirka</th>
+                <th className="py-3 px-3">Sub-Vendor</th>
                 <th className="py-3 px-3">Agent</th>
                 <th className="py-3 px-3">From</th>
                 <th className="py-3 px-3">Flight#/Bus#</th>

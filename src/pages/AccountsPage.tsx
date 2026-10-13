@@ -523,7 +523,7 @@ export const AccountsPage: React.FC = () => {
               <option value="all">All Ledgers ({accounts.length})</option>
               <option value="agent">Agents</option>
               <option value="hotel">Hotels</option>
-              <option value="vendor">Vendors (Shirkas)</option>
+              <option value="vendor">Vendors (Sub-Vendors)</option>
               <option value="bank">Banks</option>
               <option value="cash">Cash Tills</option>
               <option value="customer">Clients (B2C)</option>
