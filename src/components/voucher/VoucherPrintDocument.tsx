@@ -159,7 +159,8 @@ export const VoucherPrintDocument: React.FC<{
         .fsv-watermark span { font-size:32mm; font-weight:bold; letter-spacing:4mm; opacity:0.14; transform:rotate(-25deg); white-space:nowrap; }
         .fsv-watermark.ok span { color:#15803d; }
         .fsv-watermark.no span { color:#b91c1c; }
-        .fsv-fit { width:210mm; transform-origin:top left; position:relative; padding:7mm 8mm; }
+        .fsv-fit { width:210mm; transform-origin:top left; position:relative; padding:7mm 8mm; display:flex; flex-direction:column; box-sizing:border-box; min-height:297mm; }
+        .fsv-fit > * { flex-shrink:0; }
         .fsv-vhead { display:flex; align-items:stretch; justify-content:space-between; gap:4mm; }
         .fsv-sketch { width:44mm; }
         .fsv-sketch .fsv-arch { width:44mm; height:30mm; overflow:hidden; border:1.2mm solid var(--fsv-acc); border-radius:22mm 22mm 3mm 3mm; background:#eee; }
@@ -189,9 +190,27 @@ export const VoucherPrintDocument: React.FC<{
         .fsv-c .fsv-k { font-size:2.3mm; color:#555; letter-spacing:.5mm; }
         .fsv-c .fsv-v { font-size:3.6mm; font-weight:bold; margin-top:.6mm; }
         .fsv-secttl { font-size:3.1mm; font-weight:bold; letter-spacing:.8mm; padding:1.8mm 2.5mm; border:.45mm solid var(--fsv-pri); color:var(--fsv-pri); border-bottom:none; background:var(--fsv-soft); margin-top:2.4mm; }
-        table.fsv-vt { width:100%; border-collapse:collapse; }
-        table.fsv-vt th { background:var(--fsv-pri); color:#fff; font-size:2.5mm; letter-spacing:.4mm; padding:1.4mm 1.5mm; font-weight:bold; border:.35mm solid var(--fsv-pri); white-space:nowrap; }
-        table.fsv-vt td { font-size:2.9mm; padding:1.25mm 1.5mm; border:.35mm solid #555; }
+        table.fsv-vt { width:100%; border-collapse:collapse; table-layout:fixed; border:.45mm solid var(--fsv-pri); }
+        table.fsv-vt th { background:var(--fsv-pri); color:#fff; font-size:2.5mm; letter-spacing:.4mm; padding:1.4mm 1.5mm; font-weight:bold; border:.35mm solid var(--fsv-pri); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        table.fsv-vt td { font-size:2.9mm; padding:1.25mm 1.5mm; border:.35mm solid #555; overflow-wrap:break-word; vertical-align:middle; }
+        /* Fixed column widths — every table type aligns perfectly, every time */
+        .fsv-flight th:nth-child(1), .fsv-flight td:nth-child(1) { width:21%; }
+        .fsv-flight th:nth-child(2), .fsv-flight td:nth-child(2) { width:27%; }
+        .fsv-flight th:nth-child(3), .fsv-flight td:nth-child(3) { width:20%; }
+        .fsv-flight th:nth-child(4), .fsv-flight td:nth-child(4) { width:16%; }
+        .fsv-flight th:nth-child(5), .fsv-flight td:nth-child(5) { width:16%; }
+        .fsv-acc th:nth-child(1), .fsv-acc td:nth-child(1) { width:15%; }
+        .fsv-acc th:nth-child(2), .fsv-acc td:nth-child(2) { width:29%; }
+        .fsv-acc th:nth-child(3), .fsv-acc td:nth-child(3) { width:16%; }
+        .fsv-acc th:nth-child(4), .fsv-acc td:nth-child(4) { width:16%; }
+        .fsv-acc th:nth-child(5), .fsv-acc td:nth-child(5) { width:10%; }
+        .fsv-acc th:nth-child(6), .fsv-acc td:nth-child(6) { width:14%; }
+        .fsv-trn th:nth-child(1), .fsv-trn td:nth-child(1) { width:60%; }
+        .fsv-trn th:nth-child(2), .fsv-trn td:nth-child(2) { width:40%; }
+        .fsv-mut th:nth-child(1), .fsv-mut td:nth-child(1) { width:10%; }
+        .fsv-mut th:nth-child(2), .fsv-mut td:nth-child(2) { width:38%; }
+        .fsv-mut th:nth-child(3), .fsv-mut td:nth-child(3) { width:30%; }
+        .fsv-mut th:nth-child(4), .fsv-mut td:nth-child(4) { width:22%; }
         table.fsv-vt tr:nth-child(even) td { background:#f6f6f6; }
         .fsv-cols2 { display:flex; gap:3mm; }
         .fsv-cols2>.fsv-half { flex:1; min-width:0; }
@@ -200,17 +219,17 @@ export const VoucherPrintDocument: React.FC<{
         table.fsv-vt.fsv-mut td, table.fsv-vt.fsv-mut th { padding:.95mm 1.2mm; }
         table.fsv-vt.fsv-mut td { font-size:2.85mm; }
         table.fsv-vt.fsv-mut .fsv-nm { font-weight:bold; }
-        .fsv-bottom4 { display:flex; gap:3mm; margin-top:2.4mm; }
-        .fsv-bbox { flex:1; border:.45mm solid var(--fsv-pri); min-width:0; }
+        .fsv-bottom4 { display:flex; gap:3mm; margin-top:2.4mm; align-items:stretch; }
+        .fsv-bbox { flex:1; border:.45mm solid var(--fsv-pri); min-width:0; display:flex; flex-direction:column; }
         .fsv-bbox h4 { font-size:2.9mm; letter-spacing:.7mm; background:var(--fsv-soft); padding:1.6mm 2.2mm; border-bottom:.45mm solid var(--fsv-pri); color:var(--fsv-pri); }
-        .fsv-bbox .fsv-in { padding:2mm 2.4mm; font-size:2.8mm; line-height:1.55; }
+        .fsv-bbox .fsv-in { padding:2mm 2.4mm; font-size:2.8mm; line-height:1.55; flex:1; }
         .fsv-incl { list-style:none; columns:2; column-gap:3mm; }
         .fsv-incl li { font-size:2.7mm; padding:.7mm 0; break-inside:avoid; }
         .fsv-incl li::before { content:"✓ "; font-weight:bold; }
         .fsv-notes { list-style:none; }
         .fsv-notes li { font-size:2.65mm; padding:.8mm 0; }
         .fsv-notes li::before { content:"• "; font-weight:bold; }
-        .fsv-qrbox { border:.6mm dashed #555; margin:2mm; min-height:24mm; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1.5mm; color:#555; padding:2mm; }
+        .fsv-qrbox { border:.6mm dashed #555; margin:2mm; min-height:24mm; display:flex; flex:1; flex-direction:column; align-items:center; justify-content:center; gap:1.5mm; color:#555; padding:2mm; }
         .fsv-qrbox span { font-size:2.5mm; font-weight:bold; letter-spacing:.4mm; }
         .fsv-contact { display:flex; border:.45mm solid var(--fsv-pri); margin-top:2.4mm; }
         .fsv-contact>div { flex:1; padding:1.8mm 3mm; display:flex; align-items:center; gap:2.5mm; font-size:3mm; }
@@ -219,7 +238,7 @@ export const VoucherPrintDocument: React.FC<{
         .fsv-contact .fsv-v { font-weight:bold; font-size:3.3mm; }
         .fsv-stamp { width:22mm; height:22mm; border:.7mm solid var(--fsv-acc); border-radius:50%; display:flex; align-items:center; justify-content:center; text-align:center; font-size:2.2mm; letter-spacing:.4mm; color:#333; transform:rotate(-8deg); flex:0 0 22mm; }
         .fsv-stampimg { width:24mm; height:24mm; object-fit:contain; transform:rotate(-8deg); flex:0 0 24mm; }
-        .fsv-foot { margin-top:2.4mm; background:var(--fsv-pri); color:#fff; display:flex; font-size:2.9mm; }
+        .fsv-foot { margin-top:auto; background:var(--fsv-pri); color:#fff; display:flex; font-size:2.9mm; }
         .fsv-foot>div { flex:1; padding:2mm 3mm; text-align:center; }
         .fsv-foot>div+div { border-left:.3mm solid #666; }
       `}</style>
@@ -269,7 +288,7 @@ export const VoucherPrintDocument: React.FC<{
           <div className="fsv-cols2">
             <div className="fsv-half">
               <div className="fsv-secttl">KSA ARRIVAL INFORMATION</div>
-              <table className="fsv-vt">
+              <table className="fsv-vt fsv-flight">
                 <thead><tr><th>SECTOR</th><th>FLIGHT</th><th>DATE</th><th>DEP. TIME</th><th>ARR. TIME</th></tr></thead>
                 <tbody>
                   <tr>
@@ -284,7 +303,7 @@ export const VoucherPrintDocument: React.FC<{
             </div>
             <div className="fsv-half">
               <div className="fsv-secttl">DEPARTURE INFORMATION</div>
-              <table className="fsv-vt">
+              <table className="fsv-vt fsv-flight">
                 <thead><tr><th>SECTOR</th><th>FLIGHT</th><th>DATE</th><th>DEP. TIME</th><th>ARR. TIME</th></tr></thead>
                 <tbody>
                   <tr>
@@ -300,7 +319,7 @@ export const VoucherPrintDocument: React.FC<{
           </div>
 
           <div className="fsv-secttl">ACCOMMODATION</div>
-          <table className="fsv-vt">
+          <table className="fsv-vt fsv-acc">
             <thead><tr><th>CITY</th><th>HOTEL</th><th>CHECK IN</th><th>CHECK OUT</th><th>NIGHTS</th><th>ROOM TYPE</th></tr></thead>
             <tbody>
               {stays.map((h, i) => (
@@ -317,7 +336,7 @@ export const VoucherPrintDocument: React.FC<{
           </table>
 
           <div className="fsv-secttl">TRANSPORTATION</div>
-          <table className="fsv-vt">
+          <table className="fsv-vt fsv-trn">
             <thead><tr><th>TRANSPORT TRIP</th><th>TRANSPORT BY</th></tr></thead>
             <tbody>
               {isRoundtrip ? (

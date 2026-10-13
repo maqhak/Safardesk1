@@ -40,10 +40,14 @@ export const InvoicePrintDocument: React.FC<{
         .inv-meta { display:flex; justify-content:space-between; margin-top:5mm; font-size:3.4mm; }
         .inv-meta .k { color:#666; text-transform:uppercase; letter-spacing:.4mm; font-size:2.8mm; }
         .inv-meta .v { font-weight:700; margin-top:.8mm; }
-        .inv-table { width:100%; border-collapse:collapse; margin-top:6mm; font-size:3.4mm; }
-        .inv-table th { background:#0e2c4c; color:#fff; text-align:left; padding:2.5mm 3mm; font-size:3mm; letter-spacing:.3mm; }
+        .inv-table { width:100%; border-collapse:collapse; table-layout:fixed; margin-top:6mm; font-size:3.4mm; border:.45mm solid #0e2c4c; }
+        .inv-table th { background:#0e2c4c; color:#fff; text-align:left; padding:2.5mm 3mm; font-size:3mm; letter-spacing:.3mm; border:.35mm solid #0e2c4c; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .inv-table th.r, .inv-table td.r { text-align:right; }
-        .inv-table td { padding:2.5mm 3mm; border-bottom:.3mm solid #ddd; }
+        .inv-table td { padding:2.5mm 3mm; border:.35mm solid #555; overflow-wrap:break-word; vertical-align:middle; }
+        .inv-table th:nth-child(1), .inv-table td:nth-child(1) { width:10mm; }
+        .inv-table th:nth-child(3), .inv-table td:nth-child(3) { width:20mm; }
+        .inv-table th:nth-child(4), .inv-table td:nth-child(4) { width:30mm; }
+        .inv-table th:nth-child(5), .inv-table td:nth-child(5) { width:35mm; }
         .inv-table tr:nth-child(even) td { background:#faf8f0; }
         .inv-totals { margin-left:auto; width:80mm; margin-top:5mm; font-size:3.4mm; }
         .inv-totals .row { display:flex; justify-content:space-between; padding:1.8mm 0; border-bottom:.3mm solid #eee; }
