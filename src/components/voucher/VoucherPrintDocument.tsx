@@ -47,6 +47,7 @@ export const VoucherPrintDocument: React.FC<{
   const sectors = voucher.sectors || [];
   const totalNights = stays.reduce((s, h) => s + (h.nights || 0), 0);
 
+  const fd = voucher.flightDetails;
   const arrivalSector = sectors.find(s => /^arrival/i.test(s.type));
   const departureSector = sectors.find(s => /^departure/i.test(s.type));
 
@@ -58,7 +59,6 @@ export const VoucherPrintDocument: React.FC<{
   const depTimes = fd?.allowFlightInfo && fd.departureFlight
     ? { dep: fd.departureFlight.etd || '', arr: fd.departureFlight.eta || fd.returnFlight?.etd || '' }
     : { dep: '', arr: departureSector?.time || '' };
-  const fd = voucher.flightDetails;
 
   const fmtDate = (iso?: string) => {
     if (!iso) return '—';
