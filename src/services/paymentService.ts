@@ -314,7 +314,7 @@ export async function fetchPayments(): Promise<PaymentDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, PAYMENTS_COLLECTION));
-      return snap.docs.map((d) => d.data() as PaymentDoc);
+      return snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as PaymentDoc));
     }
   } catch (err) {
     console.warn('Could not read payments from Firestore:', err);

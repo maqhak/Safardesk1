@@ -622,7 +622,7 @@ export async function fetchLedgerAccounts(): Promise<LedgerAccountDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, ACCOUNTS_COLLECTION));
-      firestoreAccounts = snap.docs.map((d) => d.data() as LedgerAccountDoc);
+      firestoreAccounts = snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as LedgerAccountDoc));
       firestoreOk = true;
     }
   } catch (err) {
@@ -675,7 +675,7 @@ export async function fetchLedgerEntries(accountId?: string): Promise<LedgerEntr
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, ENTRIES_COLLECTION));
-      const list = snap.docs.map((d) => d.data() as LedgerEntryDoc);
+      const list = snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as LedgerEntryDoc));
       if (accountId) {
         return list.filter((e) => e.accountId === accountId);
       }
