@@ -149,7 +149,7 @@ const FlightLegRow: React.FC<{
         </div>
         <div className="lg:col-span-1">
           <label className={labelCls}>Dep. Date</label>
-          <input type="date" value={leg.depDate} onChange={(e) => set({ depDate: e.target.value })} className={`${inputCls} font-mono`} />
+          <input type="date" value={leg.depDate} onChange={(e) => set({ depDate: e.target.value, arrDate: e.target.value })} className={`${inputCls} font-mono`} />
         </div>
         <div>
           <label className={labelCls}>Hrs</label>
@@ -413,6 +413,26 @@ export const VoucherCreatePage: React.FC = () => {
 
   // NOTE: selected pilgrims are NEVER auto-deselected — user adds manually,
   // selections persist even if the agent filter changes.
+
+  // ---- Hotel check-in follows flight arrival: when the arrival date
+  // (Departure leg Arr. Date) changes, the first hotel row's check-in
+  // matches it and the chained rows re-chain after it. ----
+  useEffect(() => {
+    if (!depLeg.arrDate) return;
+    setHotelRows((rows) => {
+      if (rows.length === 0) return rows;
+      if (rows[0].checkIn === depLeg.arrDate) return rows;
+      const next = rows.map((r) => ({ ...r }));
+      next[0].checkIn = depLeg.arrDate;
+      next[0] = rechkRow(next[0]);
+      for (let i = 1; i < next.length; i++) {
+        next[i].checkIn = next[i - 1].checkOut;
+        next[i] = rechkRow(next[i]);
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [depLeg.arrDate]);
 
   // ---- Hotel grid editors — rows are CHAINED: each row's check-in is
   // exactly the previous row's check-out. Editing any row re-chains all
