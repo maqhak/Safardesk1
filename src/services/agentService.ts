@@ -147,6 +147,30 @@ export async function fetchLedgerAccounts(): Promise<LedgerAccountDoc[]> {
 /**
  * Get all agents
  */
+/**
+ * All IDs that identify one agent: the agent master ID + its ledger account ID.
+ * Distribution stores the LEDGER account ID on visas/invoices; agent dropdowns
+ * and logins use the MASTER ID. A visa belongs to the agent if its agentId
+ * matches either one.
+ */
+export async function getAgentIdentityIds(agentMasterId: string): Promise<string[]> {
+  const ids = new Set<string>([agentMasterId]);
+  try {
+    const ledgers = await fetchLedgerAccounts();
+    ledgers.forEach((l: any) => {
+      const linked = l.linkedAgentId || l.linkedId;
+      if (linked === agentMasterId) ids.add(l.id);
+      // Also handle the reverse: if the caller passed a ledger ID, add its master
+      if (l.id === agentMasterId && linked) ids.add(linked);
+    });
+    // Convention fallback: ledger-<masterId>
+    ids.add(`ledger-${agentMasterId}`);
+  } catch {
+    // fallback: master ID + conventional ledger ID
+  }
+  return [...ids];
+}
+
 export async function fetchAgents(): Promise<AgentDoc[]> {
   try {
     if (!isConfigPlaceholder) {

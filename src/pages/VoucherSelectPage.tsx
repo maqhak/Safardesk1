@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { fetchVouchers } from '../services/voucherService';
 import { fetchVisas, VisaDoc } from '../services/visaService';
-import { fetchAgents } from '../services/agentService';
+import { fetchAgents, getAgentIdentityIds } from '../services/agentService';
 import { fetchVendors } from '../services/masterService';
 
 /**
@@ -33,6 +33,7 @@ export const VoucherSelectPage: React.FC = () => {
   const [shirkaVendorId, setShirkaVendorId] = useState('');
   const [shirkaId, setShirkaId] = useState('');
   const [selectedVisaIds, setSelectedVisaIds] = useState<string[]>([]);
+  const [agentIdentityIds, setAgentIdentityIds] = useState<string[]>([]);
   const [paxSearch, setPaxSearch] = useState('');
 
   useEffect(() => {
@@ -61,6 +62,14 @@ export const VoucherSelectPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!agentId) {
+      setAgentIdentityIds([]);
+      return;
+    }
+    getAgentIdentityIds(agentId).then(setAgentIdentityIds).catch(() => setAgentIdentityIds([agentId]));
+  }, [agentId]);
+
+  useEffect(() => {
     if (isAgent && userProfile?.agentId && !agentId) setAgentId(userProfile.agentId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAgent, userProfile]);
@@ -75,7 +84,8 @@ export const VoucherSelectPage: React.FC = () => {
 
   const pendingList = useMemo(() => {
     if (!agentId) return [];
-    let list = remainingVisas.filter((v) => (v.agentId || '') === agentId);
+    const matchIds = agentIdentityIds.length > 0 ? agentIdentityIds : [agentId];
+    let list = remainingVisas.filter((v) => matchIds.includes(v.agentId || ''));
     if (shirkaVendorId) {
       list = list.filter((v) => !v.vendorId || (v.vendorId === shirkaVendorId && (v.shirkaId || '') === (shirkaId || '')));
     }
@@ -86,7 +96,7 @@ export const VoucherSelectPage: React.FC = () => {
       );
     }
     return list;
-  }, [remainingVisas, agentId, shirkaVendorId, shirkaId, paxSearch]);
+  }, [remainingVisas, agentId, agentIdentityIds, shirkaVendorId, shirkaId, paxSearch]);
 
   const toggleVisa = (id: string) =>
     setSelectedVisaIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));

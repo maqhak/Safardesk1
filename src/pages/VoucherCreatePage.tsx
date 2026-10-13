@@ -27,7 +27,7 @@ import { createVoucher, fetchVouchers } from '../services/voucherService';
 import { DEFAULT_PACKAGE_INCLUDES } from '../types/voucher';
 import { fetchVisas } from '../services/visaService';
 import { fetchHotels, fetchVendors } from '../services/masterService';
-import { fetchAgents } from '../services/agentService';
+import { fetchAgents, getAgentIdentityIds } from '../services/agentService';
 import { HotelDoc } from '../types/master';
 import { AgentDoc } from '../types/agent';
 import { convert } from '../services/financeService';
@@ -235,6 +235,15 @@ export const VoucherCreatePage: React.FC = () => {
 
   // ---- Row 3: agent (drives pilgrim list) | group head | contact | approved ----
   const [agentId, setAgentId] = useState(preselect.agentId || '');
+  const [agentIdentityIds, setAgentIdentityIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!agentId) {
+      setAgentIdentityIds([]);
+      return;
+    }
+    getAgentIdentityIds(agentId).then(setAgentIdentityIds).catch(() => setAgentIdentityIds([agentId]));
+  }, [agentId]);
   const [leaderName, setLeaderName] = useState('');
   const [leaderContact, setLeaderContact] = useState('');
 
@@ -347,7 +356,8 @@ export const VoucherCreatePage: React.FC = () => {
   // ---- Pending passports: SIRF selected agent ke, vouchered auto-removed ----
   const pendingList = useMemo(() => {
     if (!agentId) return [];
-    let list = remainingVisas.filter((v) => (v.agentId || '') === agentId);
+    const matchIds = agentIdentityIds.length > 0 ? agentIdentityIds : [agentId];
+    let list = remainingVisas.filter((v) => matchIds.includes(v.agentId || ''));
     if (shirkaVendorId) {
       list = list.filter((v) => !v.vendorId || (v.vendorId === shirkaVendorId && (v.shirkaId || '') === (shirkaId || '')));
     }
@@ -360,13 +370,14 @@ export const VoucherCreatePage: React.FC = () => {
       );
     }
     return list;
-  }, [remainingVisas, agentId, shirkaVendorId, shirkaId, paxSearch]);
+  }, [remainingVisas, agentId, agentIdentityIds, shirkaVendorId, shirkaId, paxSearch]);
 
   /** Agent's pending pilgrims BEFORE the shirka filter — for diagnostics. */
   const agentPendingCount = useMemo(() => {
     if (!agentId) return 0;
-    return remainingVisas.filter((v) => (v.agentId || '') === agentId).length;
-  }, [remainingVisas, agentId]);
+    const matchIds = agentIdentityIds.length > 0 ? agentIdentityIds : [agentId];
+    return remainingVisas.filter((v) => matchIds.includes(v.agentId || '')).length;
+  }, [remainingVisas, agentId, agentIdentityIds]);
 
   const selectedShirkaName = useMemo(() => {
     if (!shirkaVendorId) return '';
