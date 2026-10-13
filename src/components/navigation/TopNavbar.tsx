@@ -90,9 +90,9 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { name: 'Customers & Agents', path: '/customers', module: 'Visas', icon: UsersIcon },
   { name: 'Vouchers', path: '/vouchers', module: 'Vouchers', icon: Building },
   {
-    name: 'Tickets', path: '/tickets', module: 'Tickets', icon: Plane,
+    name: 'Tickets', path: '/tickets/list', module: 'Tickets', icon: Plane,
     children: [
-      { name: 'All Tickets', path: '/tickets', module: 'Tickets' },
+      { name: 'Ticket List', path: '/tickets/list', module: 'Tickets' },
       { name: 'Ticket Sale', path: '/tickets/sale', module: 'Tickets' },
       { name: 'Ticket Refund', path: '/tickets/refund', module: 'Tickets' },
     ],
