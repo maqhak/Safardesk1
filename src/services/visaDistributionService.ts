@@ -6,7 +6,7 @@ import {
   CommissionDetails
 } from '../types/visaDistribution';
 import { VisaDoc, fetchVisas } from './visaService';
-import { fetchLedgerAccounts, fetchLedgerEntries, postBalancedTransaction } from './accountingService';
+import { fetchLedgerAccounts, fetchLedgerEntries, postBalancedTransaction, saveLedgerAccount } from './accountingService';
 import { LedgerEntryDoc, LedgerAccountDoc } from '../types/accounting';
 import { collection, getDocs, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
@@ -113,14 +113,47 @@ export async function createVisaDistributionBatch(params: {
   const distribId = `distrib-${Date.now()}`;
   const distribNo = `DIST-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  // Resolve Shirka display name for stamping
+  // Resolve Shirka display name for stamping + vendor name/code for its ledger account
   let shirkaName = '';
+  let vendorName = '';
+  let vendorCode = '';
   try {
     const { fetchVendors } = await import('./masterService');
     const vnd = (await fetchVendors()).find((v: any) => v.id === params.vendorId);
     const shk = (vnd?.shirkas || []).find((s: any) => s.id === params.shirkaId);
     shirkaName = shk?.name || '';
+    vendorName = vnd?.name || '';
+    vendorCode = vnd?.vendorCode || '';
   } catch { /* best-effort */ }
+
+  // Resolve the vendor's LEDGER account (id `ledger-vnd-<vendorId>`), mirroring how
+  // agent entries use the agent's ledger account id (`ledger-agent-...`).
+  // BUG FIX: the vendor buying-cost entry previously used the raw vendorId as
+  // accountId, which matches NO ledger account doc, so vendor balances stayed 0
+  // and the vendor ledger showed no transactions. Create the account if missing.
+  let vendorLedgerAccount = ledgerAccounts.find((a) =>
+    a.id === `ledger-vnd-${params.vendorId}` ||
+    (((a as any).linkedAgentId === params.vendorId || (a as any).linkedId === params.vendorId) && a.accountType === 'vendor')
+  );
+  if (!vendorLedgerAccount) {
+    const newVendorAccount: LedgerAccountDoc = {
+      id: `ledger-vnd-${params.vendorId}`,
+      accountCode: vendorCode,
+      accountType: 'vendor',
+      title: vendorName || 'Vendor',
+      linkedId: params.vendorId,
+      isSystem: false,
+      isActive: true,
+      openingBalanceSAR: 0,
+      openingBalancePKR: 0,
+      createdAt: now,
+      createdBy: params.createdBy,
+    };
+    try {
+      await saveLedgerAccount(newVendorAccount);
+    } catch { /* entries below still carry the correct accountId */ }
+    vendorLedgerAccount = newVendorAccount;
+  }
 
   // Group distributions by agentId
   const agentBatches = new Map<string, {
@@ -296,12 +329,14 @@ export async function createVisaDistributionBatch(params: {
     });
 
     // (b) Credit Vendor (Shirka) ledger payable = buyingTotalSAR
+    // accountId MUST be the vendor's ledger account id (`ledger-vnd-<vendorId>`),
+    // NOT the raw vendorId — entries only attach to accounts by exact id match.
     const creditVendorPKR = Math.round(batch.buyingTotalSAR * exchangeRate * 100) / 100;
     newLedgerEntries.push({
       id: `le-${baseSeq + paxCount + 1}`,
       entryNo: `LE-${baseSeq + paxCount + 1}`,
       date: params.date,
-      accountId: params.vendorId,
+      accountId: vendorLedgerAccount.id,
       entryType: 'Invoice',
       transNo: invoiceNo,
       particulars: `Visa Purchase Cost for Invoice #${invoiceNo} (${batch.totalVisas} Visas)${shirkaName ? ` — ${shirkaName}` : ''}`,

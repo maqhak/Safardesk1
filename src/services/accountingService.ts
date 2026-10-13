@@ -594,6 +594,28 @@ export const INITIAL_LEDGER_ENTRIES: LedgerEntryDoc[] = [
 /**
  * Fetch all ledger accounts
  */
+/**
+ * Defensive normalization for legacy ledger account docs. Vendor accounts created
+ * by the old createVendor/backfill only carried legacy fields (accountName /
+ * agentCode / linkedAgentId) — no title / accountCode — so Balances/Accounts
+ * pages rendered them blank. Fill the canonical fields from the legacy ones so a
+ * missing title can never render blank again. (Data fix: migration + createVendor
+ * now write both shapes; this is the read-side safety net.)
+ */
+function normalizeLedgerAccount(a: any): LedgerAccountDoc {
+  if (!a) return a;
+  return {
+    ...a,
+    title: a.title || a.accountName || 'Unnamed Account',
+    accountCode: a.accountCode || a.agentCode || '',
+    linkedId: a.linkedId ?? a.linkedAgentId ?? null,
+    isSystem: a.isSystem ?? false,
+    isActive: a.isActive ?? true,
+    openingBalanceSAR: a.openingBalanceSAR ?? a.openingBalance ?? 0,
+    openingBalancePKR: a.openingBalancePKR ?? 0,
+  };
+}
+
 export async function fetchLedgerAccounts(): Promise<LedgerAccountDoc[]> {
   let firestoreAccounts: LedgerAccountDoc[] = [];
   let firestoreOk = false;
@@ -623,12 +645,12 @@ export async function fetchLedgerAccounts(): Promise<LedgerAccountDoc[]> {
 
   if (!firestoreOk) {
     const seen = new Set<string>();
-    return localAccounts.filter((a) => a && a.id && !seen.has(a.id) && (seen.add(a.id), true));
+    return localAccounts.filter((a) => a && a.id && !seen.has(a.id) && (seen.add(a.id), true)).map(normalizeLedgerAccount);
   }
 
   const seen = new Set(firestoreAccounts.map((a) => a.id));
   const localOnly = localAccounts.filter((a) => a && a.id && !seen.has(a.id));
-  return [...firestoreAccounts, ...localOnly];
+  return [...firestoreAccounts, ...localOnly].map(normalizeLedgerAccount);
 }
 
 /** Create or update a ledger account (Firestore + localStorage fallback). */

@@ -11,7 +11,6 @@ import { db, isConfigPlaceholder } from './firebase';
 import { VendorDoc, HotelDoc, VehicleDoc, AirlineDoc, AirportRef, RoomTypeRate } from '../types/master';
 import { INITIAL_AIRLINES } from '../data/airlines';
 import { AIRPORTS_DATA } from '../data/airports';
-import { LedgerAccountDoc } from '../types/agent';
 import { UserProfile } from '../types/auth';
 import { logAuditEvent } from './userService';
 import { stripUndefinedDeep } from '../utils/firestoreSanitize';
@@ -219,13 +218,26 @@ export async function createVendor(
   };
 
   // Also auto-create vendor ledger account in ledgerAccounts
-  const ledgerDoc: LedgerAccountDoc = {
+  // MUST include title + accountCode (the fields Balances/Accounts pages render) —
+  // legacy fields (accountName/agentCode/linkedAgentId) are kept for compatibility,
+  // mirroring createAgent's dual-shape ledger doc. Previously only legacy fields
+  // were written, so vendor accounts rendered blank and entries could not attach.
+  // NOTE: intentionally untyped (not LedgerAccountDoc from types/agent) — the doc
+  // carries BOTH the legacy shape and the accounting.ts shape, like createAgent.
+  const ledgerDoc = {
     id: `ledger-vnd-${vendorId}`,
     accountType: 'vendor',
-    linkedAgentId: vendorId, // using linkedAgentId field for vendor link
-    agentCode: vendorCode,
+    title: data.name,
     accountName: data.name,
+    accountCode: vendorCode,
+    agentCode: vendorCode,
+    linkedId: vendorId,
+    linkedAgentId: vendorId, // using linkedAgentId field for vendor link
+    isSystem: false,
+    isActive: true,
     openingBalance: 0,
+    openingBalanceSAR: 0,
+    openingBalancePKR: 0,
     currentBalanceSAR: 0,
     currency: 'SAR',
     createdAt: new Date().toISOString(),
@@ -825,6 +837,7 @@ export async function fetchAirports(): Promise<AirportRef[]> {
 export async function backfillMissingVendorLedgerAccounts(actor: UserProfile): Promise<{
   created: number;
   skipped: number;
+  repaired: number;
 }> {
   const { stripUndefinedDeep: strip } = await import('../utils/firestoreSanitize');
   const vendors = await fetchVendors();
@@ -850,6 +863,7 @@ export async function backfillMissingVendorLedgerAccounts(actor: UserProfile): P
 
   let created = 0;
   let skipped = 0;
+  let repaired = 0;
   const newLocal: any[] = [];
 
   for (const v of vendors) {
@@ -858,15 +872,46 @@ export async function backfillMissingVendorLedgerAccounts(actor: UserProfile): P
     const hasLedger = existingIds.has(ledgerId);
     if (hasLedger) {
       skipped += 1;
+      // Repair: legacy vendor ledger docs only had accountName/agentCode —
+      // fill the title/accountCode fields the Balances/Accounts pages render.
+      if (!isConfigPlaceholder) {
+        try {
+          const snap = await getDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerId));
+          const existing = snap.exists() ? (snap.data() as any) : null;
+          if (existing && (!existing.title || !existing.accountCode)) {
+            await setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerId), {
+              title: v.name,
+              accountCode: v.vendorCode,
+              linkedId: v.id,
+              isSystem: false,
+              isActive: true,
+              openingBalanceSAR: 0,
+              openingBalancePKR: 0,
+            }, { merge: true });
+            repaired += 1;
+          }
+        } catch (err) {
+          console.warn('Backfill vendor ledger repair failed for', v.id, err);
+        }
+      }
       continue;
     }
     const ledgerDoc = strip({
       id: ledgerId,
       accountType: 'vendor',
+      // Dual-shape doc (legacy + accounting.ts fields), mirroring createAgent —
+      // title/accountCode are what Balances/Accounts pages render.
+      title: v.name,
+      accountCode: v.vendorCode,
+      linkedId: v.id,
       linkedAgentId: v.id,
       agentCode: v.vendorCode,
       accountName: v.name,
+      isSystem: false,
+      isActive: true,
       openingBalance: 0,
+      openingBalanceSAR: 0,
+      openingBalancePKR: 0,
       currentBalanceSAR: 0,
       currency: 'SAR',
       createdAt: new Date().toISOString(),
@@ -901,8 +946,8 @@ export async function backfillMissingVendorLedgerAccounts(actor: UserProfile): P
     userRole: actor.role,
     targetUserId: 'vendors',
     targetUserName: 'vendor-ledger-backfill',
-    details: { created, skipped },
+    details: { created, skipped, repaired },
   });
 
-  return { created, skipped };
+  return { created, skipped, repaired };
 }
