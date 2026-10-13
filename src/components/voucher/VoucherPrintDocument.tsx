@@ -49,6 +49,15 @@ export const VoucherPrintDocument: React.FC<{
 
   const arrivalSector = sectors.find(s => /^arrival/i.test(s.type));
   const departureSector = sectors.find(s => /^departure/i.test(s.type));
+
+  // Flight times: both DEP + ARR. New vouchers store etd = departure,
+  // eta = arrival. Old vouchers stored only etd (the side's time).
+  const arrTimes = fd?.allowFlightInfo && fd.arrivalFlight
+    ? { dep: fd.arrivalFlight.eta ? (fd.arrivalFlight.etd || '') : '', arr: fd.arrivalFlight.eta || fd.arrivalFlight.etd || '' }
+    : { dep: '', arr: arrivalSector?.time || '' };
+  const depTimes = fd?.allowFlightInfo && fd.departureFlight
+    ? { dep: fd.departureFlight.etd || '', arr: fd.departureFlight.eta || fd.returnFlight?.etd || '' }
+    : { dep: '', arr: departureSector?.time || '' };
   const fd = voucher.flightDetails;
 
   const fmtDate = (iso?: string) => {
@@ -243,13 +252,14 @@ export const VoucherPrintDocument: React.FC<{
             <div className="fsv-half">
               <div className="fsv-secttl">KSA ARRIVAL INFORMATION</div>
               <table className="fsv-vt">
-                <thead><tr><th>SECTOR</th><th>FLIGHT</th><th>DATE</th><th>TIME</th></tr></thead>
+                <thead><tr><th>SECTOR</th><th>FLIGHT</th><th>DATE</th><th>DEP. TIME</th><th>ARR. TIME</th></tr></thead>
                 <tbody>
                   <tr>
                     <td>{fd?.allowFlightInfo && fd.arrivalFlight ? (fd.arrivalFlight.sector || `${fd.arrivalFlight.fromAirport?.iata || ''}${fd.arrivalFlight.toAirport?.iata ? ` - ${fd.arrivalFlight.toAirport.iata}` : ''}`) : `${arrivalSector?.fromAirport?.iata || ''}${arrivalSector?.toAirport?.iata ? ` - ${arrivalSector.toAirport.iata}` : ''}`}</td>
                     <td>{fd?.allowFlightInfo && fd.arrivalFlight ? `${fd.arrivalFlight.airline?.iataCode || ''} ${fd.arrivalFlight.flightNo || ''}`.trim() : `${arrivalSector?.airline?.iataCode || ''} ${arrivalSector?.flightNo || ''}`.trim()}</td>
                     <td>{fmtDate(fd?.allowFlightInfo && fd.arrivalFlight ? fd.arrivalFlight.date : arrivalSector?.date)}</td>
-                    <td>{fd?.allowFlightInfo && fd.arrivalFlight ? (fd.arrivalFlight.etd || fd.arrivalFlight.eta || '') : (arrivalSector?.time || '')}</td>
+                    <td>{arrTimes.dep || '—'}</td>
+                    <td>{arrTimes.arr || '—'}</td>
                   </tr>
                 </tbody>
               </table>
@@ -257,13 +267,14 @@ export const VoucherPrintDocument: React.FC<{
             <div className="fsv-half">
               <div className="fsv-secttl">DEPARTURE INFORMATION</div>
               <table className="fsv-vt">
-                <thead><tr><th>SECTOR</th><th>FLIGHT</th><th>DATE</th><th>TIME</th></tr></thead>
+                <thead><tr><th>SECTOR</th><th>FLIGHT</th><th>DATE</th><th>DEP. TIME</th><th>ARR. TIME</th></tr></thead>
                 <tbody>
                   <tr>
                     <td>{fd?.allowFlightInfo && fd.departureFlight ? (fd.departureFlight.sector || `${fd.departureFlight.fromAirport?.iata || ''}${fd.departureFlight.toAirport?.iata ? ` - ${fd.departureFlight.toAirport.iata}` : ''}`) : `${departureSector?.fromAirport?.iata || ''}${departureSector?.toAirport?.iata ? ` - ${departureSector.toAirport.iata}` : ''}`}</td>
                     <td>{fd?.allowFlightInfo && fd.departureFlight ? `${fd.departureFlight.airline?.iataCode || ''} ${fd.departureFlight.flightNo || ''}`.trim() : `${departureSector?.airline?.iataCode || ''} ${departureSector?.flightNo || ''}`.trim()}</td>
                     <td>{fmtDate(fd?.allowFlightInfo && fd.departureFlight ? fd.departureFlight.date : departureSector?.date)}</td>
-                    <td>{fd?.allowFlightInfo && fd.departureFlight ? (fd.departureFlight.etd || fd.departureFlight.eta || '') : (departureSector?.time || '')}</td>
+                    <td>{depTimes.dep || '—'}</td>
+                    <td>{depTimes.arr || '—'}</td>
                   </tr>
                 </tbody>
               </table>

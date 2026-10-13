@@ -543,13 +543,16 @@ export const VoucherCreatePage: React.FC = () => {
       const parts = (src.sector || '').split('-');
       next.from = parts[0] || '';
       next.to = parts[1] || '';
-      const [h, m] = (src.etd || '00:00').split(':');
+      const [dh, dm] = (src.etd || '00:00').split(':');
+      const [ah, am] = (src.eta || src.etd || '00:00').split(':');
       if (isOutbound) {
         next.arrDate = src.date || cur.arrDate;
-        next.arrHrs = h || '00'; next.arrMin = m || '00';
+        next.arrHrs = ah || '00'; next.arrMin = am || '00';
+        next.depHrs = dh || '00'; next.depMin = dm || '00';
       } else {
         next.depDate = src.date || cur.depDate;
-        next.depHrs = h || '00'; next.depMin = m || '00';
+        next.depHrs = dh || '00'; next.depMin = dm || '00';
+        next.arrHrs = ah || '00'; next.arrMin = am || '00';
       }
       next.airline = src.airline || null;
       next.flightNo = src.flightNo || '';
@@ -628,13 +631,16 @@ export const VoucherCreatePage: React.FC = () => {
 
     const legBlock = (leg: FlightLeg, useArrivalSide: boolean): FlightBlockInfo => {
       const date = useArrivalSide ? leg.arrDate : leg.depDate;
-      const etd = useArrivalSide ? `${leg.arrHrs}:${leg.arrMin}` : `${leg.depHrs}:${leg.depMin}`;
+      // BOTH times, always: etd = departure from origin, eta = arrival at destination
+      const etd = `${leg.depHrs}:${leg.depMin}`;
+      const eta = `${leg.arrHrs}:${leg.arrMin}`;
       const sector = leg.from && leg.to ? `${leg.from}-${leg.to}` : leg.from || leg.to || undefined;
       return {
         airline: leg.airline || null,
         flightNo: leg.flightNo.trim() || undefined,
         date: date || undefined,
         etd: etd || undefined,
+        eta: eta || undefined,
         sector,
         pnr: leg.pnr.trim() || undefined,
       };
