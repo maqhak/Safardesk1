@@ -34,15 +34,16 @@ export const BrandedLoader: React.FC<{ message?: string }> = ({ message = 'Loadi
             <div className="absolute inset-0 [transform-style:preserve-3d] animate-[orbitSpin_9s_linear_infinite] pointer-events-none">
               {/* pathway — one clean luminous ring */}
               <div className="absolute inset-0 rounded-full border border-[#c9a227]/45 shadow-[0_0_24px_rgba(201,162,39,0.25)]" />
-              {/* Realistic golden jet riding the pathway, with a contrail streak —
-                  nose points along the flight direction so it truly looks airborne */}
-              <div className="absolute left-1/2 top-0 -ml-10 -mt-5">
+              {/* Realistic top-view golden jet riding the pathway, with a contrail
+                  streak — like a live flight path: nose always points along
+                  travel, never upside-down, physics intact */}
+              <div className="absolute left-1/2 top-0 -ml-8 -mt-8">
                 <img
-                  src="/images/gold-jet-v2.png"
+                  src="/images/gold-jet-top.png"
                   alt=""
-                  className="w-20 h-auto drop-shadow-[0_10px_18px_rgba(201,162,39,0.55)]"
+                  className="w-16 h-auto drop-shadow-[0_10px_18px_rgba(201,162,39,0.55)]"
                 />
-                <div className="absolute right-[76%] top-1/2 -translate-y-1/2 h-[3px] w-20 rounded-full bg-gradient-to-l from-white/60 via-white/25 to-transparent blur-[1px]" />
+                <div className="absolute right-[76%] top-1/2 -translate-y-1/2 h-[3px] w-16 rounded-full bg-gradient-to-l from-white/60 via-white/25 to-transparent blur-[1px]" />
               </div>
             </div>
 
