@@ -61,355 +61,42 @@ export interface MovementSummaryPanels {
   };
 }
 
-// Comprehensive realistic seed records across past, present, and future dates
-const SEED_MOVEMENT_RECORDS: MovementRecord[] = [
-  // --- ARRIVAL TO KINGDOM ---
-  {
-    id: 'mov-arr-01',
-    reportType: 'Arrival to Kingdom',
-    date: '2026-10-10',
-    time: '08:15',
-    groupNo: 'GRP-2026-01',
-    shirka: 'Al-Haramain Group (Sub-Vendor)',
-    agent: 'Al-Noor Travels',
-    from: 'ISB',
-    to: 'JED',
-    sector: 'ISB → JED',
-    flightOrBusNo: 'SV-734',
-    voucherNo: 'UV-000101',
-    paidPax: 18,
-    infantPax: 2,
-    woBusPax: 4,
-    totalPax: 24,
-    returnFlightNo: 'SV-735',
-    returnDateTime: '2026-10-25 14:00',
-    transportBy: 'Coaster (Company)',
-    hotelName: 'Makkah Clock Royal Tower',
-  },
-  {
-    id: 'mov-arr-02',
-    reportType: 'Arrival to Kingdom',
-    date: '2026-10-10',
-    time: '11:30',
-    groupNo: 'GRP-2026-02',
-    shirka: 'Taiba Investments Co.',
-    agent: 'Karwan-e-Haram',
-    from: 'LHR',
-    to: 'MED',
-    sector: 'LHR → MED',
-    flightOrBusNo: 'SV-116',
-    voucherNo: 'UV-000102',
-    paidPax: 28,
-    infantPax: 1,
-    woBusPax: 0,
-    totalPax: 29,
-    returnFlightNo: 'SV-117',
-    returnDateTime: '2026-10-24 19:30',
-    transportBy: '49-Seater Bus (Company)',
-    hotelName: 'The Oberoi Madina',
-  },
-  {
-    id: 'mov-arr-03',
-    reportType: 'Arrival to Kingdom',
-    date: '2026-10-10',
-    time: '14:45',
-    groupNo: 'GRP-2026-03',
-    shirka: 'Al-Haramain Group (Sub-Vendor)',
-    agent: 'Direct B2C Walk-ins',
-    from: 'DXB',
-    to: 'JED',
-    sector: 'DXB → JED',
-    flightOrBusNo: 'EK-803',
-    voucherNo: 'UV-000103',
-    paidPax: 6,
-    infantPax: 0,
-    woBusPax: 2,
-    totalPax: 8,
-    returnFlightNo: 'EK-804',
-    returnDateTime: '2026-10-18 10:15',
-    transportBy: 'Staria VIP Van',
-    hotelName: 'Swissôtel Al Maqam Makkah',
-  },
-  {
-    id: 'mov-arr-04',
-    reportType: 'Arrival to Kingdom',
-    date: '2026-10-12',
-    time: '06:00',
-    groupNo: 'GRP-2026-04',
-    shirka: 'Dallah Ground Services',
-    agent: 'Falcon Express Umrah',
-    from: 'KHI',
-    to: 'JED',
-    sector: 'KHI → JED',
-    flightOrBusNo: 'PK-741',
-    voucherNo: 'UV-000104',
-    paidPax: 34,
-    infantPax: 3,
-    woBusPax: 5,
-    totalPax: 42,
-    returnFlightNo: 'PK-742',
-    returnDateTime: '2026-10-26 22:00',
-    transportBy: '49-Seater Bus (Company)',
-    hotelName: 'Makkah Clock Royal Tower',
-  },
-  {
-    id: 'mov-arr-05',
-    reportType: 'Arrival to Kingdom',
-    date: '2026-10-15',
-    time: '09:20',
-    groupNo: 'GRP-2026-05',
-    shirka: 'Al-Haramain Group (Sub-Vendor)',
-    agent: 'Al-Noor Travels',
-    from: 'ISB',
-    to: 'RUH',
-    sector: 'ISB → RUH',
-    flightOrBusNo: 'PA-170',
-    voucherNo: 'UV-000105',
-    paidPax: 12,
-    infantPax: 1,
-    woBusPax: 0,
-    totalPax: 13,
-    returnFlightNo: 'PA-171',
-    returnDateTime: '2026-10-28 16:30',
-    transportBy: 'Hiace Van',
-    hotelName: 'Pullman Zamzam Makkah',
-  },
-
-  // --- MAKKAH TO MADINA ---
-  {
-    id: 'mov-mm-01',
-    reportType: 'Makkah to Madina',
-    date: '2026-10-15',
-    time: '07:30',
-    groupNo: 'GRP-2026-01',
-    shirka: 'Al-Haramain Group (Sub-Vendor)',
-    agent: 'Al-Noor Travels',
-    from: 'Makkah',
-    to: 'Madinah',
-    sector: 'Makkah → Madina',
-    flightOrBusNo: 'BUS-MKMD-01',
-    voucherNo: 'UV-000101',
-    paidPax: 18,
-    infantPax: 2,
-    woBusPax: 4,
-    totalPax: 24,
-    returnFlightNo: 'SV-735',
-    returnDateTime: '2026-10-25 14:00',
-    transportBy: 'Coaster (Company)',
-    hotelName: 'The Oberoi Madina',
-  },
-  {
-    id: 'mov-mm-02',
-    reportType: 'Makkah to Madina',
-    date: '2026-10-16',
-    time: '14:00',
-    groupNo: 'GRP-2026-03',
-    shirka: 'Al-Haramain Group (Sub-Vendor)',
-    agent: 'Direct B2C Walk-ins',
-    from: 'Makkah',
-    to: 'Madinah',
-    sector: 'Makkah → Madina',
-    flightOrBusNo: 'HHR-TRAIN-08',
-    voucherNo: 'UV-000103',
-    paidPax: 6,
-    infantPax: 0,
-    woBusPax: 2,
-    totalPax: 8,
-    returnFlightNo: 'EK-804',
-    returnDateTime: '2026-10-18 10:15',
-    transportBy: 'Haramain Train + Van',
-    hotelName: 'Dar Al Taqwa Madinah',
-  },
-  {
-    id: 'mov-mm-03',
-    reportType: 'Makkah to Madina',
-    date: '2026-10-18',
-    time: '08:00',
-    groupNo: 'GRP-2026-04',
-    shirka: 'Dallah Ground Services',
-    agent: 'Falcon Express Umrah',
-    from: 'Makkah',
-    to: 'Madinah',
-    sector: 'Makkah → Madina',
-    flightOrBusNo: 'BUS-MKMD-04',
-    voucherNo: 'UV-000104',
-    paidPax: 34,
-    infantPax: 3,
-    woBusPax: 5,
-    totalPax: 42,
-    returnFlightNo: 'PK-742',
-    returnDateTime: '2026-10-26 22:00',
-    transportBy: '49-Seater Bus (Company)',
-    hotelName: 'Anwar Al Madinah Mövenpick',
-  },
-
-  // --- MADINA TO MAKKAH ---
-  {
-    id: 'mov-dm-01',
-    reportType: 'Madina to Makkah',
-    date: '2026-10-14',
-    time: '09:00',
-    groupNo: 'GRP-2026-02',
-    shirka: 'Taiba Investments Co.',
-    agent: 'Karwan-e-Haram',
-    from: 'Madinah',
-    to: 'Makkah',
-    sector: 'Madina → Makkah',
-    flightOrBusNo: 'BUS-MDMK-02',
-    voucherNo: 'UV-000102',
-    paidPax: 28,
-    infantPax: 1,
-    woBusPax: 0,
-    totalPax: 29,
-    returnFlightNo: 'SV-117',
-    returnDateTime: '2026-10-24 19:30',
-    transportBy: '49-Seater Bus (Company)',
-    hotelName: 'Swissôtel Al Maqam Makkah',
-  },
-  {
-    id: 'mov-dm-02',
-    reportType: 'Madina to Makkah',
-    date: '2026-10-20',
-    time: '15:30',
-    groupNo: 'GRP-2026-06',
-    shirka: 'Al-Haramain Group (Sub-Vendor)',
-    agent: 'Al-Noor Travels',
-    from: 'Madinah',
-    to: 'Makkah',
-    sector: 'Madina → Makkah',
-    flightOrBusNo: 'BUS-MDMK-05',
-    voucherNo: 'UV-000106',
-    paidPax: 16,
-    infantPax: 1,
-    woBusPax: 3,
-    totalPax: 20,
-    returnFlightNo: 'SV-735',
-    returnDateTime: '2026-10-30 11:00',
-    transportBy: 'Coaster (Company)',
-    hotelName: 'Makkah Clock Royal Tower',
-  },
-
-  // --- DEPARTURE FROM KINGDOM ---
-  {
-    id: 'mov-dep-01',
-    reportType: 'Departure from Kingdom',
-    date: '2026-10-18',
-    time: '10:15',
-    groupNo: 'GRP-2026-03',
-    shirka: 'Al-Haramain Group (Sub-Vendor)',
-    agent: 'Direct B2C Walk-ins',
-    from: 'JED',
-    to: 'DXB',
-    sector: 'JED → DXB',
-    flightOrBusNo: 'EK-804',
-    voucherNo: 'UV-000103',
-    paidPax: 6,
-    infantPax: 0,
-    woBusPax: 2,
-    totalPax: 8,
-    returnFlightNo: 'EK-804',
-    returnDateTime: '2026-10-18 10:15',
-    transportBy: 'Staria VIP Van',
-    hotelName: 'Swissôtel Al Maqam Makkah',
-  },
-  {
-    id: 'mov-dep-02',
-    reportType: 'Departure from Kingdom',
-    date: '2026-10-24',
-    time: '19:30',
-    groupNo: 'GRP-2026-02',
-    shirka: 'Taiba Investments Co.',
-    agent: 'Karwan-e-Haram',
-    from: 'MED',
-    to: 'LHR',
-    sector: 'MED → LHR',
-    flightOrBusNo: 'SV-117',
-    voucherNo: 'UV-000102',
-    paidPax: 28,
-    infantPax: 1,
-    woBusPax: 0,
-    totalPax: 29,
-    returnFlightNo: 'SV-117',
-    returnDateTime: '2026-10-24 19:30',
-    transportBy: '49-Seater Bus (Company)',
-    hotelName: 'The Oberoi Madina',
-  },
-  {
-    id: 'mov-dep-03',
-    reportType: 'Departure from Kingdom',
-    date: '2026-10-25',
-    time: '14:00',
-    groupNo: 'GRP-2026-01',
-    shirka: 'Al-Haramain Group (Sub-Vendor)',
-    agent: 'Al-Noor Travels',
-    from: 'JED',
-    to: 'ISB',
-    sector: 'JED → ISB',
-    flightOrBusNo: 'SV-735',
-    voucherNo: 'UV-000101',
-    paidPax: 18,
-    infantPax: 2,
-    woBusPax: 4,
-    totalPax: 24,
-    returnFlightNo: 'SV-735',
-    returnDateTime: '2026-10-25 14:00',
-    transportBy: 'Coaster (Company)',
-    hotelName: 'Makkah Clock Royal Tower',
-  },
-  {
-    id: 'mov-dep-04',
-    reportType: 'Departure from Kingdom',
-    date: '2026-10-26',
-    time: '22:00',
-    groupNo: 'GRP-2026-04',
-    shirka: 'Dallah Ground Services',
-    agent: 'Falcon Express Umrah',
-    from: 'JED',
-    to: 'KHI',
-    sector: 'JED → KHI',
-    flightOrBusNo: 'PK-742',
-    voucherNo: 'UV-000104',
-    paidPax: 34,
-    infantPax: 3,
-    woBusPax: 5,
-    totalPax: 42,
-    returnFlightNo: 'PK-742',
-    returnDateTime: '2026-10-26 22:00',
-    transportBy: '49-Seater Bus (Company)',
-    hotelName: 'Anwar Al Madinah Mövenpick',
-  },
-];
-
 const LOCAL_STORAGE_MOVEMENTS_KEY = 'safardesk_movement_reports_v2';
 
 export async function fetchMovementRecords(): Promise<MovementRecord[]> {
+  // Real data only — no demo seed records. Any previously cached seed rows
+  // (ids like 'mov-arr-01') are filtered out so dummy data never shows again.
   const stored = localStorage.getItem(LOCAL_STORAGE_MOVEMENTS_KEY);
-  let baseList: MovementRecord[] = SEED_MOVEMENT_RECORDS;
+  let baseList: MovementRecord[] = [];
   if (stored) {
     try {
-      baseList = JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      baseList = (Array.isArray(parsed) ? parsed : []).filter(
+        (r: any) => r && typeof r.id === 'string' && !r.id.startsWith('mov-')
+      );
     } catch {
-      baseList = SEED_MOVEMENT_RECORDS;
+      baseList = [];
     }
-  } else {
-    localStorage.setItem(LOCAL_STORAGE_MOVEMENTS_KEY, JSON.stringify(SEED_MOVEMENT_RECORDS));
   }
 
-  // Dynamically assimilate any user-created vouchers
+  // Dynamically build rows from real vouchers only
   try {
     const vouchers = await fetchVouchers();
     const dynamicRows: MovementRecord[] = [];
 
     vouchers.forEach((v) => {
-      // Skip only if this exact voucher was already assimilated as a dynamic
-      // row (seed demo records use ids like 'mov-arr-01' — never 'dyn-…', so
-      // real vouchers are never confused with seed voucherNo values).
+      // Skip only if this exact voucher was already assimilated as a dynamic row
       if (baseList.some((b) => b.id.startsWith(`dyn-${v.id}-`))) return;
 
       const adults = v.passengers.filter((p) => p.ageType === 'Adult').length;
       const children = v.passengers.filter((p) => p.ageType === 'Child').length;
       const infants = v.passengers.filter((p) => p.ageType === 'Infant').length;
-      const primaryHotel = v.hotelStays[0]?.hotelName || 'Contracted Hotel';
+      const primaryHotel = v.hotelStays[0]?.hotelName || '';
+      // Real return-leg info from the voucher's departure sector (no hardcoding)
+      const depSector = (v.sectors || []).find((s) => (s.type || '').toLowerCase().includes('departure'));
+      const returnFlightNo = depSector?.flightNo || '';
+      const returnDateTime = depSector ? `${depSector.date || ''}${depSector.time ? ' ' + depSector.time : ''}`.trim() : '';
+      const subVendorName = (v as any).shirkaName || '';
 
       v.sectors.forEach((sec, sIdx) => {
         let reportType: MovementReportType | null = null;
@@ -431,19 +118,19 @@ export async function fetchMovementRecords(): Promise<MovementRecord[]> {
             date: sec.date || v.createdAt.split('T')[0],
             time: sec.time || '10:00',
             groupNo: 'GRP-VCH-' + v.voucherNo.replace('UV-', ''),
-            shirka: 'Al-Haramain Group (Sub-Vendor)',
+            shirka: subVendorName,
             agent: v.createdByName || 'Direct B2C',
             from: sec.fromAirport?.iata || (reportType === 'Arrival to Kingdom' ? 'ISB' : 'JED'),
             to: sec.toAirport?.iata || (reportType === 'Departure from Kingdom' ? 'ISB' : 'JED'),
             sector: `${sec.fromAirport?.iata || 'ISB'} → ${sec.toAirport?.iata || 'JED'}`,
-            flightOrBusNo: sec.flightNo || (sec.vehicleType ? `${sec.vehicleType}-01` : 'TRANS-01'),
+            flightOrBusNo: sec.flightNo || (sec.vehicleType ? sec.vehicleType : ''),
             voucherNo: v.voucherNo,
             paidPax: paid,
             infantPax: infants,
             woBusPax: woBus,
             totalPax: total,
-            returnFlightNo: 'SV-735',
-            returnDateTime: '2026-10-25 18:00',
+            returnFlightNo,
+            returnDateTime,
             transportBy: sec.vehicleType || 'Company Transport',
             hotelName: primaryHotel,
           });

@@ -955,7 +955,7 @@ export async function backfillMissingVendorLedgerAccounts(actor: UserProfile): P
     });
     try {
       if (!isConfigPlaceholder) {
-        await setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerId), ledgerDoc);
+        await setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerId), stripUndefinedDeep(ledgerDoc));
       }
     } catch (err) {
       console.warn('Backfill ledger write failed for vendor', v.id, err);

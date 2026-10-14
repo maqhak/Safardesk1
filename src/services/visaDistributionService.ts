@@ -489,7 +489,7 @@ export async function markCommissionPaid(
 
   if (!isConfigPlaceholder) {
     try {
-      await setDoc(doc(db, INVOICES_COLLECTION, inv.id), inv);
+      await setDoc(doc(db, INVOICES_COLLECTION, inv.id), stripUndefinedDeep(inv));
     } catch (err) {
       console.warn('Could not update invoice commission in Firestore:', err);
     }
@@ -525,7 +525,7 @@ export async function backfillInvoiceShirkaIds(): Promise<number> {
     if (dist?.shirkaId) {
       const updatedInv = { ...inv, shirkaId: dist.shirkaId };
       if (!isConfigPlaceholder) {
-        await setDoc(doc(db, INVOICES_COLLECTION, inv.id), updatedInv);
+        await setDoc(doc(db, INVOICES_COLLECTION, inv.id), stripUndefinedDeep(updatedInv));
       }
       updated++;
     }
