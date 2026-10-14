@@ -401,8 +401,10 @@ export async function fetchMovementRecords(): Promise<MovementRecord[]> {
     const dynamicRows: MovementRecord[] = [];
 
     vouchers.forEach((v) => {
-      // Check if voucher already has an explicit seed id
-      if (baseList.some((b) => b.voucherNo === v.voucherNo)) return;
+      // Skip only if this exact voucher was already assimilated as a dynamic
+      // row (seed demo records use ids like 'mov-arr-01' — never 'dyn-…', so
+      // real vouchers are never confused with seed voucherNo values).
+      if (baseList.some((b) => b.id.startsWith(`dyn-${v.id}-`))) return;
 
       const adults = v.passengers.filter((p) => p.ageType === 'Adult').length;
       const children = v.passengers.filter((p) => p.ageType === 'Child').length;
