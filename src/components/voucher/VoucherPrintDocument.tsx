@@ -342,13 +342,11 @@ export const VoucherPrintDocument: React.FC<{
 
           <div className="fsv-ribbon"><h2>{(voucher as any).voucherKind === 'accommodation' ? 'ACCOMMODATION VOUCHER' : (voucher as any).voucherKind === 'transport' ? 'TRANSPORT VOUCHER' : 'UMRAH TRAVEL VOUCHER'}</h2></div>
 
-          {((voucher as any).makkahHcn || (voucher as any).madinaHcn || (voucher as any).transportHcn) && (
-            <div className="fsv-hcnbar">
-              <div><span className="fsv-lbl">MAKKAH HCN</span><span className="fsv-val">{(voucher as any).makkahHcn || "—"}</span></div>
-              <div style={{ justifyContent: 'center' }}><span className="fsv-lbl">MADINA HCN</span><span className="fsv-val">{(voucher as any).madinaHcn || "—"}</span></div>
-              <div style={{ justifyContent: 'flex-end' }}><span className="fsv-lbl">TRANSPORT HCN</span><span className="fsv-val">{(voucher as any).transportHcn || "—"}</span></div>
-            </div>
-          )}
+          <div className="fsv-hcnbar">
+            <div><span className="fsv-lbl">MAKKAH HCN</span><span className="fsv-val">{(voucher as any).makkahHcn || "—"}</span></div>
+            <div style={{ justifyContent: 'center' }}><span className="fsv-lbl">MADINA HCN</span><span className="fsv-val">{(voucher as any).madinaHcn || "—"}</span></div>
+            <div style={{ justifyContent: 'flex-end' }}><span className="fsv-lbl">TRANSPORT HCN</span><span className="fsv-val">{(voucher as any).transportHcn || "—"}</span></div>
+          </div>
 
           <div className="fsv-metabar">
             <div><span className="fsv-lbl">COMPANY VOUCHER NO.</span><span className="fsv-val">{voucher.voucherNo}</span></div>
