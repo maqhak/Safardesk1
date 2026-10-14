@@ -204,7 +204,7 @@ export const VoucherPrintDocument: React.FC<{
           .fsv-page { height:297mm; overflow:hidden; }
           @page { size:A4; margin:0; }
         }
-        .fsv-page { width:210mm; height:297mm; overflow:hidden; position:relative; background:#fff; }
+        .fsv-page { width:210mm; height:297mm; overflow:hidden; position:relative; background:#fff; display:flex; align-items:center; justify-content:center; }
         .fsv-watermark { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:50; }
         .fsv-watermark span { display:flex; align-items:center; justify-content:center; text-align:center; width:54mm; height:54mm; border-radius:50%; border:1.6mm solid currentColor; box-shadow:inset 0 0 0 1mm #fff, inset 0 0 0 1.9mm currentColor; font-size:6.5mm; font-weight:bold; letter-spacing:1.2mm; line-height:1.35; padding:6mm; opacity:0.17; transform:rotate(-16deg); }
         .fsv-watermark.ok span { color:#15803d; }
