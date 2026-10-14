@@ -242,7 +242,7 @@ export const VoucherPrintDocument: React.FC<{
         .fsv-mono { width:26mm; height:26mm; border:1mm solid var(--fsv-acc); border-radius:50%; display:flex; align-items:center; justify-content:center; position:relative; margin-bottom:1.5mm; }
         .fsv-mono::after { content:""; position:absolute; inset:1.6mm; border:.5mm solid var(--fsv-acc); border-radius:50%; }
         .fsv-mono b { font-family:Georgia,serif; font-size:8mm; letter-spacing:.5mm; color:var(--fsv-pri); }
-        .fsv-logo { width:30mm; max-height:26mm; object-fit:contain; margin-bottom:1.5mm; }
+        .fsv-logo { width:44mm; max-height:32mm; object-fit:contain; }
         .fsv-brand h1 { font-family:Georgia,serif; font-size:6.2mm; letter-spacing:2.2mm; font-weight:normal; color:var(--fsv-pri); }
         .fsv-brand .fsv-tag { font-size:2.5mm; letter-spacing:1.1mm; color:#333; margin-top:1.2mm; }
         .fsv-ribbon { margin:2.6mm 0 0; background:var(--fsv-pri); color:#fff; text-align:center; position:relative; padding:2.2mm 0; }
@@ -332,10 +332,12 @@ export const VoucherPrintDocument: React.FC<{
               {company.logoUrl ? (
                 <img className="fsv-logo" src={company.logoUrl} alt="Company logo" />
               ) : (
-                <div className="fsv-mono"><b>{brandShort}</b></div>
+                <>
+                  <div className="fsv-mono"><b>{brandShort}</b></div>
+                  <h1>{(company.companyName || 'TRAVEL AND TOURS').toUpperCase()}</h1>
+                  <div className="fsv-tag">{(company.legalName || 'UMRAH SERVICES | TRAVEL SOLUTIONS').toUpperCase()}</div>
+                </>
               )}
-              <h1>{(company.companyName || 'TRAVEL AND TOURS').toUpperCase()}</h1>
-              <div className="fsv-tag">{(company.legalName || 'UMRAH SERVICES | TRAVEL SOLUTIONS').toUpperCase()}</div>
             </div>
             <div className="fsv-sketch"><div className="fsv-arch"><img src={imgMadinah} alt="Masjid-e-Nabawi" /></div><div className="fsv-under">Agent: {agentDisplay || "—"}</div></div>
           </div>
