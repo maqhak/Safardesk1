@@ -81,7 +81,6 @@ export const TicketSalePage: React.FC = () => {
   const [commissionAmt, setCommissionAmt] = useState('');
   const [netCost, setNetCost] = useState('');
   const [netSale, setNetSale] = useState('');
-  const [exchangeRate, setExchangeRate] = useState(String(getCurrentRate('SAR-PKR')));
   const [charges, setCharges] = useState('');
   const [custWhPct, setCustWhPct] = useState('');
   const [discountPct, setDiscountPct] = useState('');
@@ -152,7 +151,7 @@ export const TicketSalePage: React.FC = () => {
 
     setSaving(true);
     try {
-      const rate = parseFloat(exchangeRate) || getCurrentRate('SAR-PKR');
+      const rate = getCurrentRate('SAR-PKR');
       // Resolve the Shirka display name (shirkaId may be a vendor id or a nested shirka id)
       let shirkaName = '';
       if (shirkaId) {
@@ -402,7 +401,6 @@ export const TicketSalePage: React.FC = () => {
           <div><label className={labelCls}>Net Cost</label><Input type="number" value={netCost} onChange={e => setNetCost(e.target.value)} placeholder="0" /></div>
           <div><label className={labelCls}>Net Sale</label><Input type="number" value={netSale} onChange={e => setNetSale(e.target.value)} placeholder="0" /></div>
           <div><label className={labelCls}>Profit / Loss</label><div className={`p-2 border rounded-lg text-sm font-mono font-bold ${calc.profitLoss >= 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>{fmt(calc.profitLoss)}</div></div>
-          <div><label className={labelCls}>Exchange Rate (SAR→PKR)</label><Input type="number" value={exchangeRate} onChange={e => setExchangeRate(e.target.value)} /></div>
           <div><label className={labelCls}>Charges</label><Input type="number" value={charges} onChange={e => setCharges(e.target.value)} placeholder="0" /></div>
           <div><label className={labelCls}>Customer WH %</label><Input type="number" value={custWhPct} onChange={e => setCustWhPct(e.target.value)} placeholder="0" /></div>
           <div><label className={labelCls}>Discount %</label><Input type="number" value={discountPct} onChange={e => setDiscountPct(e.target.value)} placeholder="0" /></div>

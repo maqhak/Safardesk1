@@ -106,10 +106,10 @@ export const TicketsPage: React.FC = () => {
   const [purchaseSource, setPurchaseSource] = useState<'vendor' | 'airline' | 'customer'>('airline');
   const [vendorsCache, setVendorsCache] = useState<any[]>([]);
   const [purchaseCost, setPurchaseCost] = useState<string>('');
-  const [purchaseCurrency, setPurchaseCurrency] = useState<'PKR' | 'SAR' | 'USD'>('PKR');
+  const [purchaseCurrency, setPurchaseCurrency] = useState<'PKR' | 'USD'>('PKR');
   const [salePrice, setSalePrice] = useState<string>('');
   const [salePricePKR, setSalePricePKR] = useState<string>('');
-  const [saleCurrency, setSaleCurrency] = useState<'PKR' | 'SAR' | 'USD'>('PKR');
+  const [saleCurrency, setSaleCurrency] = useState<'PKR' | 'USD'>('PKR');
   // Fare breakdown (voucher-style)
   const [basicFare, setBasicFare] = useState<string>('');
   const [otherTaxes, setOtherTaxes] = useState<string>('');
@@ -202,18 +202,13 @@ export const TicketsPage: React.FC = () => {
 
     const costNum = parseFloat(purchaseCost);
     const saleNum = parseFloat(salePricePKR);
-    const rateNum = parseFloat(String(exchangeRate));
     if (isNaN(costNum) || isNaN(saleNum) || costNum < 0 || saleNum < 0) {
       showError('Please enter valid purchase and sale prices.');
       return;
     }
-    if (isNaN(rateNum) || rateNum <= 0) {
-      showError('Please enter a valid exchange rate (1 SAR = ? PKR).');
-      return;
-    }
-    // Convert purchase & sale to PKR and SAR using selected currencies + settings rates
-    const costPKR = purchaseCurrency === 'PKR' ? costNum : purchaseCurrency === 'SAR' ? costNum * rateNum : costNum * getCurrentRate('USD-PKR');
-    const salePKR = saleCurrency === 'PKR' ? saleNum : saleCurrency === 'SAR' ? saleNum * rateNum : saleNum * getCurrentRate('USD-PKR');
+    // Convert purchase & sale to PKR using selected currencies + settings rates
+    const costPKR = purchaseCurrency === 'PKR' ? costNum : costNum * getCurrentRate('USD-PKR');
+    const salePKR = saleCurrency === 'PKR' ? saleNum : saleNum * getCurrentRate('USD-PKR');
 
     // Fare breakdown calculations
     const bfNum = parseFloat(basicFare) || 0;
@@ -710,13 +705,9 @@ export const TicketsPage: React.FC = () => {
                   className="px-3 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-bold"
                 >
                   <option value="PKR">PKR</option>
-                  <option value="SAR">SAR</option>
                   <option value="USD">USD</option>
                 </select>
               </div>
-              {purchaseCost && purchaseCurrency !== 'SAR' && (
-                <div className="text-[10px] text-slate-500 mt-1">= SAR {convertToSAR(parseFloat(purchaseCost) || 0, purchaseCurrency).toFixed(2)} (auto @ settings rate)</div>
-              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -736,31 +727,12 @@ export const TicketsPage: React.FC = () => {
                     className="px-3 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-bold"
                   >
                     <option value="PKR">PKR</option>
-                    <option value="SAR">SAR</option>
                     <option value="USD">USD</option>
                   </select>
                 </div>
               </div>
-              <div>
-                <Input
-                  label="Exchange Rate (1 SAR = PKR)"
-                  type="number"
-                  step="0.01"
-                  placeholder="e.g. 74.5"
-                  value={String(exchangeRate)}
-                  onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 0)}
-                  required
-                />
-              </div>
             </div>
           </div>
-
-          {salePricePKR && (
-            <div className="p-3 bg-sky-50 border border-sky-200 rounded-lg text-xs font-semibold text-sky-800 flex items-center justify-between">
-              <span>Sale in SAR (posts to ledger):</span>
-              <span className="font-mono text-sm">SAR {convertToSAR(parseFloat(salePricePKR) || 0, saleCurrency).toFixed(2)}</span>
-            </div>
-          )}
 
           {purchaseCost && salePricePKR && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800 flex items-center justify-between">
@@ -768,8 +740,8 @@ export const TicketsPage: React.FC = () => {
               <span className="font-mono text-sm">PKR {(() => {
                 const c = parseFloat(purchaseCost) || 0;
                 const s = parseFloat(salePricePKR) || 0;
-                const cPKR = purchaseCurrency === 'PKR' ? c : purchaseCurrency === 'SAR' ? c * (parseFloat(String(exchangeRate)) || 0) : c * getCurrentRate('USD-PKR');
-                const sPKR = saleCurrency === 'PKR' ? s : saleCurrency === 'SAR' ? s * (parseFloat(String(exchangeRate)) || 0) : s * getCurrentRate('USD-PKR');
+                const cPKR = purchaseCurrency === 'PKR' ? c : c * getCurrentRate('USD-PKR');
+                const sPKR = saleCurrency === 'PKR' ? s : s * getCurrentRate('USD-PKR');
                 return (sPKR - cPKR).toFixed(2);
               })()}</span>
             </div>
@@ -780,11 +752,11 @@ export const TicketsPage: React.FC = () => {
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Fare Breakdown & Commission</h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div>
-                <Input label="Basic Fare (SAR)" type="number" step="0.01" placeholder="e.g. 1200"
+                <Input label="Basic Fare" type="number" step="0.01" placeholder="e.g. 1200"
                   value={basicFare} onChange={(e) => setBasicFare(e.target.value)} />
               </div>
               <div>
-                <Input label="Other Taxes (SAR)" type="number" step="0.01" placeholder="e.g. 150"
+                <Input label="Other Taxes" type="number" step="0.01" placeholder="e.g. 150"
                   value={otherTaxes} onChange={(e) => setOtherTaxes(e.target.value)} />
               </div>
               <div>
@@ -814,10 +786,10 @@ export const TicketsPage: React.FC = () => {
               if (!bf && !tx && !commP) return null;
               return (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs font-semibold text-amber-800 space-y-1">
-                  <div className="flex justify-between"><span>Total Fare (Basic + Taxes + PSF):</span><span className="font-mono">SAR {total.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span>Airline Commission ({commP}%):</span><span className="font-mono">SAR {commAmt.toFixed(2)}</span></div>
-                  <div className="flex justify-between"><span>WHT ({whtP}%):</span><span className="font-mono text-rose-700">- SAR {whtAmt.toFixed(2)}</span></div>
-                  <div className="flex justify-between border-t border-amber-200 pt-1"><span>Net Commission Profit:</span><span className="font-mono text-emerald-700">SAR {net.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span>Total Fare (Basic + Taxes + PSF):</span><span className="font-mono">{total.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span>Airline Commission ({commP}%):</span><span className="font-mono">{commAmt.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span>WHT ({whtP}%):</span><span className="font-mono text-rose-700">- {whtAmt.toFixed(2)}</span></div>
+                  <div className="flex justify-between border-t border-amber-200 pt-1"><span>Net Commission Profit:</span><span className="font-mono text-emerald-700">{net.toFixed(2)}</span></div>
                 </div>
               );
             })()}

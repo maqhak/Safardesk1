@@ -40,7 +40,7 @@ import { downloadCSV } from '../utils/csv';
 import { fetchLedgerEntries } from '../services/accountingService';
 import { VoucherDoc, SectorItem, HotelStayItem, VoucherChargeItem, VoucherEditPayload, VoucherEditRequest } from '../types/voucher';
 import { fetchVouchers, createVoucher, cancelVoucher, markCommissionPaid, approveVoucher, disapproveVoucher } from '../services/voucherService';
-import { DEFAULT_PACKAGE_INCLUDES } from '../types/voucher';
+import { DEFAULT_PACKAGE_INCLUDES, PACKAGE_INCLUDES_OPTIONS } from '../types/voucher';
 import { fetchVisas } from '../services/visaService';
 import { fetchHotels, fetchVehicles, fetchVendors } from '../services/masterService';
 import {
@@ -2111,13 +2111,13 @@ export const VouchersPage: React.FC = () => {
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <h5 className="font-bold text-slate-900 text-xs uppercase tracking-wide">Package Includes</h5>
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => setPackageIncludes([...DEFAULT_PACKAGE_INCLUDES])} className="text-[11px] font-bold text-[var(--theme-primary)] hover:underline">Select All</button>
+                    <button type="button" onClick={() => setPackageIncludes([...PACKAGE_INCLUDES_OPTIONS])} className="text-[11px] font-bold text-[var(--theme-primary)] hover:underline">Select All</button>
                     <span className="text-slate-300">|</span>
                     <button type="button" onClick={() => setPackageIncludes([])} className="text-[11px] font-bold text-slate-500 hover:underline">Clear</button>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {DEFAULT_PACKAGE_INCLUDES.map((item) => (
+                  {PACKAGE_INCLUDES_OPTIONS.map((item) => (
                     <label key={item} className="flex items-center gap-2.5 p-2.5 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-[#0e2c4c]/40 transition text-xs font-medium text-slate-700">
                       <input
                         type="checkbox"

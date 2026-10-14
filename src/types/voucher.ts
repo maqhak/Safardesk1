@@ -12,6 +12,16 @@ export const DEFAULT_PACKAGE_INCLUDES = [
   '24/7 Assistance',
 ];
 
+/**
+ * All Package Includes options shown as checkboxes in the voucher form.
+ * 'Kaaba View' is opt-in (unchecked by default) — staff tick it per voucher;
+ * only saved selections print, so old vouchers are unaffected.
+ */
+export const PACKAGE_INCLUDES_OPTIONS = [
+  ...DEFAULT_PACKAGE_INCLUDES,
+  'Kaaba View',
+];
+
 export interface PassengerSnapshot {
   name: string;
   passportNumber: string;

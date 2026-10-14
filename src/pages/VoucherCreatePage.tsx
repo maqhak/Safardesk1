@@ -24,7 +24,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { SectorItem, HotelStayItem, VoucherEditPayload, FlightBlockInfo } from '../types/voucher';
 import { createVoucher, fetchVouchers } from '../services/voucherService';
-import { DEFAULT_PACKAGE_INCLUDES } from '../types/voucher';
+import { DEFAULT_PACKAGE_INCLUDES, PACKAGE_INCLUDES_OPTIONS } from '../types/voucher';
 import { fetchVisas } from '../services/visaService';
 import { fetchHotels, fetchVendors } from '../services/masterService';
 import { fetchAgents, getAgentIdentityIds } from '../services/agentService';
@@ -1178,7 +1178,7 @@ export const VoucherCreatePage: React.FC = () => {
                 <CheckSquare className="w-4 h-4" /> Package Includes
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {DEFAULT_PACKAGE_INCLUDES.map((item) => (
+                {PACKAGE_INCLUDES_OPTIONS.map((item) => (
                   <label key={item} className="flex items-center gap-2 text-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-slate-100">
                     <input
                       type="checkbox"
