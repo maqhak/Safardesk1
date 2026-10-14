@@ -311,7 +311,7 @@ export const VoucherPrintDocument: React.FC<{
             <div className="fsv-sketch"><div className="fsv-arch"><img src={imgMadinah} alt="Masjid-e-Nabawi" /></div><div className="fsv-under">Agent: {(voucher as any).agentName || "—"}</div></div>
           </div>
 
-          <div className="fsv-ribbon"><h2>UMRAH TRAVEL VOUCHER</h2></div>
+          <div className="fsv-ribbon"><h2>{(voucher as any).voucherKind === 'accommodation' ? 'ACCOMMODATION VOUCHER' : (voucher as any).voucherKind === 'transport' ? 'TRANSPORT VOUCHER' : 'UMRAH TRAVEL VOUCHER'}</h2></div>
 
           <div className="fsv-metabar">
             <div><span className="fsv-lbl">VOUCHER NO.</span><span className="fsv-val">{voucher.voucherNo}</span></div>

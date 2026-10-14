@@ -17,6 +17,8 @@ const CustomersPage = lazy(() => import('./pages/CustomersPage').then(m => ({ de
 const VouchersPage = lazy(() => import('./pages/VouchersPage').then(m => ({ default: m.VouchersPage })));
 const VoucherCreatePage = lazy(() => import('./pages/VoucherCreatePage').then(m => ({ default: m.VoucherCreatePage })));
 const VoucherSelectPage = lazy(() => import('./pages/VoucherSelectPage').then(m => ({ default: m.VoucherSelectPage })));
+const AccommodationVoucherPage = lazy(() => import('./pages/AccommodationVoucherPage').then(m => ({ default: m.AccommodationVoucherPage })));
+const TransportVoucherPage = lazy(() => import('./pages/TransportVoucherPage').then(m => ({ default: m.TransportVoucherPage })));
 const VoucherSharedView = lazy(() => import('./pages/VoucherSharedView').then(m => ({ default: m.VoucherSharedView })));
 const TicketsPage = lazy(() => import('./pages/TicketsPage').then(m => ({ default: m.TicketsPage })));
 const TicketListPage = lazy(() => import('./pages/TicketListPage').then(m => ({ default: m.TicketListPage })));
@@ -142,6 +144,22 @@ export default function App() {
                   element={
                     <ProtectedRoute requiredModule="Vouchers">
                       <VoucherCreatePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/vouchers/accommodation/new"
+                  element={
+                    <ProtectedRoute requiredModule="Vouchers">
+                      <AccommodationVoucherPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/vouchers/transport/new"
+                  element={
+                    <ProtectedRoute requiredModule="Vouchers">
+                      <TransportVoucherPage />
                     </ProtectedRoute>
                   }
                 />

@@ -107,6 +107,8 @@ export interface ZiaratInfo {
 export interface VoucherDoc {
   id: string;
   voucherNo: string; // e.g. "UV-000123"
+  /** 'full' = regular package voucher, 'accommodation' = hotel-only, 'transport' = transport-only. Manual passengers on the latter two. */
+  voucherKind?: 'full' | 'accommodation' | 'transport';
   linkType: 'visa' | 'customer' | 'agent';
   visaIds: string[];
   customerId?: string;
@@ -169,6 +171,7 @@ export interface VoucherDoc {
 
 /** Payload snapshot for a voucher edit (create or approval). */
 export interface VoucherEditPayload {
+  voucherKind?: 'full' | 'accommodation' | 'transport';
   visaIds: string[];
   agentId?: string;
   shirkaVendorId?: string;

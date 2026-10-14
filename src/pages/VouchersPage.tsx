@@ -6,7 +6,9 @@ import {
   Search, 
   Filter, 
   Download, 
-  Bed, 
+  Bed,
+  BedDouble,
+  Car,
   MapPin, 
   Calendar,
   CheckCircle2,
@@ -855,7 +857,19 @@ export const VouchersPage: React.FC = () => {
       header: 'Voucher No & Link',
       render: (row) => (
         <div>
-          <div className="font-mono font-bold text-[var(--theme-primary)] text-xs">{row.voucherNo}</div>
+          <div className="font-mono font-bold text-[var(--theme-primary)] text-xs flex items-center gap-1.5">
+            {row.voucherNo}
+            {row.voucherKind === 'accommodation' && (
+              <span className="font-sans font-bold text-[9px] uppercase tracking-wide bg-teal-100 text-teal-800 border border-teal-300 rounded px-1.5 py-0.5">
+                Accommodation
+              </span>
+            )}
+            {row.voucherKind === 'transport' && (
+              <span className="font-sans font-bold text-[9px] uppercase tracking-wide bg-amber-100 text-amber-800 border border-amber-300 rounded px-1.5 py-0.5">
+                Transport
+              </span>
+            )}
+          </div>
           <div className="text-[10px] text-slate-500 uppercase font-semibold">
             Link: {row.linkType} • {(row.passengers || []).length} Pax
           </div>
@@ -1025,15 +1039,33 @@ export const VouchersPage: React.FC = () => {
               Verification Lists
             </Button>
             {canCreate && (
-              <Button
-                variant="primary"
-                size="sm"
-                leftIcon={<Plus className="w-3.5 h-3.5" />}
-                onClick={() => navigate('/vouchers/select')}
-                className="bg-[#0e2c4c] hover:bg-[#1a4473]"
-              >
-                + New Voucher
-              </Button>
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={<BedDouble className="w-3.5 h-3.5" />}
+                  onClick={() => navigate('/vouchers/accommodation/new')}
+                >
+                  + Accommodation Voucher
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={<Car className="w-3.5 h-3.5" />}
+                  onClick={() => navigate('/vouchers/transport/new')}
+                >
+                  + Transport Voucher
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<Plus className="w-3.5 h-3.5" />}
+                  onClick={() => navigate('/vouchers/select')}
+                  className="bg-[#0e2c4c] hover:bg-[#1a4473]"
+                >
+                  + New Voucher
+                </Button>
+              </>
             )}
           </div>
         }

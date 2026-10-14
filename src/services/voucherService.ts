@@ -76,6 +76,7 @@ export function normalizeVoucher(raw: any): VoucherDoc {
   if (!v.status) v.status = 'Draft';
   if (!v.voucherNo) v.voucherNo = '';
   if (!v.linkType) v.linkType = 'visa';
+  if (v.voucherKind !== 'accommodation' && v.voucherKind !== 'transport') v.voucherKind = 'full';
   return v as VoucherDoc;
 }
 
