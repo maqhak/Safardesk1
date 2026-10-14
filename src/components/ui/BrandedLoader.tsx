@@ -32,9 +32,8 @@ export const BrandedLoader: React.FC<{ message?: string }> = ({ message = 'Loadi
           <div className="relative w-72 h-72 mx-auto [transform-style:preserve-3d]">
             {/* Tilted orbit disc — spins around its own (tilted) axis */}
             <div className="absolute inset-0 [transform-style:preserve-3d] animate-[orbitSpin_9s_linear_infinite] pointer-events-none">
-              {/* pathway rings */}
-              <div className="absolute inset-0 rounded-full border border-[#c9a227]/40" />
-              <div className="absolute inset-4 rounded-full border border-dashed border-white/15" />
+              {/* pathway — one clean luminous ring */}
+              <div className="absolute inset-0 rounded-full border border-[#c9a227]/45 shadow-[0_0_24px_rgba(201,162,39,0.25)]" />
               {/* Realistic golden jet riding the pathway, with a contrail streak —
                   nose points along the flight direction so it truly looks airborne */}
               <div className="absolute left-1/2 top-0 -ml-10 -mt-5">
