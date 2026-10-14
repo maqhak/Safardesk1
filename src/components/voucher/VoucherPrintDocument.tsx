@@ -232,22 +232,22 @@ export const VoucherPrintDocument: React.FC<{
         .fsv-ribbon::before,.fsv-ribbon::after { content:""; position:absolute; top:50%; width:3.4mm; height:3.4mm; background:var(--fsv-pagebg); border:1mm solid var(--fsv-pri); transform:translateY(-50%) rotate(45deg); }
         .fsv-ribbon::before { left:14mm; } .fsv-ribbon::after { right:14mm; }
         .fsv-ribbon h2 { font-family:Georgia,serif; font-size:5.4mm; letter-spacing:2.6mm; font-weight:normal; }
-        .fsv-metabar { display:flex; border:.45mm solid var(--fsv-pri); border-top:none; font-size:3mm; }
-        .fsv-metabar>div { flex:1; min-width:0; padding:1.6mm 3mm; display:flex; align-items:center; gap:2.5mm; }
+        .fsv-metabar { display:flex; border:.45mm solid var(--fsv-pri); border-top:none; font-size:2.8mm; }
+        .fsv-metabar>div { flex:1; min-width:0; padding:1.2mm 3mm; display:flex; align-items:center; gap:2.5mm; }
         .fsv-metabar>div+div { border-left:.45mm solid var(--fsv-pri); }
-        .fsv-metabar .fsv-lbl { font-size:2.4mm; color:#555; letter-spacing:.6mm; }
-        .fsv-metabar .fsv-val { font-weight:bold; font-size:3.4mm; }
+        .fsv-metabar .fsv-lbl { font-size:2.2mm; color:#555; letter-spacing:.6mm; }
+        .fsv-metabar .fsv-val { font-weight:bold; font-size:3.1mm; }
         .fsv-counts { display:flex; border:.45mm solid var(--fsv-pri); border-top:none; }
         .fsv-counts .fsv-grp { display:flex; flex:1; min-width:0; }
         .fsv-counts .fsv-grp+.fsv-grp { border-left:.45mm solid var(--fsv-pri); }
-        .fsv-c { flex:1; min-width:0; text-align:center; padding:1.5mm 1mm; }
+        .fsv-c { flex:1; min-width:0; text-align:center; padding:1.1mm 1mm; }
         .fsv-c+.fsv-c { border-left:.25mm solid #999; }
-        .fsv-c .fsv-k { font-size:2.3mm; color:#555; letter-spacing:.5mm; }
-        .fsv-c .fsv-v { font-size:3.6mm; font-weight:bold; margin-top:.6mm; }
-        .fsv-secttl { font-size:3.1mm; font-weight:bold; letter-spacing:.8mm; padding:1.8mm 2.5mm; border:.45mm solid var(--fsv-pri); color:var(--fsv-pri); border-bottom:none; background:var(--fsv-soft); margin-top:2.4mm; }
+        .fsv-c .fsv-k { font-size:2.2mm; color:#555; letter-spacing:.5mm; }
+        .fsv-c .fsv-v { font-size:3.2mm; font-weight:bold; margin-top:.5mm; }
+        .fsv-secttl { font-size:2.8mm; font-weight:bold; letter-spacing:.8mm; padding:1.3mm 2.5mm; border:.45mm solid var(--fsv-pri); color:var(--fsv-pri); border-bottom:none; background:var(--fsv-soft); margin-top:2mm; }
         table.fsv-vt { width:100%; border-collapse:collapse; table-layout:fixed; border:.45mm solid var(--fsv-pri); }
-        table.fsv-vt th { background:var(--fsv-pri); color:#fff; font-size:2.5mm; letter-spacing:.4mm; padding:1.4mm 1.5mm; font-weight:bold; border:.35mm solid var(--fsv-pri); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        table.fsv-vt td { font-size:2.9mm; padding:1.25mm 1.5mm; border:.35mm solid #555; overflow-wrap:break-word; vertical-align:middle; }
+        table.fsv-vt th { background:var(--fsv-pri); color:#fff; font-size:2.3mm; letter-spacing:.4mm; padding:1.1mm 1.5mm; font-weight:bold; border:.35mm solid var(--fsv-pri); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        table.fsv-vt td { font-size:2.6mm; padding:.85mm 1.5mm; border:.35mm solid #555; overflow-wrap:break-word; vertical-align:middle; }
         /* Fixed column widths — every table type aligns perfectly, every time */
         .fsv-flight th:nth-child(1), .fsv-flight td:nth-child(1) { width:21%; }
         .fsv-flight th:nth-child(2), .fsv-flight td:nth-child(2) { width:27%; }
@@ -271,26 +271,26 @@ export const VoucherPrintDocument: React.FC<{
         .fsv-cols2>.fsv-half { flex:1; min-width:0; }
         .fsv-mutwrap { display:flex; gap:3mm; }
         .fsv-mutwrap table { flex:1; min-width:0; }
-        table.fsv-vt.fsv-mut td, table.fsv-vt.fsv-mut th { padding:.95mm 1.2mm; }
-        table.fsv-vt.fsv-mut td { font-size:2.85mm; }
+        table.fsv-vt.fsv-mut td, table.fsv-vt.fsv-mut th { padding:.7mm 1.2mm; }
+        table.fsv-vt.fsv-mut td { font-size:2.55mm; }
         table.fsv-vt.fsv-mut .fsv-nm { font-weight:bold; }
-        .fsv-bottom4 { display:flex; gap:3mm; margin-top:2.4mm; align-items:stretch; }
+        .fsv-bottom4 { display:flex; gap:3mm; margin-top:2mm; align-items:stretch; }
         .fsv-bbox { flex:1; border:.45mm solid var(--fsv-pri); min-width:0; display:flex; flex-direction:column; overflow:hidden; }
-        .fsv-bbox h4 { font-size:2.9mm; letter-spacing:.7mm; background:var(--fsv-soft); padding:1.6mm 2.2mm; border-bottom:.45mm solid var(--fsv-pri); color:var(--fsv-pri); }
-        .fsv-bbox .fsv-in { padding:2mm 2.4mm; font-size:2.8mm; line-height:1.55; flex:1; }
+        .fsv-bbox h4 { font-size:2.6mm; letter-spacing:.7mm; background:var(--fsv-soft); padding:1.3mm 2.2mm; border-bottom:.45mm solid var(--fsv-pri); color:var(--fsv-pri); }
+        .fsv-bbox .fsv-in { padding:1.6mm 2.2mm; font-size:2.6mm; line-height:1.5; flex:1; }
         .fsv-incl { list-style:none; columns:2; column-gap:3mm; }
-        .fsv-incl li { font-size:2.7mm; padding:.7mm 0 .7mm 4mm; text-indent:-4mm; break-inside:avoid; overflow-wrap:break-word; }
+        .fsv-incl li { font-size:2.5mm; padding:.6mm 0 .6mm 4mm; text-indent:-4mm; break-inside:avoid; overflow-wrap:break-word; }
         .fsv-incl li::before { content:"✓ "; font-weight:bold; }
         .fsv-notes { list-style:none; }
-        .fsv-notes li { font-size:2.65mm; padding:.8mm 0 .8mm 3.4mm; text-indent:-3.4mm; overflow-wrap:break-word; }
+        .fsv-notes li { font-size:2.45mm; padding:.7mm 0 .7mm 3.4mm; text-indent:-3.4mm; overflow-wrap:break-word; }
         .fsv-notes li::before { content:"• "; font-weight:bold; }
-        .fsv-qrbox { border:.6mm dashed #555; margin:2mm; min-height:24mm; display:flex; flex:1; flex-direction:column; align-items:center; justify-content:center; gap:1.5mm; color:#555; padding:2mm; overflow:hidden; max-width:100%; }
-        .fsv-qrbox span { font-size:2.5mm; font-weight:bold; letter-spacing:.4mm; }
-        .fsv-contact { display:flex; border:.45mm solid var(--fsv-pri); margin-top:2.4mm; }
-        .fsv-contact>div { flex:1; min-width:0; padding:1.8mm 3mm; display:flex; align-items:center; gap:2.5mm; font-size:3mm; }
+        .fsv-qrbox { border:.6mm dashed #555; margin:1.5mm; min-height:20mm; display:flex; flex:1; flex-direction:column; align-items:center; justify-content:center; gap:1.2mm; color:#555; padding:1.6mm; overflow:hidden; max-width:100%; }
+        .fsv-qrbox span { font-size:2.4mm; font-weight:bold; letter-spacing:.4mm; }
+        .fsv-contact { display:flex; border:.45mm solid var(--fsv-pri); margin-top:2mm; }
+        .fsv-contact>div { flex:1; min-width:0; padding:1.3mm 3mm; display:flex; align-items:center; gap:2.5mm; font-size:2.7mm; }
         .fsv-contact>div+div { border-left:.45mm solid var(--fsv-pri); }
-        .fsv-contact .fsv-k { font-size:2.4mm; color:#555; letter-spacing:.5mm; }
-        .fsv-contact .fsv-v { font-weight:bold; font-size:3.3mm; }
+        .fsv-contact .fsv-k { font-size:2.2mm; color:#555; letter-spacing:.5mm; }
+        .fsv-contact .fsv-v { font-weight:bold; font-size:3mm; }
         .fsv-stamp { width:22mm; height:22mm; border:.7mm solid var(--fsv-acc); border-radius:50%; display:flex; align-items:center; justify-content:center; text-align:center; font-size:2.2mm; letter-spacing:.4mm; color:#333; transform:rotate(-8deg); flex:0 0 22mm; }
         .fsv-stampimg { width:24mm; height:24mm; object-fit:contain; transform:rotate(-8deg); flex:0 0 24mm; }
         .fsv-foot { margin-top:auto; background:var(--fsv-pri); color:#fff; display:flex; font-size:2.9mm; }
