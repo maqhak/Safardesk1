@@ -48,26 +48,33 @@ export const BrandedLoader: React.FC<{ message?: string }> = ({ message = 'Loadi
       </div>
 
       <div className="text-center relative z-10 px-6">
-        {/* Logo + name with orbiting plane */}
-        <div className="relative inline-block">
-          {/* Orbiting plane — circles around logo and name */}
-          <div className="absolute inset-0 pointer-events-none animate-[orbit_6s_linear_infinite]">
-            <GoldPlane className="absolute -top-4 left-1/2 -ml-5 w-10 h-10 drop-shadow-[0_6px_14px_rgba(201,162,39,0.55)]" />
-          </div>
-          {/* Orbit ring (subtle) */}
-          <div className="absolute -inset-8 rounded-full border border-white/5 pointer-events-none" />
+        {/* Logo with PROPER 3D orbit: the pathway is a tilted ring and the
+            golden jet flies it — passing BEHIND the logo at the back and
+            IN FRONT at the front. Each tenant sees its own cached logo. */}
+        <div className="relative inline-block [perspective:1100px]">
+          <div className="relative w-72 h-72 mx-auto [transform-style:preserve-3d]">
+            {/* Tilted orbit disc — spins around its own (tilted) axis */}
+            <div className="absolute inset-0 [transform-style:preserve-3d] animate-[orbitSpin_9s_linear_infinite] pointer-events-none">
+              {/* pathway rings */}
+              <div className="absolute inset-0 rounded-full border border-[#c9a227]/40" />
+              <div className="absolute inset-4 rounded-full border border-dashed border-white/15" />
+              {/* golden jet riding the pathway, nose tangent to travel */}
+              <GoldPlane className="absolute left-1/2 top-0 -ml-5 -mt-2 w-10 h-10 drop-shadow-[0_8px_16px_rgba(201,162,39,0.6)]" />
+            </div>
 
-          {/* Tenant logo shown directly — NO box. Bigger + more visible.
-              3D effect: gentle perspective tilt + travelling shine sweep + float. */}
-          <div className="mx-auto mb-6 w-44 h-44 [perspective:800px] animate-[floatY_3s_ease-in-out_infinite]">
-            <div className="w-full h-full relative animate-[tilt3d_4.5s_ease-in-out_infinite] [transform-style:preserve-3d]">
-              {logoUrl ? (
-                <img src={logoUrl} alt={companyName} className="w-full h-full object-contain drop-shadow-[0_18px_40px_rgba(201,162,39,0.35)] [transform:translateZ(24px)]" />
-              ) : (
-                <Plane className="w-24 h-24 text-[#c9a227] -rotate-12 mx-auto drop-shadow-[0_18px_40px_rgba(201,162,39,0.35)] [transform:translateZ(24px)]" />
-              )}
-              {/* Shine sweep across the logo */}
-              <div className="absolute inset-y-0 -left-[60%] w-1/2 pointer-events-none bg-gradient-to-r from-transparent via-white/25 to-transparent animate-[shine_3.2s_ease-in-out_infinite] [transform:translateZ(36px) skewX(-12deg)]" />
+            {/* Tenant's own logo at the heart of the orbit — NO box */}
+            <div className="absolute inset-0 flex items-center justify-center [transform:translateZ(12px)]">
+              <div className="w-44 h-44 animate-[floatY_3s_ease-in-out_infinite]">
+                <div className="w-full h-full relative animate-[tilt3d_4.5s_ease-in-out_infinite] [transform-style:preserve-3d]">
+                  {logoUrl ? (
+                    <img src={logoUrl} alt={companyName} className="w-full h-full object-contain drop-shadow-[0_18px_40px_rgba(201,162,39,0.35)] [transform:translateZ(24px)]" />
+                  ) : (
+                    <Plane className="w-24 h-24 text-[#c9a227] -rotate-12 mx-auto drop-shadow-[0_18px_40px_rgba(201,162,39,0.35)] [transform:translateZ(24px)]" />
+                  )}
+                  {/* Shine sweep across the logo */}
+                  <div className="absolute inset-y-0 -left-[60%] w-1/2 pointer-events-none bg-gradient-to-r from-transparent via-white/25 to-transparent animate-[shine_3.2s_ease-in-out_infinite] [transform:translateZ(36px)_skewX(-12deg)]" />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -96,9 +103,9 @@ export const BrandedLoader: React.FC<{ message?: string }> = ({ message = 'Loadi
       </div>
 
       <style>{`
-        @keyframes orbit {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
+        @keyframes orbitSpin {
+          0% { transform: rotateX(68deg) rotateZ(0deg); }
+          100% { transform: rotateX(68deg) rotateZ(360deg); }
         }
         @keyframes floatY {
           0%, 100% { transform: translateY(0); }
