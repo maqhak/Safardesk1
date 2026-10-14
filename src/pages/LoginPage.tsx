@@ -128,12 +128,24 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex relative">
-      {/* Full background image */}
-      <img
-        src="/images/umrah-login-bg.jpg"
-        alt="Kaaba in Makkah"
-        className="absolute inset-0 w-full h-full object-cover"
-      />
+      {/* Full background VIDEO (Upsky-style) with slow cinematic zoom */}
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        poster="/images/login-bg-poster.jpg"
+        className="absolute inset-0 w-full h-full object-cover animate-[slowZoom_36s_ease-in-out_infinite_alternate]"
+      >
+        <source src="/videos/login-bg.mp4" type="video/mp4" />
+      </video>
+      <style>{`
+        @keyframes slowZoom {
+          0% { transform: scale(1); }
+          100% { transform: scale(1.12); }
+        }
+      `}</style>
       <div
         className="absolute inset-0"
         style={{ background: 'linear-gradient(135deg, rgba(14,44,76,0.75) 0%, rgba(14,44,76,0.45) 50%, rgba(201,162,39,0.25) 100%)' }}
