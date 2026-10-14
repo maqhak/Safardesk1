@@ -129,38 +129,43 @@ export const DashboardPage: React.FC = () => {
     let onlyTransportAmtSAR = 0;
     let onlyTransportTransfers = 0;
 
-    const totalOpenings = accounts.reduce((s, a) => s + (a.openingBalanceSAR || 0), 0);
+    const num = (v: any): number => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    const totalOpenings = accounts.reduce((s, a) => s + num(a.openingBalanceSAR), 0);
     let totalInvoices = 0;
     let totalPayments = 0;
     let totalAdjustments = 0;
 
     filteredEntries.forEach(e => {
       if (e.entryType === 'Invoice') {
-        totalInvoices += e.creditSAR || e.debitSAR || 0;
+        totalInvoices += num(e.creditSAR || e.debitSAR);
         if (e.transNo?.includes('TKT') || e.particulars?.toLowerCase().includes('ticket')) {
           ticketsCount += 1;
-          ticketsAmtSAR += e.debitSAR || e.creditSAR || 0;
+          ticketsAmtSAR += num(e.debitSAR || e.creditSAR);
         } else {
-          bookingsPax += e.paxCount || 1;
-          bookingsAmtSAR += e.debitSAR || e.creditSAR || 0;
+          bookingsPax += num(e.paxCount) || 1;
+          bookingsAmtSAR += num(e.debitSAR || e.creditSAR);
         }
       } else if (e.entryType === 'Payment') {
-        totalPayments += e.debitSAR || e.creditSAR || 0;
+        totalPayments += num(e.debitSAR || e.creditSAR);
       } else if (e.entryType === 'Refund') {
         refundsCount += 1;
-        refundsAmtSAR += e.debitSAR || e.creditSAR || 0;
+        refundsAmtSAR += num(e.debitSAR || e.creditSAR);
       } else if (e.entryType === 'Voucher Charge') {
         servicesCount += 1;
-        servicesAmtSAR += e.debitSAR || 0;
+        servicesAmtSAR += num(e.debitSAR);
         if (e.particulars?.toLowerCase().includes('hotel') || e.particulars?.toLowerCase().includes('fairmont') || e.particulars?.toLowerCase().includes('pullman')) {
           onlyHotelStays += 1;
-          onlyHotelAmtSAR += e.debitSAR || 0;
+          onlyHotelAmtSAR += num(e.debitSAR);
         } else if (e.particulars?.toLowerCase().includes('transfer') || e.particulars?.toLowerCase().includes('transport') || e.particulars?.toLowerCase().includes('gmc')) {
           onlyTransportTransfers += 1;
-          onlyTransportAmtSAR += e.debitSAR || 0;
+          onlyTransportAmtSAR += num(e.debitSAR);
         }
       } else if (e.entryType === 'Adjustment') {
-        totalAdjustments += e.debitSAR || e.creditSAR || 0;
+        totalAdjustments += num(e.debitSAR || e.creditSAR);
       }
     });
 
