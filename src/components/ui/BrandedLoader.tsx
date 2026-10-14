@@ -34,13 +34,18 @@ export const BrandedLoader: React.FC<{ message?: string }> = ({ message = 'Loadi
           {/* Orbit ring (subtle) */}
           <div className="absolute -inset-8 rounded-full border border-white/5 pointer-events-none" />
 
-          {/* Logo mark — company logo if available, else plane icon */}
-          <div className="mx-auto mb-6 w-20 h-20 rounded-3xl bg-gradient-to-br from-[#c9a227] to-[#9a7b1a] flex items-center justify-center shadow-2xl shadow-[#c9a227]/20 animate-[floatY_3s_ease-in-out_infinite] overflow-hidden relative">
-            {logoUrl ? (
-              <img src={logoUrl} alt={companyName} className="w-full h-full object-contain bg-white/10 p-1.5" />
-            ) : (
-              <Plane className="w-10 h-10 text-[#101a30] -rotate-12" />
-            )}
+          {/* Logo mark — company logo if available, else plane icon.
+              3D effect: gentle perspective tilt + travelling shine sweep. */}
+          <div className="mx-auto mb-6 w-20 h-20 [perspective:700px] animate-[floatY_3s_ease-in-out_infinite]">
+            <div className="w-full h-full rounded-3xl bg-gradient-to-br from-[#c9a227] to-[#9a7b1a] flex items-center justify-center shadow-2xl shadow-[#c9a227]/20 overflow-hidden relative animate-[tilt3d_4.5s_ease-in-out_infinite] [transform-style:preserve-3d]">
+              {logoUrl ? (
+                <img src={logoUrl} alt={companyName} className="w-full h-full object-contain bg-white/10 p-1.5 [transform:translateZ(24px)]" />
+              ) : (
+                <Plane className="w-10 h-10 text-[#101a30] -rotate-12 [transform:translateZ(24px)]" />
+              )}
+              {/* Shine sweep across the logo */}
+              <div className="absolute inset-y-0 -left-[60%] w-1/2 pointer-events-none bg-gradient-to-r from-transparent via-white/45 to-transparent animate-[shine_3.2s_ease-in-out_infinite] [transform:translateZ(36px)]" />
+            </div>
           </div>
 
           {/* Tenant company name — never the product name */}
@@ -75,6 +80,14 @@ export const BrandedLoader: React.FC<{ message?: string }> = ({ message = 'Loadi
         @keyframes floatY {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-10px); }
+        }
+        @keyframes tilt3d {
+          0%, 100% { transform: perspective(700px) rotateY(-16deg) rotateX(5deg); }
+          50% { transform: perspective(700px) rotateY(16deg) rotateX(-5deg); }
+        }
+        @keyframes shine {
+          0% { left: -60%; }
+          55%, 100% { left: 130%; }
         }
       `}</style>
     </div>
