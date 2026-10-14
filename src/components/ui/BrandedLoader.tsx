@@ -38,7 +38,7 @@ export const BrandedLoader: React.FC<{ message?: string }> = ({ message = 'Loadi
                   nose points along the flight direction so it truly looks airborne */}
               <div className="absolute left-1/2 top-0 -ml-10 -mt-5">
                 <img
-                  src="/images/gold-jet.png"
+                  src="/images/gold-jet-v2.png"
                   alt=""
                   className="w-20 h-auto drop-shadow-[0_10px_18px_rgba(201,162,39,0.55)]"
                 />
