@@ -327,7 +327,7 @@ export const VoucherPrintDocument: React.FC<{
         <div ref={innerRef} className="fsv-fit" style={{ zoom: scale, transformOrigin: 'top left' }}>
 
           <div className="fsv-vhead">
-            <div className="fsv-sketch"><div className="fsv-arch"><img src={imgKaaba} alt="Kaaba Shareef" /></div><div className="fsv-under">Sub-Vendor: {subVendorDisplay || (voucher as any).shirkaName || "—"}</div></div>
+            <div className="fsv-sketch"><div className="fsv-arch"><img src={imgKaaba} alt="Kaaba Shareef" /></div></div>
             <div className="fsv-brand">
               {company.logoUrl ? (
                 <img className="fsv-logo" src={company.logoUrl} alt="Company logo" />
@@ -351,7 +351,7 @@ export const VoucherPrintDocument: React.FC<{
           )}
 
           <div className="fsv-metabar">
-            <div><span className="fsv-lbl">VOUCHER NO.</span><span className="fsv-val">{voucher.voucherNo}</span></div>
+            <div><span className="fsv-lbl">COMPANY VOUCHER NO.</span><span className="fsv-val">{voucher.voucherNo}</span></div>
             {(subVendorDisplay || (voucher as any).shirkaName) && (
               <div style={{ justifyContent: 'center' }}><span className="fsv-lbl">SUB-VENDOR</span><span className="fsv-val">{subVendorDisplay || (voucher as any).shirkaName}</span></div>
             )}
