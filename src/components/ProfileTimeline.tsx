@@ -137,16 +137,16 @@ const ProfileTimeline: React.FC<ProfileTimelineProps> = ({
       });
     });
 
-    // --- 4. Visa distribution invoices ---
+    // --- 4. VV documents (Visa distribution) ---
     invoices.forEach((inv: any, i: number) => {
       const totalSAR = inv.sellingTotalSAR || 0;
       out.push({
         key: `invoice-${inv.id || i}`,
         date: inv.createdAt?.split('T')[0] || inv.date || '',
-        type: 'Visa Invoice',
+        type: 'VV',
         badgeVariant: 'warning',
         ref: inv.invoiceNo || inv.id,
-        title: `Visa Invoice ${inv.invoiceNo || ''}`.trim(),
+        title: `VV ${inv.invoiceNo || ''}`.trim(),
         detail: `${inv.visaCount || 0} visas • Margin SAR ${(inv.marginSAR || 0).toLocaleString()}`,
         amountSAR: totalSAR,
         amountPKR: Math.round(totalSAR * (inv.exchangeRate || masterRate)),

@@ -863,12 +863,12 @@ export const AccountsPage: React.FC = () => {
                         )}
                       </td>
                       <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">
-                        {e.invoiceRef && /^INV-\d+$/.test(e.invoiceRef) ? (
+                        {e.invoiceRef && /^(INV|VV)-\d+$/.test(e.invoiceRef) ? (
                           <button
                             type="button"
                             onClick={() => navigate(`/visas/invoices?open=${encodeURIComponent(e.invoiceRef as string)}`)}
                             className="text-indigo-600 hover:text-indigo-800 underline font-bold cursor-pointer"
-                            title="Open invoice"
+                            title="Open VV"
                           >
                             {e.invoiceRef}
                           </button>

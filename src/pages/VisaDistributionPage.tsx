@@ -464,7 +464,7 @@ export const VisaDistributionPage: React.FC = () => {
         createdBy: userProfile?.name || 'Operator',
       });
 
-      success(`Visa distribution batch saved successfully. Sales invoices generated.`);
+      success(`Visa distribution batch saved successfully. VV documents generated.`);
       useNavigateInstance('/visas/invoices');
     } catch (err: any) {
       showError(err.message || 'Failed to complete visa distribution.');
@@ -570,7 +570,7 @@ export const VisaDistributionPage: React.FC = () => {
               size="sm"
               onClick={() => useNavigateInstance('/visas/invoices')}
             >
-              View Generated Invoices →
+              View Generated VV →
             </Button>
           </div>
         }
@@ -939,7 +939,7 @@ export const VisaDistributionPage: React.FC = () => {
                       step="0.01"
                       value={rateForAgent(at.agentId) || ''}
                       onChange={(e) => handleAgentRateChange(at.agentId, parseFloat(e.target.value) || 0)}
-                      title="Manually entered exchange rate for this agent's invoice"
+                      title="Manually entered exchange rate for this agent's VV"
                       className="w-24 p-1.5 bg-white/10 border border-white/20 rounded-lg text-xs font-mono font-bold text-[#c9a227] text-right focus:outline-none"
                     />
                   </div>
@@ -962,7 +962,7 @@ export const VisaDistributionPage: React.FC = () => {
             loading={submitting}
             className="w-full sm:w-auto bg-[#c9a227] hover:bg-[#b08d20] text-slate-950 font-bold"
           >
-            Save Distribution & Generate Invoices →
+            Save Distribution & Generate VV →
           </Button>
         </div>
       </Card>

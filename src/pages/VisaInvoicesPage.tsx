@@ -28,10 +28,10 @@ import { useCan } from '../hooks/useCan';
 import { useDeepOpen } from '../hooks/useDeepOpen';
 import { fetchVisaInvoices, markCommissionPaid, backfillInvoiceShirkaIds } from '../services/visaDistributionService';
 import { fetchVendors } from '../services/masterService';
-import { fetchLedgerAccounts, fetchLedgerEntries } from '../services/accountingService';
+import { fetchLedgerAccounts } from '../services/accountingService';
 import { VisaInvoiceDoc } from '../types/visaDistribution';
 import { VendorDoc } from '../types/master';
-import { LedgerAccountDoc, LedgerEntryDoc } from '../types/accounting';
+import { LedgerAccountDoc } from '../types/accounting';
 import { useNavigate } from 'react-router-dom';
 
 export const VisaInvoicesPage: React.FC = () => {
@@ -47,21 +47,19 @@ export const VisaInvoicesPage: React.FC = () => {
   const [invoices, setInvoices] = useState<VisaInvoiceDoc[]>([]);
   const [agents, setAgents] = useState<LedgerAccountDoc[]>([]);
   const [vendors, setVendors] = useState<VendorDoc[]>([]);
-  const [entries, setEntries] = useState<LedgerEntryDoc[]>([]);
   const [ledgerAccounts, setLedgerAccounts] = useState<LedgerAccountDoc[]>([]);
 
   // Filter states
   const [search, setSearch] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [agentFilter, setAgentFilter] = useState<string>('all');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
 
-  // Selected Invoice for Detail / Print Modal
+  // Selected VV for Detail / Print Modal
   const [selectedInvoice, setSelectedInvoice] = useState<VisaInvoiceDoc | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState<boolean>(false);
 
-  // Deep link: ?open=<invoiceNo> opens the exact invoice record
+  // Deep link: ?open=<vvNo> opens the exact VV record
   useDeepOpen(invoices, (inv, ref) => inv.invoiceNo === ref, (inv) => {
     setSelectedInvoice(inv);
     setDetailModalOpen(true);
@@ -76,20 +74,18 @@ export const VisaInvoicesPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [invList, accList, vndList, entList] = await Promise.all([
+      const [invList, accList, vndList] = await Promise.all([
         fetchVisaInvoices(),
         fetchLedgerAccounts(),
         fetchVendors(),
-        fetchLedgerEntries(),
       ]);
 
       setInvoices(invList);
       setAgents(accList.filter(a => a.accountType === 'agent' || a.accountCode.startsWith('AGT')));
       setLedgerAccounts(accList);
       setVendors(vndList);
-      setEntries(entList);
     } catch {
-      showError('Failed to load visa distribution invoices.');
+      showError('Failed to load VV documents.');
     } finally {
       setLoading(false);
     }
@@ -108,22 +104,9 @@ export const VisaInvoicesPage: React.FC = () => {
     return ledgerAccounts.filter(a => a.accountType === 'cash' || a.accountType === 'bank' || a.accountCode.startsWith('CSH') || a.accountCode.startsWith('BNK'));
   }, [ledgerAccounts]);
 
-  // Compute payments received against each invoice from ledger entries
-  const invoicePaidMap = useMemo(() => {
-    const map = new Map<string, number>();
-    entries.forEach((e) => {
-      if (!e.isVoid && e.invoiceRef && e.entryType === 'Payment') {
-        const current = map.get(e.invoiceRef) || 0;
-        map.set(e.invoiceRef, current + (e.creditSAR || 0));
-      }
-    });
-    return map;
-  }, [entries]);
-
-  // Filtered invoices
+  // Filtered VV documents
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
-      if (statusFilter !== 'all' && inv.status !== statusFilter) return false;
       if (agentFilter !== 'all' && inv.agentId !== agentFilter) return false;
       if (startDate && inv.date < startDate) return false;
       if (endDate && inv.date > endDate) return false;
@@ -140,17 +123,12 @@ export const VisaInvoicesPage: React.FC = () => {
 
       return true;
     });
-  }, [invoices, statusFilter, agentFilter, startDate, endDate, search, agentMap, vendorMap]);
+  }, [invoices, agentFilter, startDate, endDate, search, agentMap, vendorMap]);
 
-  // Outstanding totals
-  const totalOutstandingSAR = useMemo(() => {
-    return invoices
-      .filter((inv) => inv.status !== 'Paid')
-      .reduce((sum, inv) => {
-        const paid = invoicePaidMap.get(inv.invoiceNo) || 0;
-        return sum + Math.max(0, inv.sellingTotalSAR - paid);
-      }, 0);
-  }, [invoices, invoicePaidMap]);
+  // Total VV value (selling)
+  const totalVVSAR = useMemo(() => {
+    return invoices.reduce((sum, inv) => sum + inv.sellingTotalSAR, 0);
+  }, [invoices]);
 
   const handleOpenDetail = (inv: VisaInvoiceDoc) => {
     setSelectedInvoice(inv);
@@ -176,7 +154,7 @@ export const VisaInvoicesPage: React.FC = () => {
     setCommissionPaying(true);
     try {
       await markCommissionPaid(userProfile, invoiceForCommission.id, selectedPaymentAccountId);
-      success(`Commission for invoice #${invoiceForCommission.invoiceNo} marked as Paid. Ledger posted.`);
+      success(`Commission for VV #${invoiceForCommission.invoiceNo} marked as Paid. Ledger posted.`);
       setCommissionModalOpen(false);
       setInvoiceForCommission(null);
       loadData();
@@ -196,12 +174,12 @@ export const VisaInvoicesPage: React.FC = () => {
   return (
     <div className="space-y-6 print:space-y-2">
       <PageHeader
-        title="Visa Distribution Invoices & Outstanding B2B Balances"
-        subtitle="Invoices generated automatically from visa distributions, with optional commission tracking and double-entry postings."
+        title="VV — Visa Vouchers & B2B Balances"
+        subtitle="VV documents generated automatically from visa distributions, with optional commission tracking and double-entry postings."
         breadcrumbs={[
           { label: 'Dashboard', href: '/' },
           { label: 'Visas', href: '/visas' },
-          { label: 'Invoices' }
+          { label: 'VV' }
         ]}
         actions={
           <div className="flex items-center gap-2 print:hidden">
@@ -216,7 +194,7 @@ export const VisaInvoicesPage: React.FC = () => {
               variant="outline"
               size="sm"
               leftIcon={<Download className="w-3.5 h-3.5 text-emerald-600" />}
-              onClick={() => success('Invoices exported to CSV.')}
+              onClick={() => success('VV documents exported to CSV.')}
             >
               Export CSV
             </Button>
@@ -224,41 +202,41 @@ export const VisaInvoicesPage: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={async () => {
-                if (!confirm('Update old invoices with Sub-Vendor info from their distributions?')) return;
+                if (!confirm('Update old VV documents with Sub-Vendor info from their distributions?')) return;
                 try {
                   const count = await backfillInvoiceShirkaIds();
                   if (count > 0) {
-                    success(`Updated ${count} old invoice(s) with Sub-Vendor!`);
+                    success(`Updated ${count} old VV document(s) with Sub-Vendor!`);
                     window.location.reload();
                   } else {
-                    info('All invoices already have Sub-Vendor info.');
+                    info('All VV documents already have Sub-Vendor info.');
                   }
                 } catch (e: any) {
                   showError(e.message || 'Migration failed');
                 }
               }}
-              title="One-time: copy Sub-Vendor from distributions to old invoices"
+              title="One-time: copy Sub-Vendor from distributions to old VV documents"
             >
-              Fix Old Invoices
+              Fix Old VV
             </Button>
           </div>
         }
       />
 
-      {/* Outstanding Summary Cards */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 print:hidden">
         <Card padding="md" className="border-slate-200">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Invoices Generated</span>
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total VV Generated</span>
           <div className="text-2xl font-mono font-bold text-slate-900 mt-2">{invoices.length}</div>
-          <span className="text-[11px] text-slate-500">All-time B2B sales invoices</span>
+          <span className="text-[11px] text-slate-500">All-time B2B VV documents</span>
         </Card>
 
         <Card padding="md" className="border-slate-200">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Receivable Outstanding</span>
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total VV Value</span>
           <div className="text-2xl font-mono font-bold text-rose-700 mt-2">
-            SAR {totalOutstandingSAR.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            SAR {totalVVSAR.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </div>
-          <span className="text-[11px] text-slate-500">Pending collection via Accounts (Payments)</span>
+          <span className="text-[11px] text-slate-500">Sum of VV selling totals</span>
         </Card>
 
         <Card padding="md" className="border-slate-200 bg-[#0e2c4c] text-white">
@@ -270,29 +248,16 @@ export const VisaInvoicesPage: React.FC = () => {
 
       {/* Filters Bar */}
       <Card padding="md" className="border-slate-200 shadow-xs space-y-3 print:hidden">
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search invoice no., agent, vendor..."
+              placeholder="Search VV no., agent, vendor..."
               className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs focus:outline-none"
             />
-          </div>
-
-          <div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none"
-            >
-              <option value="all">All Statuses</option>
-              <option value="Unpaid">Unpaid</option>
-              <option value="Partially Paid">Partially Paid</option>
-              <option value="Paid">Paid</option>
-            </select>
           </div>
 
           <div>
@@ -326,13 +291,13 @@ export const VisaInvoicesPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* Invoices Table */}
+      {/* VV Table */}
       <Card padding="none" className="border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-100 text-slate-700 uppercase font-bold text-[10px] tracking-wider border-b border-slate-300">
               <tr>
-                <th className="py-3 px-3">Invoice No.</th>
+                <th className="py-3 px-3">VV No.</th>
                 <th className="py-3 px-3">Date</th>
                 <th className="py-3 px-3">B2B Agent</th>
                 <th className="py-3 px-3">Sub-Vendor</th>
@@ -341,29 +306,26 @@ export const VisaInvoicesPage: React.FC = () => {
                 <th className="py-3 px-3 text-right">Margin (SAR)</th>
                 <th className="py-3 px-3 text-right">Total (PKR)</th>
                 <th className="py-3 px-3 text-center">Commission</th>
-                <th className="py-3 px-3 text-center">Status</th>
                 <th className="py-3 px-3 text-center print:hidden">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="py-12 text-center text-slate-500">
-                    Loading invoices...
+                  <td colSpan={10} className="py-12 text-center text-slate-500">
+                    Loading VV documents...
                   </td>
                 </tr>
               ) : filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-10 text-center text-slate-500">
-                    No distribution invoices found. Complete a visa distribution batch to generate invoices.
+                  <td colSpan={10} className="py-10 text-center text-slate-500">
+                    No VV documents found. Complete a visa distribution batch to generate VV documents.
                   </td>
                 </tr>
               ) : (
                 filteredInvoices.map((inv, idx) => {
                   const agentObj = agentMap.get(inv.agentId);
                   const vendorObj = vendorMap.get(inv.vendorId);
-                  const paidAmt = invoicePaidMap.get(inv.invoiceNo) || 0;
-                  const isPaid = paidAmt >= inv.sellingTotalSAR - 0.01;
                   const hasComm = inv.commission?.enabled;
                   const commPaid = inv.commission?.status === 'Paid';
 
@@ -408,17 +370,9 @@ export const VisaInvoicesPage: React.FC = () => {
                           <span className="text-slate-400 text-[10px]">None</span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                        <Badge
-                          variant={isPaid ? 'success' : paidAmt > 0 ? 'warning' : 'danger'}
-                          size="sm"
-                        >
-                          {isPaid ? 'Paid' : paidAmt > 0 ? 'Partially Paid' : 'Unpaid'}
-                        </Badge>
-                      </td>
                       <td className="py-2.5 px-3 text-center whitespace-nowrap print:hidden">
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[var(--theme-primary)] hover:underline">
-                          <span>View Invoice</span>
+                          <span>View VV</span>
                           <ExternalLink className="w-3 h-3" />
                         </span>
                       </td>
@@ -431,12 +385,12 @@ export const VisaInvoicesPage: React.FC = () => {
         </div>
       </Card>
 
-      {/* Invoice Detail / Print Modal */}
+      {/* VV Detail / Print Modal */}
       <Modal
         isOpen={detailModalOpen}
         onClose={() => setDetailModalOpen(false)}
-        title={`Visa Distribution Invoice #${selectedInvoice?.invoiceNo}`}
-        subtitle="Official dual-currency sales invoice and double-entry ledger audit record"
+        title={`VV #${selectedInvoice?.invoiceNo}`}
+        subtitle="Official dual-currency VV record and double-entry ledger audit"
         size="lg"
         footer={
           <div className="flex items-center justify-between w-full print:hidden">
@@ -477,7 +431,7 @@ export const VisaInvoicesPage: React.FC = () => {
               </div>
               <div className="text-right">
                 <span className="inline-block bg-[#0e2c4c] text-white px-3 py-1 rounded text-xs font-bold uppercase tracking-wider">
-                  VISA SALES INVOICE
+                  VV
                 </span>
                 <div className="text-xs font-mono font-bold text-slate-900 mt-1">
                   {selectedInvoice.invoiceNo}
@@ -509,7 +463,7 @@ export const VisaInvoicesPage: React.FC = () => {
               </div>
             </div>
 
-            {/* PAX-wise Lines Table — one row per pilgrim on the single invoice */}
+            {/* PAX-wise Lines Table — one row per pilgrim on the single VV */}
             <div className="border border-slate-200 rounded-xl overflow-hidden">
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="bg-slate-100 text-slate-700 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200">
@@ -616,9 +570,9 @@ export const VisaInvoicesPage: React.FC = () => {
               </div>
 
               <div className="p-4 bg-[#0e2c4c] text-white rounded-xl space-y-2">
-                <h4 className="text-xs font-bold text-[#c9a227] uppercase tracking-wide">Receivable & PKR Equivalent</h4>
+                <h4 className="text-xs font-bold text-[#c9a227] uppercase tracking-wide">Totals & PKR Equivalent</h4>
                 <div className="flex justify-between text-slate-300">
-                  <span>Total Receivable (SAR):</span>
+                  <span>Total (SAR):</span>
                   <span className="font-mono font-bold text-white">SAR {selectedInvoice.sellingTotalSAR.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between text-slate-300">
@@ -633,7 +587,7 @@ export const VisaInvoicesPage: React.FC = () => {
             </div>
 
             <div className="text-[11px] text-slate-500 italic text-center pt-2">
-              Note: Payments against this invoice are received via Accounts (Payments) and updated automatically.
+              Note: Payments are recorded separately as payment documents.
             </div>
           </div>
         )}
@@ -643,7 +597,7 @@ export const VisaInvoicesPage: React.FC = () => {
       <Modal
         isOpen={commissionModalOpen}
         onClose={() => setCommissionModalOpen(false)}
-        title={`Mark Commission Paid for Invoice #${invoiceForCommission?.invoiceNo}`}
+        title={`Mark Commission Paid for VV #${invoiceForCommission?.invoiceNo}`}
         subtitle="Select Cash or Bank payment account to post Dr Commission Expense / Cr Cash-or-Bank"
         size="md"
         footer={

@@ -77,10 +77,10 @@ export const QaReportPage: React.FC = () => {
         {
           id: 'qa-04',
           category: 'Accounting & Ledger',
-          checkName: 'Dual-Currency Double-Entry Invoices',
-          description: 'Visa distribution invoices post Dr Agent, Cr Vendor, Cr Margin Income with exact SAR/PKR rates.',
+          checkName: 'Dual-Currency Double-Entry VV',
+          description: 'VV documents post Dr Agent, Cr Vendor, Cr Margin Income with exact SAR/PKR rates.',
           status: 'Pass',
-          details: `${invoices.length} distribution invoices audited with balanced dual-currency ledgers.`,
+          details: `${invoices.length} VV documents audited with balanced dual-currency ledgers.`,
         },
         {
           id: 'qa-05',

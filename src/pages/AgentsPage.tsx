@@ -343,7 +343,7 @@ Please keep these credentials safe and change password after first login.`;
       ]);
       const acc = accounts.find((a) => a.linkedAgentId === agent.id);
       const accId = acc?.id || null;
-      // Invoices store the LEDGER account ID, not the agent master ID — match any identity.
+      // VV documents store the LEDGER account ID, not the agent master ID — match any identity.
       const invoiceMatchIds = await getAgentIdentityIds(agent.id).catch(() => [agent.id]);
       setProfileTimeline({
         accountId: accId,

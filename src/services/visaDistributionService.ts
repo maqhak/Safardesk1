@@ -57,13 +57,15 @@ export async function getNextInvoiceNumber(): Promise<string> {
   const invoices = await fetchVisaInvoices();
   let maxNum = 1000;
   invoices.forEach((inv) => {
-    const match = inv.invoiceNo.match(/INV-(\d+)/);
+    // New VV docs use VV-<n>; legacy docs keep their INV-<n> numbers.
+    // Numbering continues from the max across both so VV numbers never collide.
+    const match = inv.invoiceNo.match(/(?:VV|INV)-(\d+)/);
     if (match) {
       const val = parseInt(match[1], 10);
       if (val > maxNum) maxNum = val;
     }
   });
-  return `INV-${maxNum + 1}`;
+  return `VV-${maxNum + 1}`;
 }
 
 export async function createVisaDistributionBatch(params: {
@@ -292,6 +294,10 @@ export async function createVisaDistributionBatch(params: {
       marginSAR,
       exchangeRate,
       totalsPKR,
+      // NOTE (VV rename): `status` is kept on the doc for backward compatibility
+      // with legacy INV- docs, but the VV UI no longer displays or filters by
+      // Paid/Unpaid — a VV is not paid per-invoice; payments arrive as
+      // separate payment documents. Do not reintroduce status UI here.
       status: 'Unpaid',
       commission: commissionDetails,
       createdBy: params.createdBy,
@@ -345,7 +351,7 @@ export async function createVisaDistributionBatch(params: {
       accountId: vendorLedgerAccount.id,
       entryType: 'Invoice',
       transNo: invoiceNo,
-      particulars: `Visa Purchase Cost for Invoice #${invoiceNo} (${batch.totalVisas} Visas)${shirkaName ? ` — ${shirkaName}` : ''}`,
+      particulars: `Visa Purchase Cost for VV #${invoiceNo} (${batch.totalVisas} Visas)${shirkaName ? ` — ${shirkaName}` : ''}`,
       invoiceRef: invoiceNo,
       rate: exchangeRate,
       debitSAR: 0,
@@ -366,7 +372,7 @@ export async function createVisaDistributionBatch(params: {
       accountId: marginAccount.id,
       entryType: 'Invoice',
       transNo: invoiceNo,
-      particulars: `Gross Visa Margin for Invoice #${invoiceNo}`,
+      particulars: `Gross Visa Margin for VV #${invoiceNo}`,
       invoiceRef: invoiceNo,
       rate: exchangeRate,
       debitSAR: 0,
@@ -466,7 +472,7 @@ export async function markCommissionPaid(
     date: now.split('T')[0],
     entryType: 'Payment',
     transNo: `COMM-${inv.invoiceNo}`,
-    particulars: `Commission payment for Invoice #${inv.invoiceNo} to ${inv.commission.recipientName}`,
+    particulars: `Commission payment for VV #${inv.invoiceNo} to ${inv.commission.recipientName}`,
     invoiceRef: inv.invoiceNo,
     rate: exchangeRate,
     debitAccountId: 'acc-sys-003', // Commission Expense system account

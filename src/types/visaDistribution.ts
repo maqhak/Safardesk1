@@ -60,8 +60,10 @@ export interface CommissionDetails {
   paidEntryId?: string | null;
 }
 
+/** Visa Invoice doc — displayed in the UI as "VV". Field names unchanged (legacy). */
 export interface VisaInvoiceDoc {
   id: string;
+  /** Display number. Legacy docs: INV-<n>. New docs: VV-<n>. Never renamed in place. */
   invoiceNo: string;
   distributionId: string;
   agentId: string;

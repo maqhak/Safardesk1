@@ -150,7 +150,7 @@ export const CustomersPage: React.FC = () => {
           setCustomerJVs(jvs.filter((jv: any) =>
             (jv.lines || []).some((l: any) => l.accountId === acc.id)
           ));
-          // Visa distribution invoices are B2B (agent-level); B2C customers have none
+          // VV documents are B2B (agent-level); B2C customers have none
           setCustomerInvoices([]);
         } else {
           setCustomerLedgerEntries([]);
