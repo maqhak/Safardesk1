@@ -206,7 +206,7 @@ export const VoucherPrintDocument: React.FC<{
         }
         .fsv-page { width:210mm; height:297mm; overflow:hidden; position:relative; background:#fff; }
         .fsv-watermark { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:50; }
-        .fsv-watermark span { font-size:32mm; font-weight:bold; letter-spacing:4mm; opacity:0.14; transform:rotate(-25deg); white-space:nowrap; }
+        .fsv-watermark span { display:flex; align-items:center; justify-content:center; text-align:center; width:54mm; height:54mm; border-radius:50%; border:1.6mm solid currentColor; box-shadow:inset 0 0 0 1mm #fff, inset 0 0 0 1.9mm currentColor; font-size:6.5mm; font-weight:bold; letter-spacing:1.2mm; line-height:1.35; padding:6mm; opacity:0.17; transform:rotate(-16deg); }
         .fsv-watermark.ok span { color:#15803d; }
         .fsv-watermark.no span { color:#b91c1c; }
         .fsv-fit { width:210mm; transform-origin:top left; position:relative; padding:7mm 8mm; display:flex; flex-direction:column; box-sizing:border-box; min-height:297mm; }
@@ -270,16 +270,16 @@ export const VoucherPrintDocument: React.FC<{
         table.fsv-vt.fsv-mut td { font-size:2.85mm; }
         table.fsv-vt.fsv-mut .fsv-nm { font-weight:bold; }
         .fsv-bottom4 { display:flex; gap:3mm; margin-top:2.4mm; align-items:stretch; }
-        .fsv-bbox { flex:1; border:.45mm solid var(--fsv-pri); min-width:0; display:flex; flex-direction:column; }
+        .fsv-bbox { flex:1; border:.45mm solid var(--fsv-pri); min-width:0; display:flex; flex-direction:column; overflow:hidden; }
         .fsv-bbox h4 { font-size:2.9mm; letter-spacing:.7mm; background:var(--fsv-soft); padding:1.6mm 2.2mm; border-bottom:.45mm solid var(--fsv-pri); color:var(--fsv-pri); }
         .fsv-bbox .fsv-in { padding:2mm 2.4mm; font-size:2.8mm; line-height:1.55; flex:1; }
         .fsv-incl { list-style:none; columns:2; column-gap:3mm; }
-        .fsv-incl li { font-size:2.7mm; padding:.7mm 0; break-inside:avoid; }
+        .fsv-incl li { font-size:2.7mm; padding:.7mm 0 .7mm 4mm; text-indent:-4mm; break-inside:avoid; overflow-wrap:break-word; }
         .fsv-incl li::before { content:"✓ "; font-weight:bold; }
         .fsv-notes { list-style:none; }
-        .fsv-notes li { font-size:2.65mm; padding:.8mm 0; }
+        .fsv-notes li { font-size:2.65mm; padding:.8mm 0 .8mm 3.4mm; text-indent:-3.4mm; overflow-wrap:break-word; }
         .fsv-notes li::before { content:"• "; font-weight:bold; }
-        .fsv-qrbox { border:.6mm dashed #555; margin:2mm; min-height:24mm; display:flex; flex:1; flex-direction:column; align-items:center; justify-content:center; gap:1.5mm; color:#555; padding:2mm; }
+        .fsv-qrbox { border:.6mm dashed #555; margin:2mm; min-height:24mm; display:flex; flex:1; flex-direction:column; align-items:center; justify-content:center; gap:1.5mm; color:#555; padding:2mm; overflow:hidden; max-width:100%; }
         .fsv-qrbox span { font-size:2.5mm; font-weight:bold; letter-spacing:.4mm; }
         .fsv-contact { display:flex; border:.45mm solid var(--fsv-pri); margin-top:2.4mm; }
         .fsv-contact>div { flex:1; min-width:0; padding:1.8mm 3mm; display:flex; align-items:center; gap:2.5mm; font-size:3mm; }
