@@ -96,6 +96,9 @@ export default function App() {
               {/* Public Auth Route (Strictly No Public Registration) */}
               <Route path="/login" element={<LoginPage />} />
 
+              {/* Public shared voucher view (QR "Scan for Digital Voucher") — no login */}
+              <Route path="/vouchers/shared/:voucherId" element={<VoucherSharedView />} />
+
               {/* Protected CRM Workspace Shell */}
               <Route
                 element={
@@ -162,10 +165,6 @@ export default function App() {
                       <TransportVoucherPage />
                     </ProtectedRoute>
                   }
-                />
-                <Route
-                  path="/vouchers/shared/:voucherId"
-                  element={<VoucherSharedView />}
                 />
                 <Route
                   path="/tickets"
