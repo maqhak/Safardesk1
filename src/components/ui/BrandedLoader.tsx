@@ -43,7 +43,7 @@ export const BrandedLoader: React.FC<{ message?: string }> = ({ message = 'Loadi
                   alt=""
                   className="w-20 h-auto drop-shadow-[0_10px_18px_rgba(201,162,39,0.55)]"
                 />
-                <div className="absolute left-[76%] top-1/2 -translate-y-1/2 h-[3px] w-20 rounded-full bg-gradient-to-r from-white/60 via-white/25 to-transparent blur-[1px]" />
+                <div className="absolute right-[76%] top-1/2 -translate-y-1/2 h-[3px] w-20 rounded-full bg-gradient-to-l from-white/60 via-white/25 to-transparent blur-[1px]" />
               </div>
             </div>
 
@@ -89,8 +89,8 @@ export const BrandedLoader: React.FC<{ message?: string }> = ({ message = 'Loadi
 
       <style>{`
         @keyframes orbitSpin {
-          0% { transform: rotateX(68deg) rotateZ(0deg); }
-          100% { transform: rotateX(68deg) rotateZ(360deg); }
+          0% { transform: rotateX(14deg) rotateZ(0deg); }
+          100% { transform: rotateX(14deg) rotateZ(360deg); }
         }
         @keyframes floatY {
           0%, 100% { transform: translateY(0); }
