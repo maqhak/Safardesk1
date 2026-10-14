@@ -88,10 +88,15 @@ export const VoucherPrintDocument: React.FC<{
     const measure = () => {
       if (cancelled) return;
       const prevZoom = (el as HTMLElement).style.zoom;
+      const prevMinH = (el as HTMLElement).style.minHeight;
       (el as HTMLElement).style.zoom = '1';
+      // min-height:297mm inflates scrollHeight even when content is shorter —
+      // drop it during measurement to get the TRUE content height.
+      (el as HTMLElement).style.minHeight = '0';
       const h = el.scrollHeight;
       (el as HTMLElement).style.zoom = prevZoom;
-      const pagePx = 297 * 3.779527559 - 4; // A4 height px @96dpi
+      (el as HTMLElement).style.minHeight = prevMinH;
+      const pagePx = 297 * 3.779527559; // A4 height px @96dpi
       if (h > pagePx) setScale(Math.max(0.45, pagePx / h));
       else setScale(1);
     };
