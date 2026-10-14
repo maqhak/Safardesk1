@@ -6,6 +6,7 @@ import {
   AiVerificationResult
 } from '../types/payment';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 import { db, isConfigPlaceholder } from './firebase';
 import { postBalancedTransaction, voidLedgerEntry, fetchLedgerEntries, fetchLedgerAccounts } from './accountingService';
 import { TENANT } from '../config';
@@ -254,24 +255,32 @@ export const INITIAL_PAYMENTS: PaymentDoc[] = [
 ];
 
 export async function fetchBanks(): Promise<BankDoc[]> {
+  let firestoreBanks: BankDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, BANKS_COLLECTION));
-      return snap.docs.map((d) => d.data() as BankDoc);
+      firestoreBanks = snap.docs.map((d) => {
+        const data = d.data() as BankDoc;
+        return { ...data, id: (data as any).id || d.id };
+      });
     }
   } catch (err) {
     console.warn('Could not read banks from Firestore:', err);
   }
 
+  let localBanks: BankDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_BANKS_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      localBanks = JSON.parse(stored);
     } catch {
-      // fallback
+      localBanks = [];
     }
   }
-  return [];
+  const byId = new Map<string, BankDoc>();
+  for (const b of localBanks) if ((b as any)?.id) byId.set((b as any).id, b);
+  for (const b of firestoreBanks) if ((b as any)?.id) byId.set((b as any).id, b);
+  return Array.from(byId.values());
 }
 
 export async function saveBank(bank: BankDoc): Promise<BankDoc> {
@@ -280,7 +289,7 @@ export async function saveBank(bank: BankDoc): Promise<BankDoc> {
   const next = idx >= 0 ? banks.map((b, i) => (i === idx ? bank : b)) : [bank, ...banks];
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, BANKS_COLLECTION, bank.id), bank);
+      await setDoc(doc(db, BANKS_COLLECTION, bank.id), stripUndefinedDeep(bank));
     }
   } catch (err) {
     console.warn('Could not save bank to Firestore:', err);
@@ -290,49 +299,58 @@ export async function saveBank(bank: BankDoc): Promise<BankDoc> {
 }
 
 export async function fetchInvoices(): Promise<InvoiceRecord[]> {
+  let firestoreInvoices: InvoiceRecord[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, INVOICES_COLLECTION));
-      return snap.docs.map((d) => d.data() as InvoiceRecord);
+      firestoreInvoices = snap.docs.map((d) => {
+        const data = d.data() as InvoiceRecord;
+        return { ...data, invoiceNo: data.invoiceNo || d.id };
+      });
     }
   } catch (err) {
     console.warn('Could not read invoices from Firestore:', err);
   }
 
+  let localInvoices: InvoiceRecord[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_INVOICES_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      localInvoices = JSON.parse(stored);
     } catch {
-      // fallback
+      localInvoices = [];
     }
   }
-  return [];
+  const byNo = new Map<string, InvoiceRecord>();
+  for (const inv of localInvoices) if (inv?.invoiceNo) byNo.set(inv.invoiceNo, inv);
+  for (const inv of firestoreInvoices) if (inv?.invoiceNo) byNo.set(inv.invoiceNo, inv);
+  return Array.from(byNo.values());
 }
 
 export async function fetchPayments(): Promise<PaymentDoc[]> {
+  let firestorePayments: PaymentDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, PAYMENTS_COLLECTION));
-      return snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as PaymentDoc));
+      firestorePayments = snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as PaymentDoc));
     }
   } catch (err) {
     console.warn('Could not read payments from Firestore:', err);
   }
 
-  // localStorage fallback only when Firestore is unconfigured or unreachable
-  let list: PaymentDoc[] = [];
-
+  let localPayments: PaymentDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_PAYMENTS_KEY);
   if (stored) {
     try {
-      list = JSON.parse(stored);
+      localPayments = JSON.parse(stored);
     } catch {
-      list = [];
+      localPayments = [];
     }
   }
-
-  return list;
+  const byId = new Map<string, PaymentDoc>();
+  for (const pm of localPayments) if ((pm as any)?.id) byId.set((pm as any).id, pm);
+  for (const pm of firestorePayments) if ((pm as any)?.id) byId.set((pm as any).id, pm);
+  return Array.from(byId.values());
 }
 
 export async function getNextPaymentNumber(): Promise<string> {
@@ -527,7 +545,7 @@ export async function createPayment(params: {
         };
         localStorage.setItem(LOCAL_STORAGE_INVOICES_KEY, JSON.stringify(invoices));
         if (!isConfigPlaceholder) {
-          await setDoc(doc(db, INVOICES_COLLECTION, inv.invoiceNo), invoices[invIndex]);
+          await setDoc(doc(db, INVOICES_COLLECTION, inv.invoiceNo), stripUndefinedDeep(invoices[invIndex]));
         }
       }
     } catch (e) {
@@ -537,7 +555,7 @@ export async function createPayment(params: {
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, PAYMENTS_COLLECTION, newPayment.id), newPayment);
+      await setDoc(doc(db, PAYMENTS_COLLECTION, newPayment.id), stripUndefinedDeep(newPayment));
     }
   } catch (err) {
     console.warn('Could not write payment to Firestore:', err);
@@ -590,7 +608,7 @@ export async function retryDriveUploadForPayment(paymentId: string): Promise<Pay
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), updatedPmt);
+      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), stripUndefinedDeep(updatedPmt));
     }
   } catch (err) {
     console.warn('Could not update retried payment in Firestore:', err);
@@ -624,7 +642,7 @@ export async function approvePaymentReceipt(paymentId: string, ownerName: string
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), updated);
+      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), stripUndefinedDeep(updated));
     }
   } catch (err) {
     console.warn('Could not update approved payment in Firestore:', err);
@@ -676,7 +694,7 @@ export async function updatePaymentReceipt(
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), updated);
+      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), stripUndefinedDeep(updated));
     }
   } catch (err) {
     console.warn('Could not update payment receipt in Firestore:', err);
@@ -753,7 +771,7 @@ export async function voidPayment(
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), updated);
+      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), stripUndefinedDeep(updated));
     }
   } catch (err) {
     console.warn('Could not update voided payment in Firestore:', err);

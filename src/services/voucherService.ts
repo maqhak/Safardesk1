@@ -80,25 +80,30 @@ export function normalizeVoucher(raw: any): VoucherDoc {
 }
 
 export async function fetchVouchers(): Promise<VoucherDoc[]> {
+  let firestoreVouchers: VoucherDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, VOUCHERS_COLLECTION));
-      return snap.docs.map((d) => normalizeVoucher({ ...d.data(), id: (d.data() as any).id || d.id }));
+      firestoreVouchers = snap.docs.map((d) => normalizeVoucher({ ...d.data(), id: (d.data() as any).id || d.id }));
     }
   } catch (err) {
     console.warn('Could not read vouchers from Firestore:', err);
   }
 
+  let localVouchers: VoucherDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_VOUCHERS_KEY);
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
-      return (Array.isArray(parsed) ? parsed : []).map((v: any) => normalizeVoucher(v));
+      localVouchers = (Array.isArray(parsed) ? parsed : []).map((v: any) => normalizeVoucher(v));
     } catch {
-      // fallback
+      localVouchers = [];
     }
   }
-  return [];
+  const byId = new Map<string, VoucherDoc>();
+  for (const v of localVouchers) if ((v as any)?.id) byId.set((v as any).id, v);
+  for (const v of firestoreVouchers) if ((v as any)?.id) byId.set((v as any).id, v);
+  return Array.from(byId.values());
 }
 
 /**
@@ -107,17 +112,33 @@ export async function fetchVouchers(): Promise<VoucherDoc[]> {
  * so an unfiltered collection query is rejected — this filtered query is permitted.
  */
 export async function fetchVouchersForAgent(agentId: string): Promise<VoucherDoc[]> {
+  let firestoreVouchers: VoucherDoc[] = [];
   try {
     if (!isConfigPlaceholder && agentId) {
       const q = query(collection(db, VOUCHERS_COLLECTION), where('agentId', '==', agentId));
       const snap = await getDocs(q);
-      return snap.docs.map((d) => normalizeVoucher({ ...d.data(), id: (d.data() as any).id || d.id }));
-      return [];
+      firestoreVouchers = snap.docs.map((d) => normalizeVoucher({ ...d.data(), id: (d.data() as any).id || d.id }));
     }
   } catch (err) {
     console.warn('Could not read agent vouchers from Firestore:', err);
   }
-  return [];
+  // Merge local-only vouchers for this agent (Firestore wins on conflict).
+  let localVouchers: VoucherDoc[] = [];
+  const stored = localStorage.getItem(LOCAL_STORAGE_VOUCHERS_KEY);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      localVouchers = (Array.isArray(parsed) ? parsed : [])
+        .map((v: any) => normalizeVoucher(v))
+        .filter((v: VoucherDoc) => (v as any).agentId === agentId);
+    } catch {
+      localVouchers = [];
+    }
+  }
+  const byId = new Map<string, VoucherDoc>();
+  for (const v of localVouchers) if ((v as any)?.id) byId.set((v as any).id, v);
+  for (const v of firestoreVouchers) if ((v as any)?.id) byId.set((v as any).id, v);
+  return Array.from(byId.values());
 }
 
 export async function nextVoucherNumber(): Promise<string> {
@@ -519,23 +540,28 @@ export async function markCommissionPaid(actor: UserProfile, voucherId: string):
 /* ------------------------------------------------------------------ */
 
 export async function fetchEditRequests(): Promise<VoucherEditRequest[]> {
+  let firestoreReqs: VoucherEditRequest[] = [];
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, EDIT_REQUESTS_COLLECTION));
-      return snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as VoucherEditRequest));
+      firestoreReqs = snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as VoucherEditRequest));
     }
   } catch (err) {
     console.warn('Could not read voucher edit requests from Firestore:', err);
   }
+  let localReqs: VoucherEditRequest[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_EDIT_REQUESTS_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      localReqs = JSON.parse(stored);
     } catch {
-      // fallback
+      localReqs = [];
     }
   }
-  return [];
+  const byId = new Map<string, VoucherEditRequest>();
+  for (const r of localReqs) if ((r as any)?.id) byId.set((r as any).id, r);
+  for (const r of firestoreReqs) if ((r as any)?.id) byId.set((r as any).id, r);
+  return Array.from(byId.values());
 }
 
 async function persistEditRequests(list: VoucherEditRequest[]): Promise<void> {
