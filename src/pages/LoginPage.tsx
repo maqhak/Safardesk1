@@ -187,7 +187,7 @@ export const LoginPage: React.FC = () => {
             <img
               src={companyLogoUrl}
               alt={TENANT.companyName}
-              className="inline-block w-16 h-16 rounded-2xl object-contain bg-white p-2 shadow-xl mb-4 border border-slate-200"
+              className="inline-block w-28 h-28 object-contain mb-4 drop-shadow-[0_10px_24px_rgba(0,0,0,0.35)]"
             />
           ) : (
             <div
