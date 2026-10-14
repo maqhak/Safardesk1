@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, Printer, ShieldAlert } from 'lucide-react';
 import { VoucherDoc } from '../types/voucher';
-import { fetchVouchers } from '../services/voucherService';
+import { fetchVoucherById } from '../services/voucherService';
 import { fetchVisas } from '../services/visaService';
 import { VoucherPrintDocument } from '../components/voucher/VoucherPrintDocument';
 import { downloadVoucherPDF } from '../utils/voucherPrint';
@@ -30,11 +30,14 @@ export const VoucherSharedView: React.FC = () => {
   useEffect(() => {
     (async () => {
       try {
-        const list = await fetchVouchers();
-        const found = list.find((v) => v.id === voucherId) || null;
+        // Public shared link: single-doc read (no login required). The
+        // Firestore rules allow public `get` on vouchers/{id}.
+        const found = await fetchVoucherById(voucherId || '');
         if (!found) {
           setVoucher(null);
-        } else if (role === 'agent' && found.agentId !== userProfile?.agentId) {
+        } else if (role === 'agent' && userProfile?.agentId && found.agentId !== userProfile.agentId) {
+          // Logged-in agents can only open their own vouchers; anonymous
+          // visitors (QR scan) see the voucher without login.
           setDenied(true);
         } else {
           setVoucher(found);

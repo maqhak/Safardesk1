@@ -126,7 +126,10 @@ service cloud.firestore {
     // Agents may create vouchers for themselves only, and never with charges
     // (hotel/transport charges are entered by Owner/Staff).
     match /vouchers/{id} {
-      allow read: if isOwner() || hasPerm('Vouchers', 'view') || (isAgent() && resource.data.agentId == myAgentId());
+      // Public single-doc read powers the QR "Scan for Digital Voucher" link
+      // (no login). Listing/querying still requires sign-in.
+      allow get: if true;
+      allow list: if isOwner() || hasPerm('Vouchers', 'view') || (isAgent() && resource.data.agentId == myAgentId());
       allow create: if isOwner() || hasPerm('Vouchers', 'create')
         || (isAgent() && request.resource.data.agentId == myAgentId()
             && (!request.resource.data.keys().hasAny(['charges']) || request.resource.data.charges.size() == 0));
@@ -190,7 +193,10 @@ service cloud.firestore {
     }
 
     match /settings/company {
-      allow read: if isSignedIn();
+      // Public single-doc read for the QR shared-voucher link (agency
+      // branding on the public voucher page). Listing still needs sign-in.
+      allow get: if true;
+      allow list: if isSignedIn();
       allow write: if isOwner();
     }
 

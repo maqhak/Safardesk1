@@ -113,6 +113,7 @@ export interface VoucherDoc {
   visaIds: string[];
   customerId?: string;
   agentId?: string;
+  agentName?: string; // Denormalized agent display name for the print header
   shirkaVendorId?: string; // Which vendor company this voucher was made for
   shirkaId?: string; // Which sub-Shirka (empty = vendor company itself)
   shirkaName?: string; // Denormalized Sub-Vendor display name (sub-Shirka name when shirkaId is set, else the vendor company name)
@@ -134,6 +135,10 @@ export interface VoucherDoc {
   reference?: string;
   remarks?: string;
   voucherDate?: string; // Oracle APEX voucher/transaction date
+  /** Booking/confirmation numbers entered manually at voucher creation (2026-10-14) */
+  makkahHcn?: string; // Makkah hotel confirmation number
+  madinaHcn?: string; // Madina hotel confirmation number
+  transportHcn?: string; // Transport booking number
   transportType?: string; // Car / Staria / Hiace / Coaster / Bus (Oracle APEX)
   trip?: string; // Trip description (Oracle APEX)
   makkahShirka?: string; // Oracle APEX text fields
@@ -194,6 +199,9 @@ export interface VoucherEditPayload {
   reference?: string;
   remarks?: string;
   voucherDate?: string;
+  makkahHcn?: string;
+  madinaHcn?: string;
+  transportHcn?: string;
   transportType?: string;
   trip?: string;
   makkahShirka?: string;

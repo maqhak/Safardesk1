@@ -234,6 +234,9 @@ export const VoucherCreatePage: React.FC = () => {
   // ---- Row 2: voucher# (auto) | total nights (readonly) | reference | package | SR rate ----
   const [voucherDate, setVoucherDate] = useState(todayStr());
   const [voucherReference, setVoucherReference] = useState('');
+  const [makkahHcn, setMakkahHcn] = useState('');
+  const [madinaHcn, setMadinaHcn] = useState('');
+  const [transportHcn, setTransportHcn] = useState('');
   const [packageText, setPackageText] = useState('');
   const [srRate, setSrRate] = useState('');
 
@@ -530,6 +533,9 @@ export const VoucherCreatePage: React.FC = () => {
     setMakZiaratRate(v.makkahZiarat?.rateSAR ? String(v.makkahZiarat.rateSAR) : '');
     setMadZiaratRate(v.madinaZiarat?.rateSAR ? String(v.madinaZiarat.rateSAR) : '');
     setVoucherReference(v.reference || '');
+    setMakkahHcn(v.makkahHcn || '');
+    setMadinaHcn(v.madinaHcn || '');
+    setTransportHcn(v.transportHcn || '');
     setVoucherRemarks(v.remarks || '');
     const fd = v.flightDetails;
     const applyLeg = (
@@ -694,6 +700,9 @@ export const VoucherCreatePage: React.FC = () => {
           : undefined,
       totalNights,
       reference: voucherReference.trim() || undefined,
+      makkahHcn: makkahHcn.trim() || undefined,
+      madinaHcn: madinaHcn.trim() || undefined,
+      transportHcn: transportHcn.trim() || undefined,
       remarks: voucherRemarks.trim() || undefined,
       voucherDate: voucherDate || undefined,
       passengers,
@@ -787,6 +796,9 @@ export const VoucherCreatePage: React.FC = () => {
   const handleAddNew = () => {
     setCopyFromId('');
     setVoucherReference('');
+    setMakkahHcn('');
+    setMadinaHcn('');
+    setTransportHcn('');
     setPackageText('');
     setLeaderName('');
     setLeaderContact('');
@@ -938,6 +950,24 @@ export const VoucherCreatePage: React.FC = () => {
                     placeholder={`e.g. ${getCurrentRate('SAR-PKR') || 75.5}`}
                     className={`${inputCls} font-mono`}
                   />
+                </div>
+              </div>
+            </Card>
+
+            {/* ===== BOOKING NUMBERS: Makkah HCN | Madina HCN | Transport HCN ===== */}
+            <Card className="p-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div>
+                  <label className={labelCls}>Makkah HCN</label>
+                  <input type="text" value={makkahHcn} onChange={(e) => setMakkahHcn(e.target.value)} placeholder="Makkah hotel booking no." className={`${inputCls} font-mono`} />
+                </div>
+                <div>
+                  <label className={labelCls}>Madina HCN</label>
+                  <input type="text" value={madinaHcn} onChange={(e) => setMadinaHcn(e.target.value)} placeholder="Madina hotel booking no." className={`${inputCls} font-mono`} />
+                </div>
+                <div>
+                  <label className={labelCls}>Transport HCN</label>
+                  <input type="text" value={transportHcn} onChange={(e) => setTransportHcn(e.target.value)} placeholder="Transport booking no." className={`${inputCls} font-mono`} />
                 </div>
               </div>
             </Card>

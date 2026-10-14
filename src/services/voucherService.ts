@@ -1,12 +1,14 @@
-import { 
-  collection, 
-  doc, 
-  getDocs, 
-  setDoc, 
-  updateDoc, 
+import {
+  collection,
+  doc,
   getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  deleteDoc,
   query,
-  where
+  where,
+  orderBy,
 } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { VoucherDoc, VoucherEditPayload, VoucherEditRequest } from '../types/voucher';
@@ -152,6 +154,42 @@ export async function nextVoucherNumber(): Promise<string> {
   return `UV-${String(maxVal + 1).padStart(6, '0')}`;
 }
 
+/** Single-voucher fetch by ID (used by the public shared-voucher link).
+ *  Tries Firestore first (public `get` rule), falls back to the local cache. */
+export async function fetchVoucherById(voucherId: string): Promise<VoucherDoc | null> {
+  if (!voucherId) return null;
+  if (!isConfigPlaceholder) {
+    try {
+      const snap = await getDoc(doc(db, VOUCHERS_COLLECTION, voucherId));
+      if (snap.exists()) {
+        const d: any = snap.data();
+        return { ...(d as VoucherDoc), id: snap.id } as VoucherDoc;
+      }
+    } catch { /* public read denied / offline — try local cache */ }
+  }
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_VOUCHERS_KEY);
+    if (raw) {
+      const list = JSON.parse(raw) as VoucherDoc[];
+      return list.find((v) => v.id === voucherId) || null;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+/** Best-effort agent display-name lookup for voucher denormalization. */
+async function resolveAgentName(agentId: string): Promise<string> {
+  try {
+    if (isConfigPlaceholder || !agentId) return '';
+    const snap = await getDoc(doc(db, 'agents', agentId));
+    if (snap.exists()) {
+      const d: any = snap.data();
+      return d.companyName || d.name || '';
+    }
+  } catch { /* offline / no auth — caller falls back */ }
+  return '';
+}
+
 export async function createVoucher(
   actor: UserProfile,
   data: Omit<VoucherDoc, 'id' | 'voucherNo' | 'createdAt' | 'createdBy' | 'createdByName'>
@@ -190,6 +228,10 @@ export async function createVoucher(
 
   const newVoucher: VoucherDoc = {
     ...data,
+    // Denormalize the agent's display name so the print header (incl. the
+    // public shared view, which has no auth for the agents master) can show
+    // it under the Madinah arch without a lookup.
+    agentName: (data as any).agentName || (data.agentId ? await resolveAgentName(data.agentId).catch(() => '') : '') || undefined,
     status: initialStatus,
     id: voucherId,
     voucherNo,

@@ -3,6 +3,7 @@ import QRCode from 'react-qr-code';
 import { VoucherDoc, DEFAULT_PACKAGE_INCLUDES } from '../../types/voucher';
 import { CompanyProfile } from '../../types/company';
 import { fetchVendors } from '../../services/masterService';
+import { fetchAgents } from '../../services/agentService';
 import { fetchVisas } from '../../services/visaService';
 import kaabaSketch from '../../assets/voucher/kaaba-sketch.jpg';
 import madinahSketch from '../../assets/voucher/madinah-sketch.jpg';
@@ -72,6 +73,29 @@ export const VoucherPrintDocument: React.FC<{
         else setSubVendorDisplay('');
       } catch {
         if (!cancelled) setSubVendorDisplay((voucher as any).shirkaName || '');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [voucher]);
+
+  // Agent name under the Madinah arch: prefer the denormalized agentName on
+  // the voucher, else resolve from the agents master (best-effort; public
+  // shared view may not have auth — then the denormalized value wins).
+  const [agentDisplay, setAgentDisplay] = useState<string>(
+    (voucher as any).agentName || ''
+  );
+  useEffect(() => {
+    let cancelled = false;
+    if ((voucher as any).agentName) { setAgentDisplay((voucher as any).agentName); return; }
+    if (!voucher.agentId) { setAgentDisplay(''); return; }
+    (async () => {
+      try {
+        const agents = await fetchAgents().catch(() => [] as any[]);
+        if (cancelled) return;
+        const found = (agents || []).find((a: any) => a.id === voucher.agentId);
+        setAgentDisplay(found?.companyName || found?.name || '');
+      } catch {
+        if (!cancelled) setAgentDisplay('');
       }
     })();
     return () => { cancelled = true; };
@@ -158,15 +182,8 @@ export const VoucherPrintDocument: React.FC<{
     };
   });
 
-  // Roundtrip: when all 4 standard Umrah sectors are company-provided with the
-  // same vehicle, print a single "Roundtrip" row with the vehicle type.
-  const normSector = (r: TransportRow) => r.sector.toUpperCase().replace(/[^A-Z]/g, '');
-  const hasJedMak = transportRows.some(r => /JED.*MAK|MAK.*JED/.test(normSector(r)));
-  const hasMakMed = transportRows.some(r => /MAK.*MED/.test(normSector(r)));
-  const hasMedMak = transportRows.some(r => /MED.*MAK/.test(normSector(r)));
-  const companyRows = transportRows.filter(r => r.provider === 'Company');
-  const vehicles = [...new Set(companyRows.map(r => r.vehicle))];
-  const isRoundtrip = hasJedMak && hasMakMed && hasMedMak && companyRows.length >= 3 && vehicles.length === 1;
+  // (All sectors print as individual rows so the voucher shows exactly
+  // which transport trips the company provides.)
 
   const half = Math.ceil(pax.length / 2);
   const cols = [pax.slice(0, half), pax.slice(half)];
@@ -237,6 +254,11 @@ export const VoucherPrintDocument: React.FC<{
         .fsv-metabar>div+div { border-left:.45mm solid var(--fsv-pri); }
         .fsv-metabar .fsv-lbl { font-size:2.2mm; color:#555; letter-spacing:.6mm; }
         .fsv-metabar .fsv-val { font-weight:bold; font-size:3.1mm; }
+        .fsv-hcnbar { display:flex; border:.45mm solid var(--fsv-pri); border-top:none; font-size:2.8mm; }
+        .fsv-hcnbar>div { flex:1; min-width:0; padding:1.2mm 3mm; display:flex; align-items:center; gap:2.5mm; }
+        .fsv-hcnbar>div+div { border-left:.45mm solid var(--fsv-pri); }
+        .fsv-hcnbar .fsv-lbl { font-size:2.2mm; color:#555; letter-spacing:.6mm; }
+        .fsv-hcnbar .fsv-val { font-weight:bold; font-size:3.1mm; }
         .fsv-counts { display:flex; border:.45mm solid var(--fsv-pri); border-top:none; }
         .fsv-counts .fsv-grp { display:flex; flex:1; min-width:0; }
         .fsv-counts .fsv-grp+.fsv-grp { border-left:.45mm solid var(--fsv-pri); }
@@ -254,12 +276,13 @@ export const VoucherPrintDocument: React.FC<{
         .fsv-flight th:nth-child(3), .fsv-flight td:nth-child(3) { width:20%; }
         .fsv-flight th:nth-child(4), .fsv-flight td:nth-child(4) { width:16%; }
         .fsv-flight th:nth-child(5), .fsv-flight td:nth-child(5) { width:16%; }
-        .fsv-acc th:nth-child(1), .fsv-acc td:nth-child(1) { width:15%; }
-        .fsv-acc th:nth-child(2), .fsv-acc td:nth-child(2) { width:29%; }
-        .fsv-acc th:nth-child(3), .fsv-acc td:nth-child(3) { width:16%; }
-        .fsv-acc th:nth-child(4), .fsv-acc td:nth-child(4) { width:16%; }
-        .fsv-acc th:nth-child(5), .fsv-acc td:nth-child(5) { width:10%; }
-        .fsv-acc th:nth-child(6), .fsv-acc td:nth-child(6) { width:14%; }
+        .fsv-acc th:nth-child(1), .fsv-acc td:nth-child(1) { width:13%; }
+        .fsv-acc th:nth-child(2), .fsv-acc td:nth-child(2) { width:27%; }
+        .fsv-acc th:nth-child(3), .fsv-acc td:nth-child(3) { width:14%; }
+        .fsv-acc th:nth-child(4), .fsv-acc td:nth-child(4) { width:14%; }
+        .fsv-acc th:nth-child(5), .fsv-acc td:nth-child(5) { width:8%; }
+        .fsv-acc th:nth-child(6), .fsv-acc td:nth-child(6) { width:8%; }
+        .fsv-acc th:nth-child(7), .fsv-acc td:nth-child(7) { width:16%; }
         .fsv-trn th:nth-child(1), .fsv-trn td:nth-child(1) { width:60%; }
         .fsv-trn th:nth-child(2), .fsv-trn td:nth-child(2) { width:40%; }
         .fsv-mut th:nth-child(1), .fsv-mut td:nth-child(1) { width:10%; }
@@ -272,14 +295,15 @@ export const VoucherPrintDocument: React.FC<{
         .fsv-mutwrap { display:flex; gap:3mm; }
         .fsv-mutwrap table { flex:1; min-width:0; }
         table.fsv-vt.fsv-mut td, table.fsv-vt.fsv-mut th { padding:.7mm 1.2mm; }
+        table.fsv-vt.fsv-flight td { font-weight:bold; }
         table.fsv-vt.fsv-mut td { font-size:2.55mm; }
         table.fsv-vt.fsv-mut .fsv-nm { font-weight:bold; }
         .fsv-bottom4 { display:flex; gap:3mm; margin-top:2mm; align-items:stretch; }
         .fsv-bbox { flex:1; border:.45mm solid var(--fsv-pri); min-width:0; display:flex; flex-direction:column; overflow:hidden; }
         .fsv-bbox h4 { font-size:2.6mm; letter-spacing:.7mm; background:var(--fsv-soft); padding:1.3mm 2.2mm; border-bottom:.45mm solid var(--fsv-pri); color:var(--fsv-pri); }
         .fsv-bbox .fsv-in { padding:1.6mm 2.2mm; font-size:2.6mm; line-height:1.5; flex:1; }
-        .fsv-incl { list-style:none; columns:2; column-gap:3mm; }
-        .fsv-incl li { font-size:2.5mm; padding:.6mm 0 .6mm 4mm; text-indent:-4mm; break-inside:avoid; overflow-wrap:break-word; }
+        .fsv-incl { list-style:none; }
+        .fsv-incl li { font-size:2.5mm; padding:.6mm 0 .6mm 4mm; text-indent:-4mm; overflow-wrap:break-word; }
         .fsv-incl li::before { content:"✓ "; font-weight:bold; }
         .fsv-notes { list-style:none; }
         .fsv-notes li { font-size:2.45mm; padding:.7mm 0 .7mm 3.4mm; text-indent:-3.4mm; overflow-wrap:break-word; }
@@ -313,10 +337,18 @@ export const VoucherPrintDocument: React.FC<{
               <h1>{(company.companyName || 'TRAVEL AND TOURS').toUpperCase()}</h1>
               <div className="fsv-tag">{(company.legalName || 'UMRAH SERVICES | TRAVEL SOLUTIONS').toUpperCase()}</div>
             </div>
-            <div className="fsv-sketch"><div className="fsv-arch"><img src={imgMadinah} alt="Masjid-e-Nabawi" /></div><div className="fsv-under">Agent: {(voucher as any).agentName || "—"}</div></div>
+            <div className="fsv-sketch"><div className="fsv-arch"><img src={imgMadinah} alt="Masjid-e-Nabawi" /></div><div className="fsv-under">Agent: {agentDisplay || "—"}</div></div>
           </div>
 
           <div className="fsv-ribbon"><h2>{(voucher as any).voucherKind === 'accommodation' ? 'ACCOMMODATION VOUCHER' : (voucher as any).voucherKind === 'transport' ? 'TRANSPORT VOUCHER' : 'UMRAH TRAVEL VOUCHER'}</h2></div>
+
+          {((voucher as any).makkahHcn || (voucher as any).madinaHcn || (voucher as any).transportHcn) && (
+            <div className="fsv-hcnbar">
+              <div><span className="fsv-lbl">MAKKAH HCN</span><span className="fsv-val">{(voucher as any).makkahHcn || "—"}</span></div>
+              <div style={{ justifyContent: 'center' }}><span className="fsv-lbl">MADINA HCN</span><span className="fsv-val">{(voucher as any).madinaHcn || "—"}</span></div>
+              <div style={{ justifyContent: 'flex-end' }}><span className="fsv-lbl">TRANSPORT HCN</span><span className="fsv-val">{(voucher as any).transportHcn || "—"}</span></div>
+            </div>
+          )}
 
           <div className="fsv-metabar">
             <div><span className="fsv-lbl">VOUCHER NO.</span><span className="fsv-val">{voucher.voucherNo}</span></div>
@@ -378,7 +410,7 @@ export const VoucherPrintDocument: React.FC<{
 
           <div className="fsv-secttl">ACCOMMODATION</div>
           <table className="fsv-vt fsv-acc">
-            <thead><tr><th>CITY</th><th>HOTEL</th><th>CHECK IN</th><th>CHECK OUT</th><th>NIGHTS</th><th>ROOM TYPE</th></tr></thead>
+            <thead><tr><th>CITY</th><th>HOTEL</th><th>CHECK IN</th><th>CHECK OUT</th><th>NIGHTS</th><th>ROOMS</th><th>ROOM TYPE</th></tr></thead>
             <tbody>
               {stays.map((h, i) => (
                 <tr key={i}>
@@ -387,6 +419,7 @@ export const VoucherPrintDocument: React.FC<{
                   <td>{fmtDate(h.checkInDate)}</td>
                   <td>{fmtDate(h.checkOutDate)}</td>
                   <td>{h.nights}</td>
+                  <td>{(h as any).roomCount || '—'}</td>
                   <td>{h.bedType}</td>
                 </tr>
               ))}
@@ -397,12 +430,7 @@ export const VoucherPrintDocument: React.FC<{
           <table className="fsv-vt fsv-trn">
             <thead><tr><th>TRANSPORT TRIP</th><th>TRANSPORT BY</th></tr></thead>
             <tbody>
-              {isRoundtrip ? (
-                <tr>
-                  <td className="fsv-nm">Roundtrip (JED-MAK, MAK-MED, MED-MAK, MAK-JED)</td>
-                  <td>{vehicles[0]}</td>
-                </tr>
-              ) : transportRows.length > 0 ? transportRows.map((r, i) => (
+              {transportRows.length > 0 ? transportRows.map((r, i) => (
                 <tr key={i}>
                   <td className="fsv-nm">{r.sector}</td>
                   <td>{r.vehicle} — {r.provider}</td>

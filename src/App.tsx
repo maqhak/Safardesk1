@@ -165,11 +165,7 @@ export default function App() {
                 />
                 <Route
                   path="/vouchers/shared/:voucherId"
-                  element={
-                    <ProtectedRoute requiredModule="Vouchers">
-                      <VoucherSharedView />
-                    </ProtectedRoute>
-                  }
+                  element={<VoucherSharedView />}
                 />
                 <Route
                   path="/tickets"
