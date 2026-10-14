@@ -2,29 +2,6 @@ import React from 'react';
 import { Plane } from 'lucide-react';
 import { TENANT } from '../../config';
 
-/** Small golden 3D-style jet (top view) used as the orbiting plane. */
-const GoldPlane: React.FC<{ className?: string }> = ({ className }) => (
-  <svg viewBox="0 0 64 64" className={className} fill="none" aria-hidden="true">
-    <defs>
-      <linearGradient id="branded-gold-plane" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stopColor="#f6d67c" />
-        <stop offset="0.45" stopColor="#d9ab2e" />
-        <stop offset="1" stopColor="#8a6d14" />
-      </linearGradient>
-    </defs>
-    {/* main wings */}
-    <path d="M30 22 L4 44 c-1 1 -.5 2.5 1 2.5 L9.5 46 L30 32 Z" fill="url(#branded-gold-plane)" />
-    <path d="M34 22 L60 44 c1 1 .5 2.5 -1 2.5 L54.5 46 L34 32 Z" fill="url(#branded-gold-plane)" />
-    {/* tail wings */}
-    <path d="M30.5 43 L17.5 53.5 c-.9 .7 -.5 2.2 .8 2 L30.5 49.5 Z" fill="url(#branded-gold-plane)" />
-    <path d="M33.5 43 L46.5 53.5 c.9 .7 .5 2.2 -.8 2 L33.5 49.5 Z" fill="url(#branded-gold-plane)" />
-    {/* fuselage */}
-    <path d="M32 4 c2.6 0 4.2 3 4.2 7 L35 47 c0 3 -1.4 5.5 -3 5.5 c-1.6 0 -3 -2.5 -3 -5.5 L27.8 11 c0 -4 1.6 -7 4.2 -7 Z" fill="url(#branded-gold-plane)" />
-    {/* cockpit glint */}
-    <ellipse cx="32" cy="12" rx="1.6" ry="3.2" fill="#fff8e1" opacity="0.85" />
-  </svg>
-);
-
 /**
  * Branded animated full-screen loader for SafarDesk.
  * Shows the TENANT's company name + logo (falls back to plane icon).
@@ -58,8 +35,16 @@ export const BrandedLoader: React.FC<{ message?: string }> = ({ message = 'Loadi
               {/* pathway rings */}
               <div className="absolute inset-0 rounded-full border border-[#c9a227]/40" />
               <div className="absolute inset-4 rounded-full border border-dashed border-white/15" />
-              {/* golden jet riding the pathway, nose tangent to travel */}
-              <GoldPlane className="absolute left-1/2 top-0 -ml-5 -mt-2 w-10 h-10 drop-shadow-[0_8px_16px_rgba(201,162,39,0.6)]" />
+              {/* Realistic golden jet riding the pathway, with a contrail streak —
+                  nose points along the flight direction so it truly looks airborne */}
+              <div className="absolute left-1/2 top-0 -ml-10 -mt-5">
+                <img
+                  src="/images/gold-jet.png"
+                  alt=""
+                  className="w-20 h-auto drop-shadow-[0_10px_18px_rgba(201,162,39,0.55)]"
+                />
+                <div className="absolute left-[76%] top-1/2 -translate-y-1/2 h-[3px] w-20 rounded-full bg-gradient-to-r from-white/60 via-white/25 to-transparent blur-[1px]" />
+              </div>
             </div>
 
             {/* Tenant's own logo at the heart of the orbit — NO box */}
