@@ -89,8 +89,8 @@ export const BrandedLoader: React.FC<{ message?: string }> = ({ message = 'Loadi
 
       <style>{`
         @keyframes orbitSpin {
-          0% { transform: rotateX(14deg) rotateZ(0deg); }
-          100% { transform: rotateX(14deg) rotateZ(360deg); }
+          0% { transform: rotateX(35deg) rotateZ(0deg); }
+          100% { transform: rotateX(35deg) rotateZ(360deg); }
         }
         @keyframes floatY {
           0%, 100% { transform: translateY(0); }
