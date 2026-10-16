@@ -12,6 +12,7 @@ import { postBalancedTransaction, voidLedgerEntry, fetchLedgerEntries, fetchLedg
 import { TENANT } from '../config';
 import { uploadReceipt, verifyReceiptWithAI } from './driveService';
 import { getCurrentRate } from './exchangeRateService';
+import { cached, bust } from './queryCache';
 
 const PAYMENTS_COLLECTION = 'payments';
 const BANKS_COLLECTION = 'banks';
@@ -327,7 +328,7 @@ export async function fetchInvoices(): Promise<InvoiceRecord[]> {
   return Array.from(byNo.values());
 }
 
-export async function fetchPayments(): Promise<PaymentDoc[]> {
+async function fetchPaymentsRaw(): Promise<PaymentDoc[]> {
   let firestorePayments: PaymentDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
@@ -351,6 +352,11 @@ export async function fetchPayments(): Promise<PaymentDoc[]> {
   for (const pm of localPayments) if ((pm as any)?.id) byId.set((pm as any).id, pm);
   for (const pm of firestorePayments) if ((pm as any)?.id) byId.set((pm as any).id, pm);
   return Array.from(byId.values());
+}
+
+/** Cached: repeat visits within 90s don't re-download the whole collection. */
+export function fetchPayments(): Promise<PaymentDoc[]> {
+  return cached('payments:all', fetchPaymentsRaw);
 }
 
 export async function getNextPaymentNumber(): Promise<string> {
@@ -386,6 +392,7 @@ export async function createPayment(params: {
   receiptFileType?: 'image' | 'pdf';
   createdBy: string;
 }): Promise<PaymentDoc> {
+  bust('payments:all'); // fresh read after write
   // HARD VALIDATION: RECEIPT RULE
   if (!params.receiptFile || !params.receiptFile.trim()) {
     throw new Error('RECEIPT RULE VIOLATION: A payment cannot be saved without an attached receipt file.');
@@ -621,6 +628,7 @@ export async function retryDriveUploadForPayment(paymentId: string): Promise<Pay
  * Owner Review Queue: Approve a receipt flagged as Needs Review
  */
 export async function approvePaymentReceipt(paymentId: string, ownerName: string): Promise<PaymentDoc> {
+  bust('payments:all'); // fresh read after write
   const currentPayments = await fetchPayments();
   const idx = currentPayments.findIndex((p) => p.id === paymentId);
   if (idx === -1) {
@@ -711,6 +719,7 @@ export async function voidPayment(
   voidReason: string,
   voidedBy: string
 ): Promise<PaymentDoc> {
+  bust('payments:all'); // fresh read after write
   const currentPayments = await fetchPayments();
   const index = currentPayments.findIndex((p) => p.id === paymentId);
   if (index === -1) {

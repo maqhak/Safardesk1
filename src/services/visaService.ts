@@ -3,6 +3,7 @@ import { db, isConfigPlaceholder } from './firebase';
 import { logAuditEvent } from './userService';
 import { UserProfile } from '../types/auth';
 import { stripUndefinedDeep } from '../utils/firestoreSanitize';
+import { cached, bust } from './queryCache';
 
 const VISAS_COLLECTION = 'visas';
 const VISA_IMPORTS_COLLECTION = 'visa_imports';
@@ -155,7 +156,7 @@ const INITIAL_VISAS: VisaDoc[] = [
   },
 ];
 
-export async function fetchVisas(): Promise<VisaDoc[]> {
+async function fetchVisasRaw(): Promise<VisaDoc[]> {
   let firestoreVisas: VisaDoc[] = [];
   let firestoreOk = false;
 
@@ -190,7 +191,13 @@ export async function fetchVisas(): Promise<VisaDoc[]> {
   return [...firestoreVisas, ...localOnly];
 }
 
+/** Cached: repeat visits within 90s don't re-download the whole collection. */
+export function fetchVisas(): Promise<VisaDoc[]> {
+  return cached('visas:all', fetchVisasRaw);
+}
+
 export async function saveVisasBatch(newVisas: VisaDoc[]): Promise<void> {
+  bust('visas:all'); // fresh read after write
   const existing = await fetchVisas();
   const combined = [...newVisas, ...existing];
   localStorage.setItem(LOCAL_STORAGE_VISAS_KEY, JSON.stringify(combined));
@@ -223,6 +230,7 @@ export async function saveVisaImportBatch(batch: VisaImportBatchDoc): Promise<vo
 /** Delete undistributed visas by their IDs (e.g. leftover stock after distribution). */
 export async function deleteVisasBatch(visaIds: string[]): Promise<void> {
   if (visaIds.length === 0) return;
+  bust('visas:all'); // fresh read after write
 
   // Update localStorage
   const stored = localStorage.getItem(LOCAL_STORAGE_VISAS_KEY);

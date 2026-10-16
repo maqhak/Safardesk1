@@ -20,6 +20,7 @@ import { getCurrentRate } from './exchangeRateService';
 import { fetchCompanyProfile } from './companyService';
 import { postBalancedTransaction, fetchLedgerAccounts } from './accountingService';
 import { fetchHotels } from './masterService';
+import { cached, bust, bustPrefix } from './queryCache';
 
 const VOUCHERS_COLLECTION = 'vouchers';
 const LEDGER_ACCOUNTS_COLLECTION = 'ledgerAccounts';
@@ -82,7 +83,7 @@ export function normalizeVoucher(raw: any): VoucherDoc {
   return v as VoucherDoc;
 }
 
-export async function fetchVouchers(): Promise<VoucherDoc[]> {
+async function fetchVouchersRaw(): Promise<VoucherDoc[]> {
   let firestoreVouchers: VoucherDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
@@ -109,12 +110,17 @@ export async function fetchVouchers(): Promise<VoucherDoc[]> {
   return Array.from(byId.values());
 }
 
+/** Cached: repeat visits within 90s don't re-download the whole collection. */
+export function fetchVouchers(): Promise<VoucherDoc[]> {
+  return cached('vouchers:all', fetchVouchersRaw);
+}
+
 /**
  * Agent-scoped voucher fetch: server-side where('agentId', '==', agentId).
  * The Firestore rules allow agents per-doc reads only when agentId matches,
  * so an unfiltered collection query is rejected — this filtered query is permitted.
  */
-export async function fetchVouchersForAgent(agentId: string): Promise<VoucherDoc[]> {
+export async function fetchVouchersForAgentRaw(agentId: string): Promise<VoucherDoc[]> {
   let firestoreVouchers: VoucherDoc[] = [];
   try {
     if (!isConfigPlaceholder && agentId) {
@@ -142,6 +148,11 @@ export async function fetchVouchersForAgent(agentId: string): Promise<VoucherDoc
   for (const v of localVouchers) if ((v as any)?.id) byId.set((v as any).id, v);
   for (const v of firestoreVouchers) if ((v as any)?.id) byId.set((v as any).id, v);
   return Array.from(byId.values());
+}
+
+/** Cached per agent. */
+export function fetchVouchersForAgent(agentId: string): Promise<VoucherDoc[]> {
+  return cached(`vouchers:agent:${agentId}`, () => fetchVouchersForAgentRaw(agentId));
 }
 
 export async function nextVoucherNumber(): Promise<string> {
@@ -194,6 +205,7 @@ export async function createVoucher(
   actor: UserProfile,
   data: Omit<VoucherDoc, 'id' | 'voucherNo' | 'createdAt' | 'createdBy' | 'createdByName'>
 ): Promise<VoucherDoc> {
+  bust('vouchers:all'); bustPrefix('vouchers:agent:'); // fresh read after write
   // Anti-fraud backdate check for agents (settings agentBackdateHours, default 12)
   if (actor.role === 'agent') {
     let backdateLimitHours = 12;
@@ -360,6 +372,7 @@ export async function postVoucherToLedger(actor: UserProfile, voucher: VoucherDo
  * charges post to the ledger at approval time (not at creation).
  */
 export async function approveVoucher(actor: UserProfile, voucherId: string): Promise<void> {
+  bust('vouchers:all'); bustPrefix('vouchers:agent:');
   if (actor.role !== 'owner') {
     throw new Error('Only the Owner can approve vouchers.');
   }
@@ -407,6 +420,7 @@ export async function approveVoucher(actor: UserProfile, voucherId: string): Pro
  * so the creator can fix and resubmit. Nothing posts to the ledger.
  */
 export async function disapproveVoucher(actor: UserProfile, voucherId: string, note?: string): Promise<void> {
+  bust('vouchers:all'); bustPrefix('vouchers:agent:');
   if (actor.role !== 'owner') {
     throw new Error('Only the Owner can disapprove vouchers.');
   }
@@ -448,6 +462,7 @@ export async function disapproveVoucher(actor: UserProfile, voucherId: string, n
 }
 
 export async function cancelVoucher(actor: UserProfile, voucherId: string): Promise<void> {
+  bust('vouchers:all'); bustPrefix('vouchers:agent:');
   if (actor.role !== 'owner' && actor.role !== 'staff') {
     throw new Error('Only Owner or Staff can cancel vouchers.');
   }
@@ -544,6 +559,7 @@ export async function cancelVoucher(actor: UserProfile, voucherId: string): Prom
 }
 
 export async function markCommissionPaid(actor: UserProfile, voucherId: string): Promise<void> {
+  bust('vouchers:all'); bustPrefix('vouchers:agent:');
   if (actor.role !== 'owner') {
     throw new Error('Only the agency Owner can mark commission as paid.');
   }

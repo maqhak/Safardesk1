@@ -13,6 +13,7 @@ import { aoaToCSV, downloadCSVText } from '../utils/csv';
 import { getCurrentRate } from './exchangeRateService';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { cached, bust } from './queryCache';
 
 const ACCOUNTS_COLLECTION = 'ledger_accounts';
 const ENTRIES_COLLECTION = 'ledger_entries';
@@ -617,7 +618,7 @@ function normalizeLedgerAccount(a: any): LedgerAccountDoc {
   };
 }
 
-export async function fetchLedgerAccounts(): Promise<LedgerAccountDoc[]> {
+async function fetchLedgerAccountsRaw(): Promise<LedgerAccountDoc[]> {
   let firestoreAccounts: LedgerAccountDoc[] = [];
   let firestoreOk = false;
   try {
@@ -654,8 +655,14 @@ export async function fetchLedgerAccounts(): Promise<LedgerAccountDoc[]> {
   return [...firestoreAccounts, ...localOnly].map(normalizeLedgerAccount);
 }
 
+/** Cached: accounts rarely change, repeat visits don't re-download. */
+export function fetchLedgerAccounts(): Promise<LedgerAccountDoc[]> {
+  return cached('ledger:accounts', fetchLedgerAccountsRaw);
+}
+
 /** Create or update a ledger account (Firestore + localStorage fallback). */
 export async function saveLedgerAccount(account: LedgerAccountDoc): Promise<LedgerAccountDoc> {
+  bust('ledger:accounts'); // fresh read after write
   const accounts = await fetchLedgerAccounts();
   const i = accounts.findIndex((a) => a.id === account.id);
   const next = i >= 0 ? accounts.map((a, j) => (j === i ? account : a)) : [account, ...accounts];
@@ -672,7 +679,7 @@ export async function saveLedgerAccount(account: LedgerAccountDoc): Promise<Ledg
 /**
  * Fetch all ledger entries (optionally filtered by accountId)
  */
-export async function fetchLedgerEntries(accountId?: string): Promise<LedgerEntryDoc[]> {
+async function fetchLedgerEntriesRaw(accountId?: string): Promise<LedgerEntryDoc[]> {
   let firestoreEntries: LedgerEntryDoc[] = [];
   try {
     if (!isConfigPlaceholder) {
@@ -704,6 +711,11 @@ export async function fetchLedgerEntries(accountId?: string): Promise<LedgerEntr
   return list;
 }
 
+/** Cached per accountId (or all). Writes bust it via postBalancedTransaction. */
+export function fetchLedgerEntries(accountId?: string): Promise<LedgerEntryDoc[]> {
+  return cached(`ledger:entries:${accountId || 'all'}`, () => fetchLedgerEntriesRaw(accountId));
+}
+
 /**
  * Post a balanced double-entry transaction
  */
@@ -724,6 +736,7 @@ export async function postBalancedTransaction(params: {
   proofType?: 'receipt' | 'voice' | null;
   createdBy: string;
 }): Promise<{ debitEntry: LedgerEntryDoc; creditEntry: LedgerEntryDoc }> {
+  bust('ledger:entries:all'); bustPrefix('ledger:entries:'); // fresh read after write
   const currentEntries = await fetchLedgerEntries();
   const nextNum = currentEntries.length + 10001;
 
