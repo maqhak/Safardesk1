@@ -1278,21 +1278,20 @@ export const VoucherCreatePage: React.FC = () => {
                                 className={`${inputCls} !p-1.5`}
                               >
                                 <option value="">-- Select Hotel --</option>
-                                <optgroup label="Makkah">
-                                  {hotelSuggestions.filter((h) => /makk|mecca/i.test(h.city || '')).map((h) => (
-                                    <option key={h.id} value={h.name}>{h.name}</option>
-                                  ))}
-                                </optgroup>
-                                <optgroup label="Madina">
-                                  {hotelSuggestions.filter((h) => /madin|medina|madinah/i.test(h.city || '')).map((h) => (
-                                    <option key={h.id} value={h.name}>{h.name}</option>
-                                  ))}
-                                </optgroup>
-                                <optgroup label="Other">
-                                  {hotelSuggestions.filter((h) => !/makk|mecca|madin|medina|madinah/i.test(h.city || '')).map((h) => (
+                                {(() => {
+                                  const sector = (row.sector || '').toUpperCase();
+                                  const isMakkah = sector === 'MAK' || sector.includes('MAKKAH') || sector.includes('MECCA');
+                                  const isMadina = sector === 'MED' || sector.includes('MADIN');
+                                  const filtered = hotelSuggestions.filter((h) => {
+                                    const city = (h.city || '').toLowerCase();
+                                    if (isMakkah) return /makk|mecca/i.test(city);
+                                    if (isMadina) return /madin|medina/i.test(city);
+                                    return true;
+                                  });
+                                  return filtered.map((h) => (
                                     <option key={h.id} value={h.name}>{h.name}{h.city ? ` (${h.city})` : ''}</option>
-                                  ))}
-                                </optgroup>
+                                  ));
+                                })()}
                                 <option value="__manual__">✏️ Other — type manually</option>
                               </select>
                               {(manualHotelIds.has(row.id) || (row.hotelName && !hotelSuggestions.some((h) => h.name === row.hotelName))) && (
