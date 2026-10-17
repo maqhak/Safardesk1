@@ -172,7 +172,17 @@ export const NusukGroupImportPage: React.FC = () => {
         }
 
         // 8-column mapping (same contract as the main importer)
-        const raw = data.map((row: any) => ({
+        const raw = data.map((row: any) => {
+          // Excel serial date (e.g. 46300) -> YYYY-MM-DD
+          let issueDateRaw = String(row['Visa Issue Date'] || row['Issue Date'] || row['Date'] || '').trim().split(' ')[0].split('T')[0];
+          if (/^\d{5}$/.test(issueDateRaw)) {
+            const serial = parseInt(issueDateRaw, 10);
+            if (serial > 30000 && serial < 60000) {
+              const dt = new Date(1899, 11, 30 + serial);
+              issueDateRaw = dt.toISOString().split('T')[0];
+            }
+          }
+          return {
           groupCode: String(row['Group Number'] || row['Group Code'] || row['GroupNo'] || 'GRP-IMPORT'),
           groupName: String(row['Group Name'] || row['GroupName'] || 'Imported Umrah Group'),
           pilgrimName: String(row['Mutamer Name'] || row['Passenger Name'] || row['Name'] || 'Unknown Pilgrim'),
@@ -180,13 +190,13 @@ export const NusukGroupImportPage: React.FC = () => {
           gender: String(row['Gender'] || row['Sex'] || row['IncentiveDiscountType'] || 'Male'),
           passportNumber: String(row['Passport Number'] || row['Passport'] || '').trim(),
           age: row['Mutamer Age'] || row['Age'] || 30,
-          visaIssueDate: String(row['Visa Issue Date'] || row['Issue Date'] || row['Date'] || '').trim().split(' ')[0].split('T')[0],
+          visaIssueDate: issueDateRaw,
           // coded columns (empty in nusuk mode)
           agentCode: String(row['AGENT CODE'] || '').trim(),
           vndCode: String(row['VND CODE'] || '').trim(),
           payable: parseFloat(row['PAYABLE']) || 0,
           recievable: parseFloat(row['RECIEVABLE']) || 0,
-        }));
+        }});
 
         // Blank-date fallback: group's most common date -> upload date
         const groupDates = new Map<string, Map<string, number>>();
