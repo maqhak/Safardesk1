@@ -34,7 +34,8 @@ import {
   generateNextVendorCode,
   backfillMissingVendorLedgerAccounts
 } from '../services/masterService';
-import { fetchLedgerAccounts, createAgentBasic } from '../services/agentService';
+import { fetchLedgerAccounts, createAgentBasic, fetchAgents } from '../services/agentService';
+import { AgentDoc } from '../types/agent';
 import { formatMoney } from '../utils/formatters';
 
 export const VendorsPage: React.FC = () => {
@@ -46,6 +47,7 @@ export const VendorsPage: React.FC = () => {
 
   const [vendors, setVendors] = useState<VendorDoc[]>([]);
   const [ledgers, setLedgers] = useState<LedgerAccountDoc[]>([]);
+  const [agents, setAgents] = useState<AgentDoc[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [backfilling, setBackfilling] = useState(false);
   const [search, setSearch] = useState<string>('');
@@ -80,6 +82,8 @@ export const VendorsPage: React.FC = () => {
   const [newShirkaOperator, setNewShirkaOperator] = useState('');
   const [newShirkaMobile, setNewShirkaMobile] = useState('');
   const [editing, setEditing] = useState<boolean>(false);
+  const [editAlsoAgent, setEditAlsoAgent] = useState(false);
+  const [editLinkedAgentId, setEditLinkedAgentId] = useState('');
 
   // View Ledger Modal
   const [ledgerModalOpen, setLedgerModalOpen] = useState<boolean>(false);
@@ -106,14 +110,16 @@ export const VendorsPage: React.FC = () => {
 const loadData = async () => {
     setLoading(true);
     try {
-      const [vList, lList, code] = await Promise.all([
+      const [vList, lList, code, aList] = await Promise.all([
         fetchVendors(),
         fetchLedgerAccounts(),
         generateNextVendorCode(),
+        fetchAgents().catch(() => []),
       ]);
       setVendors(vList);
       setLedgers(lList);
       setNextCode(code);
+      setAgents(aList as AgentDoc[]);
     } catch {
       showError('Could not load vendors registry.');
     } finally {
@@ -199,6 +205,8 @@ const loadData = async () => {
     setEditDefBuyPrice(v.defaultBuyingPricePerVisa ? String(v.defaultBuyingPricePerVisa) : '');
     setEditShirkas((v.shirkas || []).map((s) => ({ ...s })));
     setNewShirkaName(''); setNewShirkaOperator(''); setNewShirkaMobile('');
+    setEditAlsoAgent(!!v.alsoAgent);
+    setEditLinkedAgentId(v.linkedAgentId || '');
     setEditModalOpen(true);
   };
 
@@ -208,7 +216,7 @@ const loadData = async () => {
 
     setEditing(true);
     try {
-      await updateVendor(userProfile, targetVendor.id, {
+      const updateData: any = {
         name: editName,
         country: editCountry,
         city: editCity,
@@ -218,7 +226,40 @@ const loadData = async () => {
         notes: editNotes,
         defaultBuyingPricePerVisa: parseFloat(editDefBuyPrice) || undefined,
         shirkas: editShirkas,
-      });
+      };
+
+      // Dual-role: link/unlink as Agent
+      if (editAlsoAgent && !targetVendor.alsoAgent) {
+        // Newly enabling: create linked agent or link existing
+        if (editLinkedAgentId) {
+          updateData.alsoAgent = true;
+          updateData.linkedAgentId = editLinkedAgentId;
+        } else {
+          const { agent } = await createAgentBasic(userProfile, {
+            companyName: editName,
+            contactPerson: editContact,
+            mobile: editMobile,
+            city: editCity,
+            email: editEmail,
+            notes: `Dual-role linked to vendor ${targetVendor.vendorCode}`,
+            alsoVendor: true,
+            linkedVendorId: targetVendor.id,
+            skipLedger: true,
+          });
+          updateData.alsoAgent = true;
+          updateData.linkedAgentId = agent.id;
+          success(`Linked agent ${agent.agentCode} created (shared account).`);
+        }
+      } else if (!editAlsoAgent && targetVendor.alsoAgent) {
+        // Disabling: unlink
+        updateData.alsoAgent = false;
+        updateData.linkedAgentId = null;
+      } else if (editAlsoAgent && editLinkedAgentId && editLinkedAgentId !== targetVendor.linkedAgentId) {
+        // Changed linked agent
+        updateData.linkedAgentId = editLinkedAgentId;
+      }
+
+      await updateVendor(userProfile, targetVendor.id, updateData);
 
       success(`Vendor ${targetVendor.vendorCode} updated successfully.`);
       setEditModalOpen(false);
@@ -612,6 +653,37 @@ const loadData = async () => {
               onChange={(e) => setEditDefBuyPrice(e.target.value)}
               placeholder="e.g. 450"
             />
+          </div>
+          {/* Dual-role: link as Agent (cross entry — one party, one account) */}
+          <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/60">
+            <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">Cross Entry — Dual Role</div>
+            <p className="text-[11px] text-slate-500 mb-2">Link this vendor as an Agent too. One party, one ledger account — debit/credit post to the same account.</p>
+            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer mb-2">
+              <input
+                type="checkbox"
+                checked={editAlsoAgent}
+                onChange={(e) => setEditAlsoAgent(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300"
+              />
+              <span className="font-medium">Also acts as Agent</span>
+            </label>
+            {editAlsoAgent && (
+              <select
+                value={editLinkedAgentId}
+                onChange={(e) => setEditLinkedAgentId(e.target.value)}
+                className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg"
+              >
+                <option value="">— Create new linked Agent on save —</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.agentCode} — {a.companyName}
+                  </option>
+                ))}
+              </select>
+            )}
+            {targetVendor?.linkedAgentId && !editAlsoAgent && (
+              <p className="text-[11px] text-amber-600 mt-1">Unchecking will unlink the agent but keep its record.</p>
+            )}
           </div>
         </form>
       </Modal>
