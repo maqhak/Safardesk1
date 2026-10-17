@@ -502,25 +502,43 @@ export const VisaDistributionPage: React.FC = () => {
   };
 
   const [clearing, setClearing] = useState<boolean>(false);
+  // Groups selected for clearing (Fix: clear should only delete SELECTED groups, not everything)
+  const [clearSelectedGroups, setClearSelectedGroups] = useState<Set<string>>(new Set());
+
+  const toggleClearGroup = (groupCode: string) => {
+    setClearSelectedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupCode)) next.delete(groupCode);
+      else next.add(groupCode);
+      return next;
+    });
+  };
 
   const handleClearUndistributed = async () => {
-    const idsToClear = undistributedVisas.map((v) => v.id);
+    if (clearSelectedGroups.size === 0) {
+      info('Pehle woh group(s) select karo jinhe clear karna hai (har group ke saamne checkbox).');
+      return;
+    }
+    const idsToClear = undistributedVisas
+      .filter((v) => clearSelectedGroups.has(v.groupCode))
+      .map((v) => v.id);
     if (idsToClear.length === 0) {
-      info('No undistributed visas to clear.');
+      info('Selected group(s) me koi undistributed visa nahi.');
       return;
     }
     const confirmed = window.confirm(
-      `Are you sure you want to permanently delete ${idsToClear.length} undistributed visa(s)? This cannot be undone.`
+      `Are you sure you want to permanently delete ${idsToClear.length} visa(s) from ${clearSelectedGroups.size} selected group(s)? This cannot be undone.`
     );
     if (!confirmed) return;
 
     setClearing(true);
     try {
       await deleteVisasBatch(idsToClear);
-      success(`${idsToClear.length} undistributed visa(s) cleared.`);
+      success(`${idsToClear.length} visa(s) cleared from ${clearSelectedGroups.size} group(s).`);
+      setClearSelectedGroups(new Set());
       await loadData();
     } catch (err: any) {
-      showError(err.message || 'Failed to clear undistributed visas.');
+      showError(err.message || 'Failed to clear selected visas.');
     } finally {
       setClearing(false);
     }
@@ -542,8 +560,9 @@ export const VisaDistributionPage: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={handleClearUndistributed}
-              disabled={clearing || undistributedVisas.length === 0}
+              disabled={clearing || clearSelectedGroups.size === 0}
               className="text-red-600 border-red-200 hover:bg-red-50"
+              title="Sirf selected group(s) clear honge"
             >
               <Trash2 className="w-4 h-4 mr-1" />
 
@@ -571,7 +590,7 @@ export const VisaDistributionPage: React.FC = () => {
           </Button>
         </div>
       )}
-              {clearing ? 'Clearing...' : `Clear Undistributed (${undistributedVisas.length})`}
+              {clearing ? 'Clearing...' : `Clear Selected (${clearSelectedGroups.size})`}
             </Button>
             <Button
               variant="outline"
@@ -677,6 +696,13 @@ export const VisaDistributionPage: React.FC = () => {
                 <div key={group.groupCode} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 transition hover:bg-slate-100/50">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={clearSelectedGroups.has(group.groupCode)}
+                        onChange={() => toggleClearGroup(group.groupCode)}
+                        title="Clear ke liye select karo"
+                        className="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500 cursor-pointer shrink-0"
+                      />
                       <button
                         type="button"
                         onClick={() => toggleExpandGroup(group.groupCode)}
