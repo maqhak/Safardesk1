@@ -934,6 +934,7 @@ export const VoucherCreatePage: React.FC = () => {
       ],
       totals: { hotelsSAR, transportSAR, otherSAR: 0, totalSAR, totalPKR, exchangeRate: effectiveRate || undefined },
       commission: { enabled: false, recipientName: '', contact: '', amountSAR: 0, isPaid: false },
+      packageIncludes: [...packageIncludes],
     };
   };
 
