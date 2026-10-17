@@ -211,6 +211,10 @@ export async function saveVisasBatch(newVisas: VisaDoc[]): Promise<void> {
       throw new Error(`Saved locally, but Firestore sync failed: ${err?.message || err}. Check your connection and Firestore rules.`);
     }
   }
+  // Bust AGAIN after the write: the fetchVisas() above re-cached the pre-write
+  // list, so a distribution running right after would not see the new visas
+  // (VV lines fell back to 'Pilgrim' / '—'). This was the coded-import name bug.
+  bust('visas:all');
 }
 
 export async function saveVisaImportBatch(batch: VisaImportBatchDoc): Promise<void> {
