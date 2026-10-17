@@ -47,6 +47,7 @@ const UsersAndPermissionsPage = lazy(() => import('./pages/UsersAndPermissionsPa
 const AgentPortalPage = lazy(() => import('./pages/AgentPortalPage').then(m => ({ default: m.AgentPortalPage })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then(m => ({ default: m.ProfilePage })));
 const VisaDistributionPage = lazy(() => import('./pages/VisaDistributionPage').then(m => ({ default: m.VisaDistributionPage })));
+const NusukGroupImportPage = lazy(() => import('./pages/NusukGroupImportPage').then(m => ({ default: m.NusukGroupImportPage })));
 const VisaInvoicesPage = lazy(() => import('./pages/VisaInvoicesPage').then(m => ({ default: m.VisaInvoicesPage })));
 const QaReportPage = lazy(() => import('./pages/QaReportPage').then(m => ({ default: m.QaReportPage })));
 import { LicenseGate } from './components/auth/LicenseGate';
@@ -383,6 +384,14 @@ export default function App() {
                   element={
                     <ProtectedRoute ownerOnly>
                       <UsersAndPermissionsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/visas/nusuk-import"
+                  element={
+                    <ProtectedRoute requiredModule="Visas">
+                      <NusukGroupImportPage />
                     </ProtectedRoute>
                   }
                 />
