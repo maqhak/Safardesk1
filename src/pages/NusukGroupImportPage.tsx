@@ -99,6 +99,49 @@ export const NusukGroupImportPage: React.FC = () => {
     return shk ? `${selectedVendor.name} — ${shk.name}` : selectedVendor.name;
   })();
 
+  const downloadCodedSample = async () => {
+    const XLSX = await import('xlsx');
+    const sample = [
+      {
+        'Group Number': '480901389509',
+        'Group Name': 'LTS DSLR 2 PEX 30 OCT TO 9 NOV 10 DAYS',
+        'Mutamer Name': 'Sample Pilgrim One',
+        'Nationality': 'Pakistani',
+        'Gender': 'Male',
+        'Passport Number': 'AB1234567',
+        'Mutamer Age': 35,
+        'Visa Issue Date': '2026-10-17',
+        'AGENT CODE': 'AGT-011',
+        'VND CODE': 'VND-001',
+        'PAYABLE': 465,
+        'RECIEVABLE': 470,
+      },
+      {
+        'Group Number': '480901389509',
+        'Group Name': 'LTS DSLR 2 PEX 30 OCT TO 9 NOV 10 DAYS',
+        'Mutamer Name': 'Sample Pilgrim Two',
+        'Nationality': 'Pakistani',
+        'Gender': 'Female',
+        'Passport Number': 'CD7654321',
+        'Mutamer Age': 28,
+        'Visa Issue Date': '2026-10-17',
+        'AGENT CODE': 'AGT-011',
+        'VND CODE': 'VND-001',
+        'PAYABLE': 465,
+        'RECIEVABLE': 470,
+      },
+    ];
+    const ws = XLSX.utils.json_to_sheet(sample);
+    ws['!cols'] = [
+      { wch: 16 }, { wch: 38 }, { wch: 22 }, { wch: 12 }, { wch: 8 }, { wch: 16 },
+      { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Coded Import');
+    XLSX.writeFile(wb, 'coded_visa_import_sample.xlsx');
+    success('Sample template downloaded — AGENT CODE / VND CODE apne system ke codes se replace karein.');
+  };
+
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -543,6 +586,13 @@ export const NusukGroupImportPage: React.FC = () => {
               <span className="truncate">{fileName || 'Choose .xlsx file…'}</span>
               <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
             </label>
+            <button
+              type="button"
+              onClick={downloadCodedSample}
+              className="mt-2 text-[11px] font-bold text-sky-700 hover:text-sky-900 underline underline-offset-2"
+            >
+              Download coded sample template (12 columns)
+            </button>
           </div>
         </div>
       </Card>
