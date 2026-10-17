@@ -93,6 +93,7 @@ export interface HotelRow {
   remarks: string;
   hotelName: string;
   roomType: string;
+  rooms: number;
   checkIn: string;
   nights: number;
   checkOut: string;
@@ -119,6 +120,7 @@ const blankHotelRow = (): HotelRow => ({
   remarks: '',
   hotelName: '',
   roomType: 'Double',
+  rooms: 1,
   checkIn: todayStr(),
   nights: 0,
   checkOut: todayStr(),
@@ -605,6 +607,7 @@ export const VoucherCreatePage: React.FC = () => {
             remarks: h.description || '',
             hotelName: h.hotelName || '',
             roomType: h.bedType || 'Double',
+            rooms: h.roomCount || 1,
             checkIn,
             nights,
             checkOut: addDays(checkIn, nights),
@@ -704,6 +707,7 @@ export const VoucherCreatePage: React.FC = () => {
             remarks: h.description || '',
             hotelName: h.hotelName || '',
             roomType: h.bedType || 'Double',
+            rooms: h.roomCount || 1,
             checkIn,
             nights,
             checkOut: h.checkOutDate || addDays(checkIn, nights),
@@ -782,7 +786,7 @@ export const VoucherCreatePage: React.FC = () => {
       checkOutDate: r.checkOut,
       nights: r.nights || 0,
       bedType: r.roomType as any,
-      roomCount: 1,
+      roomCount: r.rooms || 1,
       ratePerNightSAR: r.rateSAR || 0,
       totalSAR: paxCount * (r.nights || 0) * (r.rateSAR || 0),
       description: r.remarks.trim() || undefined,
@@ -1163,6 +1167,7 @@ export const VoucherCreatePage: React.FC = () => {
                       <th className="text-left p-2 font-bold">Hotel</th>
                       <th className="text-left p-2 font-bold">H. Remarks</th>
                       <th className="text-left p-2 font-bold">Room Type</th>
+                      <th className="text-left p-2 font-bold">Rooms</th>
                       <th className="text-left p-2 font-bold">Check-In</th>
                       <th className="text-left p-2 font-bold">Nights</th>
                       <th className="text-left p-2 font-bold">Check-Out</th>
@@ -1247,6 +1252,13 @@ export const VoucherCreatePage: React.FC = () => {
                           <select value={row.roomType} onChange={(e) => updateHotelRow(row.id, { roomType: e.target.value })} className={`${inputCls} !p-1.5`}>
                             {ROOM_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                           </select>
+                        </td>
+                        <td className="p-1.5">
+                          <input
+                            type="number" min="1" value={row.rooms || ''}
+                            onChange={(e) => updateHotelRow(row.id, { rooms: parseInt(e.target.value) || 1 })}
+                            className={`${inputCls} font-mono text-center !p-1.5`} placeholder="1"
+                          />
                         </td>
                         <td className="p-1.5">
                           <input type="date" value={row.checkIn} onChange={(e) => updateHotelRow(row.id, { checkIn: e.target.value })} className={`${inputCls} font-mono !p-1.5`} />

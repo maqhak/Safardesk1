@@ -20,7 +20,7 @@ import { CustomerDoc } from '../types/customer';
 const todayStr = () => new Date().toISOString().split('T')[0];
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-const SECTOR_TYPES = ['Arrival', 'Departure', 'Makkah to Madina', 'Madina to Makkah'];
+const SECTOR_TYPES = ['Arrival', 'Departure', 'Makkah to Madina', 'Madina to Makkah', 'Roundtrip'];
 const VEHICLE_TYPES = ['Car', 'Staria', 'Hiace', 'Coaster', 'Bus', 'GMC'];
 const AGE_TYPES = ['Adult', 'Child', 'Infant'] as const;
 
