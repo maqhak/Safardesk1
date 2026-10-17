@@ -138,9 +138,10 @@ export const VisaInvoicesPage: React.FC = () => {
     });
   }, [invoices, agentFilter, startDate, endDate, search, agentMap, vendorMap]);
 
-  // Total VV value (selling) — voided VVs excluded
+  // Total VV value (selling) — voided VVs excluded; coerce to Number (old docs
+  // may store totals as strings, which would concatenate instead of adding)
   const totalVVSAR = useMemo(() => {
-    return invoices.reduce((sum, inv) => sum + (inv.isVoid ? 0 : inv.sellingTotalSAR), 0);
+    return invoices.reduce((sum, inv) => sum + (inv.isVoid ? 0 : Number(inv.sellingTotalSAR) || 0), 0);
   }, [invoices]);
 
   const handleOpenDetail = (inv: VisaInvoiceDoc) => {
