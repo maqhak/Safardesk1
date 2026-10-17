@@ -25,6 +25,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
   const [query, setQuery] = useState('');
   const [vouchers, setVouchers] = useState<VoucherDoc[]>([]);
   const [vendors, setVendors] = useState<VendorDoc[]>([]);
+  const [visas, setVisas] = useState<any[]>([]);
   const [visaMeta, setVisaMeta] = useState<Map<string, { groupCode: string; shirka: string }>>(new Map());
   const [loading, setLoading] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
@@ -47,6 +48,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
         .then(([vList, vndList, visaList, distList]) => {
           setVouchers(vList);
           setVendors(vndList);
+          setVisas(visaList || []);
           // Fix #25: resolve real group codes + shirka names from visa/distribution data
           const vndMap = new Map(vndList.map(v => [v.id, v.name]));
           const meta = new Map<string, { groupCode: string; shirka: string }>();
@@ -144,6 +146,23 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
     return matches;
   }, [accessibleVouchers, query, vendorMap]);
 
+  // Visa search — passports/names not yet on a voucher (Fix: search showed nothing for these)
+  const visaResults = useMemo(() => {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase().trim();
+    // Skip visas already covered by voucher results (avoid duplicates)
+    const voucheredVisaIds = new Set<string>();
+    accessibleVouchers.forEach((v) => (v.visaIds || []).forEach((id) => voucheredVisaIds.add(id)));
+    return (visas || [])
+      .filter((v: any) => !voucheredVisaIds.has(v.id))
+      .filter((v: any) =>
+        (v.passportNumber || '').toLowerCase().includes(q) ||
+        (v.pilgrimName || '').toLowerCase().includes(q) ||
+        (v.groupCode || '').toLowerCase().includes(q)
+      )
+      .slice(0, 20);
+  }, [visas, query, accessibleVouchers]);
+
   const handleSelectVoucher = (voucherNo: string) => {
     if (query.trim() && !recentSearches.includes(query.trim())) {
       const updated = [query.trim(), ...recentSearches.slice(0, 4)];
@@ -187,7 +206,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
               if (e.key === 'Enter' && query.trim() && searchResults.length > 0) { setExpanded(true); }
             }}
             onChange={(e) => { setQuery(e.target.value); setExpanded(false); }}
-            placeholder="Search vouchers by Voucher No, Passport Number, Group Code, Passenger Name, or Sub-Vendor..."
+            placeholder="Search vouchers & visas by Voucher No, Passport Number, Group Code, Passenger Name, or Sub-Vendor..."
             className="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
           />
           {query && (
@@ -235,11 +254,11 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                 </div>
               )}
             </div>
-          ) : searchResults.length === 0 ? (
+          ) : searchResults.length === 0 && visaResults.length === 0 ? (
             <div className="py-12 text-center space-y-2">
-              <div className="text-xs font-bold text-slate-800">No matching vouchers found</div>
+              <div className="text-xs font-bold text-slate-800">No matching records found</div>
               <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                No vouchers match "{query}". Please check your search parameters or passport number.
+                No vouchers or visas match "{query}". Please check your search parameters or passport number.
               </p>
             </div>
           ) : expanded ? (
@@ -344,6 +363,41 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                 >
                   + {searchResults.length - 8} more — view all on one page
                 </button>
+              )}
+              {visaResults.length > 0 && (
+                <div className="pt-2">
+                  <div className="px-3 py-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Visa Records ({visaResults.length}) — not on a voucher yet
+                    </span>
+                  </div>
+                  {visaResults.slice(0, 5).map((v: any, idx: number) => (
+                    <div
+                      key={v.id || idx}
+                      onClick={() => { navigate('/visas'); onClose(); }}
+                      className="p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition flex items-center justify-between group"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-slate-900 text-sm group-hover:underline">
+                            {v.pilgrimName || 'N/A'}
+                          </span>
+                          <Badge variant="navy" size="sm">{v.groupCode || '—'}</Badge>
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            {v.status || ''}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-600">
+                          <span className="font-mono">Passport: {v.passportNumber || 'N/A'}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-400 group-hover:text-[var(--theme-primary)]">
+                        <span className="text-xs font-bold">Open Visas</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}
