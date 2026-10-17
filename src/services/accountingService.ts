@@ -18,8 +18,8 @@ import { cached, bust, bustPrefix } from './queryCache';
 const ACCOUNTS_COLLECTION = 'ledger_accounts';
 const ENTRIES_COLLECTION = 'ledger_entries';
 
-const LOCAL_STORAGE_ACCOUNTS_KEY = 'safardesk_ledger_accounts_v3';
-const LOCAL_STORAGE_ENTRIES_KEY = 'safardesk_ledger_entries_v3';
+const LOCAL_STORAGE_ACCOUNTS_KEY = 'safardesk_ledger_accounts_v4';
+const LOCAL_STORAGE_ENTRIES_KEY = 'safardesk_ledger_entries_v4';
 
 export const INITIAL_LEDGER_ACCOUNTS: LedgerAccountDoc[] = [
   // --- AGENTS ---

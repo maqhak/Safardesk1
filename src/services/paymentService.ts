@@ -18,9 +18,9 @@ const PAYMENTS_COLLECTION = 'payments';
 const BANKS_COLLECTION = 'banks';
 const INVOICES_COLLECTION = 'accounts_invoices';
 
-const LOCAL_STORAGE_PAYMENTS_KEY = 'safardesk_payments_v2';
-const LOCAL_STORAGE_BANKS_KEY = 'safardesk_banks_v2';
-const LOCAL_STORAGE_INVOICES_KEY = 'safardesk_invoices_v2';
+const LOCAL_STORAGE_PAYMENTS_KEY = 'safardesk_payments_v3';
+const LOCAL_STORAGE_BANKS_KEY = 'safardesk_banks_v3';
+const LOCAL_STORAGE_INVOICES_KEY = 'safardesk_invoices_v3';
 
 const SAMPLE_RECEIPT_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" width="400" height="500" viewBox="0 0 400 500" style="background-color:#ffffff;font-family:sans-serif">
