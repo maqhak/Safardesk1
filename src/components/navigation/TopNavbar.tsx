@@ -91,6 +91,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
     children: [
       { name: 'Visa Directory', path: '/visas', module: 'Visas' },
       { name: 'Nusuk Group Import', path: '/visas/nusuk-import', module: 'Visas' },
+      { name: 'Coded Import', path: '/visas/nusuk-import', module: 'Visas' },
       { name: 'Distribution', path: '/visas/distribution', module: 'Visas' },
       { name: 'VV — Visa Vouchers', path: '/visas/invoices', module: 'Visas' },
     ],
