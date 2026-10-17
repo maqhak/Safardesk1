@@ -18,9 +18,11 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   Calendar,
-  CheckCircle2
+  CheckCircle2,
+  Plus
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
+import { Modal } from '../components/ui/Modal';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -47,6 +49,13 @@ export const BalancesSummaryPage: React.FC = () => {
   const [entries, setEntries] = useState<LedgerEntryDoc[]>([]);
   const [search, setSearch] = useState<string>('');
   const [currency, setCurrency] = useState<'SAR' | 'PKR' | 'USD'>('SAR');
+  const [bankModalOpen, setBankModalOpen] = useState(false);
+  const [savingBank, setSavingBank] = useState(false);
+  const [newBankName, setNewBankName] = useState('');
+  const [newBankTitle, setNewBankTitle] = useState('');
+  const [newBankNumber, setNewBankNumber] = useState('');
+  const [newBankIban, setNewBankIban] = useState('');
+  const [newBankBranch, setNewBankBranch] = useState('');
   const usdSarRate = useCurrentRate('USD-SAR');
   const sarPkrRate = useCurrentRate('SAR-PKR');
   const toDisplay = (sar: number) => currency === 'SAR' ? sar : currency === 'PKR' ? sar * sarPkrRate : sar / (usdSarRate || 3.75);
@@ -135,6 +144,42 @@ export const BalancesSummaryPage: React.FC = () => {
     link.click();
     document.body.removeChild(link);
     success('Balances summary exported to CSV.');
+  };
+
+  const handleSaveBank = async () => {
+    if (!newBankName.trim()) { showError('Bank name is required.'); return; }
+    if (!newBankTitle.trim()) { showError('Account title is required.'); return; }
+    setSavingBank(true);
+    try {
+      const { saveLedgerAccount } = await import('../services/accountingService');
+      const now = new Date().toISOString();
+      const existingCodes = accounts
+        .filter((a) => a.accountType === 'bank' && /^BNK-\d+$/.test(a.accountCode))
+        .map((a) => parseInt(a.accountCode.split('-')[1], 10));
+      const nextNum = String(Math.max(0, ...existingCodes) + 1).padStart(3, '0');
+      const ledgerId = `acc-bnk-${Date.now()}`;
+      await saveLedgerAccount({
+        id: ledgerId,
+        accountCode: `BNK-${nextNum}`,
+        accountType: 'bank',
+        title: `${newBankName.trim()} — ${newBankTitle.trim()}`,
+        linkedId: '',
+        isSystem: false,
+        isActive: true,
+        openingBalanceSAR: 0,
+        openingBalancePKR: 0,
+        notes: `Bank account ${newBankName.trim()}`,
+        createdAt: now,
+        createdBy: 'Operator',
+      } as any);
+      setBankModalOpen(false);
+      success(`Bank "${newBankName.trim()}" added with ledger ${nextNum}.`);
+      await loadData();
+    } catch (err: any) {
+      showError(err.message || 'Failed to save bank.');
+    } finally {
+      setSavingBank(false);
+    }
   };
 
   // Search filter helper
@@ -231,6 +276,17 @@ export const BalancesSummaryPage: React.FC = () => {
               onClick={handleExportSummary}
             >
               Export CSV
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<Plus className="w-4 h-4" />}
+              onClick={() => {
+                setNewBankName(''); setNewBankTitle(''); setNewBankNumber('');
+                setNewBankIban(''); setNewBankBranch(''); setBankModalOpen(true);
+              }}
+            >
+              Add Bank Account
             </Button>
           </div>
         }
@@ -706,6 +762,45 @@ export const BalancesSummaryPage: React.FC = () => {
           </table>
         </div>
       </Card>
+
+      {/* Add Bank Account Modal */}
+      <Modal
+        isOpen={bankModalOpen}
+        onClose={() => setBankModalOpen(false)}
+        title="Add Bank Account"
+        subtitle="Register a bank — its ledger (BNK-xxx) is created automatically."
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setBankModalOpen(false)}>Cancel</Button>
+            <Button variant="primary" size="sm" loading={savingBank} onClick={handleSaveBank}>Save Bank</Button>
+          </>
+        }
+      >
+        <div className="space-y-3 py-2 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Bank Name *</label>
+              <input type="text" value={newBankName} onChange={(e) => setNewBankName(e.target.value)} placeholder="e.g. Al-Rajhi Bank" className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Account Title *</label>
+              <input type="text" value={newBankTitle} onChange={(e) => setNewBankTitle(e.target.value)} placeholder="e.g. 6 Brothers Corporate" className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Account Number</label>
+              <input type="text" value={newBankNumber} onChange={(e) => setNewBankNumber(e.target.value)} placeholder="e.g. 482001928374" className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">IBAN</label>
+              <input type="text" value={newBankIban} onChange={(e) => setNewBankIban(e.target.value)} placeholder="e.g. SA4480000482001928374" className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Branch</label>
+              <input type="text" value={newBankBranch} onChange={(e) => setNewBankBranch(e.target.value)} placeholder="e.g. Main Branch" className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs" />
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
