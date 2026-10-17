@@ -225,27 +225,35 @@ export const VisaDistributionPage: React.FC = () => {
 
   // Update selection for a group
   const handleGroupSelectionChange = (groupCode: string, field: keyof GroupSelectionData, value: any) => {
-    const current = groupSelections.get(groupCode) || { agentId: '', sellingPricePerVisa: 0, buyingPricePerVisa: 0, commissionEnabled: false };
-    const next: GroupSelectionData = { ...current, [field]: value };
-    // Auto-fill selling price: group last > agent last > agent default (manual override always wins)
-    if (field === 'agentId' && value && !current.sellingPricePerVisa) {
-      const pkg = next.packageType || current.packageType || '';
-      const groupLast = lastSellByGroup.get(pkg + '|' + groupCode) || lastSellByGroup.get(groupCode);
-      const agentLast = lastSellByAgent.get(pkg + '|' + value) || lastSellByAgent.get(value);
-      let price = 0;
-      if (groupLast && groupLast > 0) price = groupLast;
-      else if (agentLast && agentLast > 0) price = agentLast;
-      else {
-        const ledgerAcc = agents.find(a => a.id === value) as any;
-        const master = agentMasters.find(m => m.id === (ledgerAcc?.linkedId || ledgerAcc?.linkedAgentId));
+    // Functional setState — avoids stale-closure wipes (e.g. packageType change
+    // being overwritten by a delayed agentId re-trigger reading the old map).
+    setGroupSelections((prev) => {
+      const current = prev.get(groupCode) || { agentId: '', sellingPricePerVisa: 0, buyingPricePerVisa: 0, commissionEnabled: false };
+      const next: GroupSelectionData = { ...current, [field]: value };
+      const lookupPrice = (pkg: string, agentId: string): number => {
+        const groupLast = lastSellByGroup.get(pkg + '|' + groupCode) || lastSellByGroup.get(groupCode);
+        const agentLast = lastSellByAgent.get(pkg + '|' + agentId) || lastSellByAgent.get(agentId);
+        if (groupLast && groupLast > 0) return groupLast;
+        if (agentLast && agentLast > 0) return agentLast;
+        const ledgerAcc = agents.find((a) => a.id === agentId) as any;
+        const master = agentMasters.find((m) => m.id === (ledgerAcc?.linkedId || ledgerAcc?.linkedAgentId));
         const defPrice = (master as any)?.defaultSellingPricePerVisa;
-        if (defPrice && defPrice > 0) price = defPrice;
+        return defPrice && defPrice > 0 ? defPrice : 0;
+      };
+      // Auto-fill selling price: group last > agent last > agent default (manual override always wins)
+      if (field === 'agentId' && value && !current.sellingPricePerVisa) {
+        const price = lookupPrice(next.packageType || current.packageType || '', value);
+        if (price > 0) next.sellingPricePerVisa = price;
       }
-      if (price > 0) next.sellingPricePerVisa = price;
-    }
-    const updated = new Map(groupSelections);
-    updated.set(groupCode, next);
-    setGroupSelections(updated);
+      // Package type changed with agent already set: re-run price lookup for the new package
+      if (field === 'packageType' && current.agentId && !current.sellingPricePerVisa) {
+        const price = lookupPrice(value || '', current.agentId);
+        if (price > 0) next.sellingPricePerVisa = price;
+      }
+      const updated = new Map(prev);
+      updated.set(groupCode, next);
+      return updated;
+    });
   };
 
   // Auto-fill buying price: last-used price wins, then vendor default (manual override always wins)
@@ -709,13 +717,7 @@ export const VisaDistributionPage: React.FC = () => {
                         <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5">Package Type</label>
                         <select
                           value={selection.packageType || ''}
-                          onChange={(e) => {
-                            handleGroupSelectionChange(group.groupCode, 'packageType', e.target.value);
-                            // Re-trigger price lookup for the new package type
-                            if (selection.agentId) {
-                              setTimeout(() => handleGroupSelectionChange(group.groupCode, 'agentId', selection.agentId), 0);
-                            }
-                          }}
+                          onChange={(e) => handleGroupSelectionChange(group.groupCode, 'packageType', e.target.value)}
                           className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none"
                         >
                           <option value="">-- Select --</option>
