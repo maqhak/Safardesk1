@@ -47,7 +47,7 @@ export const VoucherSelectPage: React.FC = () => {
           fetchVendors(),
         ]);
         const used = new Set<string>();
-        vList.forEach((v: any) => (v.visaIds || []).forEach((id: string) => used.add(id)));
+        vList.forEach((v: any) => { if (v.status === 'Cancelled') return; (v.visaIds || []).forEach((id: string) => used.add(id)); });
         setUsedVisaIds(used);
         setAvailableVisas(visaList);
         setAgentsList(aList);

@@ -148,13 +148,20 @@ export const VoucherPrintDocument: React.FC<{
   const arrivalSector = sectors.find(s => /^arrival/i.test(s.type));
   const departureSector = sectors.find(s => /^departure/i.test(s.type));
 
+  // Normalize the two flight save formats:
+  // - Oracle 2-step flow: arrivalFlight = outbound (home->KSA), departureFlight = inbound (KSA->home)
+  // - VouchersPage builder: departureFlight = outbound, returnFlight = inbound (no arrivalFlight)
+  const outF: any = fd?.arrivalFlight || fd?.departureFlight;
+  const inF: any = fd?.arrivalFlight ? fd?.departureFlight : (fd?.returnFlight || fd?.departureFlight);
+  const flightOn = !!fd?.allowFlightInfo;
+
   // Flight times: both DEP + ARR. New vouchers store etd = departure,
   // eta = arrival. Old vouchers stored only etd (the side's time).
-  const arrTimes = fd?.allowFlightInfo && fd.arrivalFlight
-    ? { dep: fd.arrivalFlight.eta ? (fd.arrivalFlight.etd || '') : '', arr: fd.arrivalFlight.eta || fd.arrivalFlight.etd || '' }
+  const arrTimes = flightOn && outF
+    ? { dep: outF.eta ? (outF.etd || '') : '', arr: outF.eta || outF.etd || '' }
     : { dep: '', arr: arrivalSector?.time || '' };
-  const depTimes = fd?.allowFlightInfo && fd.departureFlight
-    ? { dep: fd.departureFlight.etd || '', arr: fd.departureFlight.eta || fd.returnFlight?.etd || '' }
+  const depTimes = flightOn && inF
+    ? { dep: inF.etd || '', arr: inF.eta || (fd?.arrivalFlight ? fd?.returnFlight?.etd : '') || '' }
     : { dep: '', arr: departureSector?.time || '' };
 
   const fmtDate = (iso?: string) => {
@@ -369,8 +376,8 @@ export const VoucherPrintDocument: React.FC<{
               <div className="fsv-c"><div className="fsv-k">GROUP</div><div className="fsv-v" style={{ fontSize: '2.8mm' }}>{groupCode || '—'}</div></div>
             </div>
             <div className="fsv-grp">
-              <div className="fsv-c"><div className="fsv-k">ARRIVAL DATE</div><div className="fsv-v" style={{ fontSize: '2.8mm' }}>{fmtDate(fd?.allowFlightInfo && fd.arrivalFlight?.date ? fd.arrivalFlight.date : arrivalSector?.date)}</div></div>
-              <div className="fsv-c"><div className="fsv-k">DEPARTURE DATE</div><div className="fsv-v" style={{ fontSize: '2.8mm' }}>{fmtDate(fd?.allowFlightInfo && fd.departureFlight?.date ? fd.departureFlight.date : departureSector?.date)}</div></div>
+              <div className="fsv-c"><div className="fsv-k">ARRIVAL DATE</div><div className="fsv-v" style={{ fontSize: '2.8mm' }}>{fmtDate(flightOn && outF ? outF.date : arrivalSector?.date)}</div></div>
+              <div className="fsv-c"><div className="fsv-k">DEPARTURE DATE</div><div className="fsv-v" style={{ fontSize: '2.8mm' }}>{fmtDate(flightOn && inF ? inF.date : departureSector?.date)}</div></div>
               <div className="fsv-c"><div className="fsv-k">NIGHTS</div><div className="fsv-v">{totalNights}</div></div>
             </div>
           </div>
@@ -382,9 +389,9 @@ export const VoucherPrintDocument: React.FC<{
                 <thead><tr><th>SECTOR</th><th>FLIGHT</th><th>DATE</th><th>DEP. TIME</th><th>ARR. TIME</th></tr></thead>
                 <tbody>
                   <tr>
-                    <td>{fd?.allowFlightInfo && fd.arrivalFlight ? (fd.arrivalFlight.sector || `${fd.arrivalFlight.fromAirport?.iata || ''}${fd.arrivalFlight.toAirport?.iata ? ` - ${fd.arrivalFlight.toAirport.iata}` : ''}`) : `${arrivalSector?.fromAirport?.iata || ''}${arrivalSector?.toAirport?.iata ? ` - ${arrivalSector.toAirport.iata}` : ''}`}</td>
-                    <td>{fd?.allowFlightInfo && fd.arrivalFlight ? `${fd.arrivalFlight.airline?.iataCode || ''} ${fd.arrivalFlight.flightNo || ''}`.trim() : `${arrivalSector?.airline?.iataCode || ''} ${arrivalSector?.flightNo || ''}`.trim()}{fd?.allowFlightInfo && fd.arrivalFlight?.pnr ? <><br /><span style={{ fontSize: '2.4mm', color: '#444' }}>PNR: {fd.arrivalFlight.pnr}</span></> : null}</td>
-                    <td>{fmtDate(fd?.allowFlightInfo && fd.arrivalFlight ? fd.arrivalFlight.date : arrivalSector?.date)}</td>
+                    <td>{flightOn && outF ? (outF.sector || `${outF.fromAirport?.iata || ''}${outF.toAirport?.iata ? ` - ${outF.toAirport.iata}` : ''}`) : `${arrivalSector?.fromAirport?.iata || ''}${arrivalSector?.toAirport?.iata ? ` - ${arrivalSector.toAirport.iata}` : ''}`}</td>
+                    <td>{flightOn && outF ? `${outF.airline?.iataCode || ''} ${outF.flightNo || ''}`.trim() : `${arrivalSector?.airline?.iataCode || ''} ${arrivalSector?.flightNo || ''}`.trim()}{flightOn && outF?.pnr ? <><br /><span style={{ fontSize: '2.4mm', color: '#444' }}>PNR: {outF.pnr}</span></> : null}</td>
+                    <td>{fmtDate(flightOn && outF ? outF.date : arrivalSector?.date)}</td>
                     <td>{arrTimes.dep || '—'}</td>
                     <td>{arrTimes.arr || '—'}</td>
                   </tr>
@@ -397,9 +404,9 @@ export const VoucherPrintDocument: React.FC<{
                 <thead><tr><th>SECTOR</th><th>FLIGHT</th><th>DATE</th><th>DEP. TIME</th><th>ARR. TIME</th></tr></thead>
                 <tbody>
                   <tr>
-                    <td>{fd?.allowFlightInfo && fd.departureFlight ? (fd.departureFlight.sector || `${fd.departureFlight.fromAirport?.iata || ''}${fd.departureFlight.toAirport?.iata ? ` - ${fd.departureFlight.toAirport.iata}` : ''}`) : `${departureSector?.fromAirport?.iata || ''}${departureSector?.toAirport?.iata ? ` - ${departureSector.toAirport.iata}` : ''}`}</td>
-                    <td>{fd?.allowFlightInfo && fd.departureFlight ? `${fd.departureFlight.airline?.iataCode || ''} ${fd.departureFlight.flightNo || ''}`.trim() : `${departureSector?.airline?.iataCode || ''} ${departureSector?.flightNo || ''}`.trim()}{fd?.allowFlightInfo && fd.departureFlight?.pnr ? <><br /><span style={{ fontSize: '2.4mm', color: '#444' }}>PNR: {fd.departureFlight.pnr}</span></> : null}</td>
-                    <td>{fmtDate(fd?.allowFlightInfo && fd.departureFlight ? fd.departureFlight.date : departureSector?.date)}</td>
+                    <td>{flightOn && inF ? (inF.sector || `${inF.fromAirport?.iata || ''}${inF.toAirport?.iata ? ` - ${inF.toAirport.iata}` : ''}`) : `${departureSector?.fromAirport?.iata || ''}${departureSector?.toAirport?.iata ? ` - ${departureSector.toAirport.iata}` : ''}`}</td>
+                    <td>{flightOn && inF ? `${inF.airline?.iataCode || ''} ${inF.flightNo || ''}`.trim() : `${departureSector?.airline?.iataCode || ''} ${departureSector?.flightNo || ''}`.trim()}{flightOn && inF?.pnr ? <><br /><span style={{ fontSize: '2.4mm', color: '#444' }}>PNR: {inF.pnr}</span></> : null}</td>
+                    <td>{fmtDate(flightOn && inF ? inF.date : departureSector?.date)}</td>
                     <td>{depTimes.dep || '—'}</td>
                     <td>{depTimes.arr || '—'}</td>
                   </tr>

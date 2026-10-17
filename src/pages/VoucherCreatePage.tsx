@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import {
   Search,
   Plane,
@@ -23,7 +23,7 @@ import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { SectorItem, HotelStayItem, VoucherEditPayload, FlightBlockInfo } from '../types/voucher';
-import { createVoucher, fetchVouchers } from '../services/voucherService';
+import { createVoucher, fetchVouchers, applyVoucherEditDirect, requestVoucherEdit } from '../services/voucherService';
 import { DEFAULT_PACKAGE_INCLUDES, PACKAGE_INCLUDES_OPTIONS } from '../types/voucher';
 import { fetchVisas } from '../services/visaService';
 import { fetchHotels, fetchVendors } from '../services/masterService';
@@ -205,6 +205,8 @@ const FlightLegRow: React.FC<{
 export const VoucherCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { id: editId } = useParams<{ id: string }>();
+  const isEditMode = !!editId;
   const { userProfile, role } = useAuth();
   const { success, error: showError } = useToast();
   const { profile: company } = useCompany();
@@ -230,6 +232,10 @@ export const VoucherCreatePage: React.FC = () => {
 
   // ---- Row 1: pax qty (readonly) | copy from ----
   const [copyFromId, setCopyFromId] = useState('');
+
+  // ---- Edit mode: voucher being edited + staff edit reason ----
+  const [editingVoucher, setEditingVoucher] = useState<any | null>(null);
+  const [editReason, setEditReason] = useState('');
 
   // ---- Row 2: voucher# (auto) | total nights (readonly) | reference | package | SR rate ----
   const [voucherDate, setVoucherDate] = useState(todayStr());
@@ -304,6 +310,21 @@ export const VoucherCreatePage: React.FC = () => {
         setAgentsList(aList);
         setVendorsMaster(vndList || []);
         setHotelsMaster(hList || []);
+        // Edit mode: find the voucher and prefill the whole form.
+        if (isEditMode && editId) {
+          const target: any = vList.find((x: any) => x.id === editId);
+          if (!target) {
+            showError('Voucher not found.');
+            navigate('/vouchers', { replace: true });
+            return;
+          }
+          if (target.status === 'Cancelled') {
+            showError('Cancelled vouchers cannot be edited.');
+            navigate('/vouchers', { replace: true });
+            return;
+          }
+          prefillFromVoucher(target);
+        }
         try {
           setSrRate(String(getCurrentRate('SAR-PKR') || ''));
         } catch { /* keep empty */ }
@@ -330,14 +351,14 @@ export const VoucherCreatePage: React.FC = () => {
   }, [isAgent, userProfile]);
 
   // Gate: voucher form is only reachable via /vouchers/select (Step 1).
-  // Direct opens bounce back to the selection page.
+  // Direct opens bounce back to the selection page. Edit mode has its own :id route.
   useEffect(() => {
-    if (!cameFromSelect) {
+    if (!cameFromSelect && !isEditMode) {
       const t = setTimeout(() => navigate('/vouchers/select', { replace: true }), 600);
       return () => clearTimeout(t);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cameFromSelect]);
+  }, [cameFromSelect, isEditMode]);
 
   /** Robust agent display name — never show a raw ID like Agent_0170000. */
   const agentDisplayName = (a: any, fallback = ''): string =>
@@ -352,9 +373,13 @@ export const VoucherCreatePage: React.FC = () => {
   // ---- Remaining visas: vouchered ones auto-remove ----
   const usedVisaIds = useMemo(() => {
     const set = new Set<string>();
-    vouchers.forEach((v: any) => (v.visaIds || []).forEach((id: string) => set.add(id)));
+    vouchers.forEach((v: any) => {
+      if (v.status === 'Cancelled') return;
+      if (isEditMode && v.id === editId) return; // own pilgrims stay selectable
+      (v.visaIds || []).forEach((id: string) => set.add(id));
+    });
     return set;
-  }, [vouchers]);
+  }, [vouchers, isEditMode, editId]);
   const remainingVisas = useMemo(
     () => availableVisas.filter((v) => !usedVisaIds.has(v.id)),
     [availableVisas, usedVisaIds]
@@ -591,6 +616,104 @@ export const VoucherCreatePage: React.FC = () => {
     success(`Copied fields from ${v.voucherNo || 'voucher'}.`);
   };
 
+  /** Edit mode: load a voucher's saved fields into the form.
+   * Handles BOTH flight save formats:
+   * - Oracle 2-step: arrivalFlight = outbound, departureFlight = inbound
+   * - Builder: departureFlight = outbound, returnFlight = inbound (no arrivalFlight)
+   */
+  const prefillFromVoucher = (v: any) => {
+    setEditingVoucher(v);
+    setSelectedVisaIds([...(v.visaIds || [])]);
+    setAgentId(v.agentId || '');
+    setShirkaVendorId(v.shirkaVendorId || '');
+    setShirkaId(v.shirkaId || '');
+    setLeaderName(v.leaderName || '');
+    setLeaderContact(v.leaderContact || '');
+    setPackageText(v.packageType || '');
+    setTransportBy(v.transportCompany || '');
+    setTranType(v.transportType || v.sectors?.[0]?.vehicleType || '');
+    setTransportChargeSAR(v.sectors?.[0]?.transportRateSAR ? String(v.sectors[0].transportRateSAR) : '');
+    setTrip(v.trip || '');
+    setMakZiarat(v.makkahShirka || '');
+    setMakZiaratRate(v.makkahZiarat?.rateSAR ? String(v.makkahZiarat.rateSAR) : '');
+    setMadZiaratRate(v.madinaZiarat?.rateSAR ? String(v.madinaZiarat.rateSAR) : '');
+    setVoucherReference(v.reference || '');
+    setVoucherDate(v.voucherDate || todayStr());
+    setMakkahHcn(v.makkahHcn || '');
+    setMadinaHcn(v.madinaHcn || '');
+    setTransportHcn(v.transportHcn || '');
+    setVoucherRemarks(v.remarks || '');
+    setMakkahStaffName(v.makkahStaffName || '');
+    setMakkahStaffPhone(v.makkahStaffPhone || '');
+    setMadinaStaffName(v.madinaStaffName || '');
+    setMadinaStaffPhone(v.madinaStaffPhone || '');
+    setPackageIncludes(v.packageIncludes && v.packageIncludes.length > 0 ? [...v.packageIncludes] : [...DEFAULT_PACKAGE_INCLUDES]);
+    // Pilgrim flags (wob / transport paid / going)
+    const fl: Record<string, { wob: boolean; trnsPaid: boolean; going: boolean }> = {};
+    (v.passengers || []).forEach((p: any) => {
+      if (p.visaId) fl[p.visaId] = { wob: !!p.withoutBed, trnsPaid: !!p.trnsPaid, going: p.going !== false };
+    });
+    setFlags(fl);
+    // Flights — normalize both formats to (depLeg = outbound, retLeg = inbound)
+    const fd = v.flightDetails || {};
+    const toLeg = (src: any, isOutbound: boolean): FlightLeg => {
+      const leg = blankLeg();
+      if (!src) return leg;
+      if (src.sector && typeof src.sector === 'string') {
+        const parts = src.sector.split('-');
+        leg.from = (parts[0] || '').trim();
+        leg.to = (parts[1] || '').trim();
+      } else {
+        leg.from = src.fromAirport?.iata || '';
+        leg.to = src.toAirport?.iata || '';
+      }
+      const [dh, dm] = (src.etd || '00:00').split(':');
+      const [ah, am] = (src.eta || src.etd || '00:00').split(':');
+      if (isOutbound) {
+        leg.arrDate = src.date || leg.arrDate;
+        leg.arrHrs = ah || '00'; leg.arrMin = am || '00';
+        leg.depHrs = dh || '00'; leg.depMin = dm || '00';
+      } else {
+        leg.depDate = src.date || leg.depDate;
+        leg.depHrs = dh || '00'; leg.depMin = dm || '00';
+        leg.arrHrs = ah || '00'; leg.arrMin = am || '00';
+      }
+      leg.airline = src.airline || null;
+      leg.flightNo = src.flightNo || '';
+      leg.pnr = src.pnr || '';
+      return leg;
+    };
+    if (fd.arrivalFlight) {
+      // Oracle format
+      setDepLeg(toLeg(fd.arrivalFlight, true));
+      setRetLeg(toLeg(fd.departureFlight || fd.returnFlight, false));
+    } else {
+      // Builder format
+      setDepLeg(toLeg(fd.departureFlight, true));
+      setRetLeg(toLeg(fd.returnFlight, false));
+    }
+    // Hotels
+    if (Array.isArray(v.hotelStays) && v.hotelStays.length > 0) {
+      setHotelRows(
+        v.hotelStays.map((h: any) => {
+          const nights = h.nights || 0;
+          const checkIn = h.checkInDate || todayStr();
+          return {
+            id: uid(),
+            sector: h.city === 'Madina' ? 'MED' : h.city === 'Makkah' ? 'MAK' : '',
+            remarks: h.description || '',
+            hotelName: h.hotelName || '',
+            roomType: h.bedType || 'Double',
+            checkIn,
+            nights,
+            checkOut: h.checkOutDate || addDays(checkIn, nights),
+            rateSAR: h.ratePerNightSAR || 0,
+          } as HotelRow;
+        })
+      );
+    }
+  };
+
   /** Validate state and construct the voucher payload. */
   const buildVoucherPayload = (): VoucherEditPayload | null => {
     if (selectedVisaIds.length === 0) {
@@ -740,6 +863,33 @@ export const VoucherCreatePage: React.FC = () => {
     if (!userProfile || !canCreate) return;
     const payload = buildVoucherPayload();
     if (!payload) return;
+    // Preserve commission on edit — this form has no commission editor.
+    if (isEditMode && (editingVoucher as any)?.commission?.enabled) {
+      (payload as any).commission = (editingVoucher as any).commission;
+    }
+    // ---- EDIT MODE: full-page voucher edit ----
+    if (isEditMode && editId) {
+      if (role !== 'owner' && !editReason.trim()) {
+        showError('Please write a reason for this edit request.');
+        return;
+      }
+      setSaving(true);
+      try {
+        if (role === 'owner') {
+          await applyVoucherEditDirect(userProfile, editId, payload);
+          success(`Voucher ${editingVoucher?.voucherNo || ''} updated — old charges reversed, new charges posted to ledger.`);
+        } else {
+          await requestVoucherEdit(userProfile, editingVoucher, payload, editReason);
+          success(`Edit request for ${editingVoucher?.voucherNo || ''} sent to owner for approval.`);
+        }
+        navigate('/vouchers');
+      } catch (err: any) {
+        showError(err?.message || 'Failed to save voucher edit.');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     setSaving(true);
     try {
       await createVoucher(userProfile, {
@@ -844,8 +994,8 @@ export const VoucherCreatePage: React.FC = () => {
   return (
     <div className="pb-32">
       <PageHeader
-        title="Hotel Voucher"
-        subtitle="Fill the form exactly like the register — save when done."
+        title={isEditMode ? `Edit Voucher ${editingVoucher?.voucherNo || ''}` : 'Hotel Voucher'}
+        subtitle={isEditMode ? (role === 'owner' ? 'Changes apply directly with ledger reversal + reposting.' : 'Your changes will be sent to the owner for approval.') : 'Fill the form exactly like the register — save when done.'}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={handleSearchFocus}>
@@ -858,7 +1008,7 @@ export const VoucherCreatePage: React.FC = () => {
               List
             </Button>
             <Button size="sm" onClick={handleSave} loading={saving} disabled={loading || saving}>
-              Save
+              {isEditMode ? 'Save Changes' : 'Save'}
             </Button>
             <Button variant="outline" size="sm" onClick={() => navigate('/vouchers')}>
               Cancel
@@ -881,6 +1031,7 @@ export const VoucherCreatePage: React.FC = () => {
               <span className="flex-1 min-w-[220px] bg-white text-slate-900 font-semibold rounded-xl px-4 py-2.5 text-sm">
                 {agentDisplayName(agentsList.find((x: any) => x.id === agentId), agentId) || '—'}
               </span>
+              {!isEditMode && (
               <button
                 type="button"
                 onClick={() => navigate('/vouchers/select')}
@@ -888,6 +1039,7 @@ export const VoucherCreatePage: React.FC = () => {
               >
                 ← Change selection
               </button>
+              )}
             </div>
 
             {/* ===== ROW 1: Pax QTY | Copy From | Date ===== */}
@@ -897,6 +1049,7 @@ export const VoucherCreatePage: React.FC = () => {
                   <label className={labelCls}>Pax QTY</label>
                   <input type="text" value={String(selectedVisaIds.length)} readOnly className={readOnlyCls} />
                 </div>
+                {!isEditMode && (
                 <div>
                   <label className={labelCls}>Copy From</label>
                   <div className="relative">
@@ -911,6 +1064,7 @@ export const VoucherCreatePage: React.FC = () => {
                     </select>
                   </div>
                 </div>
+                )}
                 <div>
                   <label className={labelCls}>Date</label>
                   <input type="date" value={voucherDate} onChange={(e) => setVoucherDate(e.target.value)} className={`${inputCls} font-mono`} />
@@ -1448,6 +1602,23 @@ export const VoucherCreatePage: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* Edit mode: staff must give a reason (sent to owner for approval) */}
+      {isEditMode && role !== 'owner' && (
+        <div className="px-4 sm:px-6 max-w-7xl mx-auto pb-4">
+          <Card className="p-4">
+            <label className={labelCls}>Reason for edit (required)</label>
+            <textarea
+              value={editReason}
+              onChange={(e) => setEditReason(e.target.value)}
+              rows={2}
+              placeholder="Why are you changing this voucher?"
+              className={inputCls}
+            />
+            <p className="text-[11px] text-slate-500 mt-1">Your changes will be sent to the owner for approval.</p>
+          </Card>
+        </div>
+      )}
 
       {/* Sticky bottom action bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] z-40">

@@ -730,6 +730,7 @@ async function applyEditPayload(
   voucher: VoucherDoc,
   payload: VoucherEditPayload
 ): Promise<VoucherDoc> {
+  bust('vouchers:all'); bustPrefix('vouchers:agent:'); // edits must show immediately
   // 1) Reverse old charge postings (history kept in ledger)
   await reverseVoucherCharges(actor, voucher);
 

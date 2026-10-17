@@ -338,6 +338,7 @@ export const VouchersPage: React.FC = () => {
   const usedVisaIds = useMemo(() => {
     const set = new Set<string>();
     vouchers.forEach((v) => {
+      if (v.status === 'Cancelled') return; // cancelled voucher releases its pilgrims
       if (v.visaIds) {
         v.visaIds.forEach((id) => set.add(id));
       }
@@ -451,6 +452,8 @@ export const VouchersPage: React.FC = () => {
   };
 
   /** Open the builder in EDIT mode, pre-filled from the voucher. */
+  // SUPERSEDED 17-Oct-2026: voucher edit is now the full page /vouchers/edit/:id
+  // (VoucherCreatePage edit mode). This modal builder is no longer opened.
   const openEditVoucher = (v: VoucherDoc) => {
     if (v.status === 'Cancelled') {
       showError('Cancelled vouchers cannot be edited.');
@@ -999,7 +1002,7 @@ export const VouchersPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => openEditVoucher(row)}
+              onClick={() => navigate(`/vouchers/edit/${row.id}`)}
             >
               Edit
             </Button>
@@ -2398,7 +2401,7 @@ export const VouchersPage: React.FC = () => {
                     variant="outline"
                     onClick={() => {
                       setDetailModalOpen(false);
-                      openEditVoucher(selectedVoucher);
+                      navigate(`/vouchers/edit/${selectedVoucher.id}`);
                     }}
                   >
                     Edit Voucher

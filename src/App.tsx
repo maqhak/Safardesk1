@@ -151,6 +151,14 @@ export default function App() {
                   }
                 />
                 <Route
+                  path="/vouchers/edit/:id"
+                  element={
+                    <ProtectedRoute requiredModule="Vouchers">
+                      <VoucherCreatePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/vouchers/accommodation/new"
                   element={
                     <ProtectedRoute requiredModule="Vouchers">
