@@ -265,6 +265,195 @@ export async function getAgentBalance(agentId: string): Promise<AgentBalanceInfo
  * 4. Auto-creates `ledgerAccounts` doc with opening balance 0
  * 5. Writes to auditLog
  */
+/**
+ * Create an Agent WITHOUT login credentials (login is set up later via setupAgentLogin).
+ * Used by the simplified Add Agent form (only Party name + Owner name mandatory)
+ * and by dual-role vendor creation (linked agent shares the vendor's ledger account).
+ */
+export async function createAgentBasic(
+  actor: UserProfile,
+  data: {
+    companyName: string;
+    contactPerson: string;
+    mobile?: string;
+    city?: string;
+    email?: string;
+    dueLimitSAR?: number;
+    exchangeRatePKRRate?: number;
+    defaultSellingPricePerVisa?: number;
+    notes?: string;
+    alsoVendor?: boolean;
+    linkedVendorId?: string;
+    skipLedger?: boolean; // dual-role: postings go to the shared vendor account
+  }
+): Promise<{ agent: AgentDoc }> {
+  if (actor.role !== 'owner') {
+    throw new Error('Unauthorized: Only the agency Owner can register new B2B agents.');
+  }
+  if (!data.companyName?.trim() || !data.contactPerson?.trim()) {
+    throw new Error('Party name and Owner name are required.');
+  }
+
+  const agentCode = await generateNextAgentCode();
+  const agentId = `agent-${Date.now()}`;
+
+  const agentDocData: AgentDoc = {
+    id: agentId,
+    agentCode,
+    companyName: data.companyName.trim(),
+    contactPerson: data.contactPerson.trim(),
+    mobile: data.mobile?.trim() || '',
+    city: data.city?.trim() || '',
+    email: (data.email?.trim() || '').toLowerCase(),
+    dueLimitSAR: Number(data.dueLimitSAR) || 0,
+    exchangeRatePKRRate: Number(data.exchangeRatePKRRate) || getCurrentRate('SAR-PKR'),
+    defaultSellingPricePerVisa: data.defaultSellingPricePerVisa && data.defaultSellingPricePerVisa > 0 ? data.defaultSellingPricePerVisa : undefined,
+    notes: data.notes?.trim() || '',
+    isActive: true,
+    alsoVendor: data.alsoVendor || undefined,
+    linkedVendorId: data.linkedVendorId || undefined,
+    createdAt: new Date().toISOString(),
+    createdBy: actor.uid,
+  };
+
+  const writes: Promise<void>[] = [];
+  if (!isConfigPlaceholder) {
+    writes.push(setDoc(doc(db, AGENTS_COLLECTION, agentId), stripUndefinedDeep(agentDocData)) as Promise<void>);
+  }
+  if (!data.skipLedger) {
+    const ledgerDocData = {
+      id: `ledger-${agentId}`,
+      accountCode: agentCode,
+      accountType: 'agent' as const,
+      title: data.companyName.trim(),
+      accountName: data.companyName.trim(),
+      linkedId: agentId,
+      linkedAgentId: agentId,
+      agentCode,
+      isSystem: false,
+      isActive: true,
+      openingBalance: 0,
+      openingBalanceSAR: 0,
+      openingBalancePKR: 0,
+      currentBalanceSAR: 0,
+      currency: 'SAR',
+      createdAt: new Date().toISOString(),
+      createdBy: actor.uid,
+    };
+    if (!isConfigPlaceholder) {
+      writes.push(setDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerDocData.id), stripUndefinedDeep(ledgerDocData)) as Promise<void>);
+    }
+    try { localStorage.setItem(LOCAL_STORAGE_LEDGERS_KEY, JSON.stringify([ledgerDocData, ...(await fetchLedgerAccounts())])); } catch { /* ignore */ }
+  }
+  try {
+    await Promise.all(writes);
+  } catch (err) {
+    throw new Error(`Agent created but sync failed: ${err instanceof Error ? err.message : String(err)}. Please retry.`);
+  }
+  try {
+    const existingAgents = await fetchAgents().catch(() => []);
+    localStorage.setItem(LOCAL_STORAGE_AGENTS_KEY, JSON.stringify([agentDocData, ...existingAgents.filter((a) => a.id !== agentId)]));
+  } catch { /* ignore */ }
+
+  await logAuditEvent({
+    action: 'CREATE_AGENT',
+    userId: actor.uid,
+    userName: actor.name || 'Owner',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: agentId,
+    targetUserName: data.companyName.trim(),
+    details: { agentCode, alsoVendor: !!data.alsoVendor },
+  });
+
+  return { agent: agentDocData };
+}
+
+/**
+ * Set up login credentials for an existing agent (done later, not during account creation).
+ * Creates the Firebase Auth user + users doc and links it to the agent.
+ */
+export async function setupAgentLogin(
+  actor: UserProfile,
+  agentId: string,
+  email: string,
+  password: string
+): Promise<{ userUid: string }> {
+  if (actor.role !== 'owner') {
+    throw new Error('Unauthorized: Only the agency Owner can set up agent logins.');
+  }
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail || !password || password.length < 6) {
+    throw new Error('Valid email and a password of at least 6 characters are required.');
+  }
+  const agents = await fetchAgents();
+  const agent = agents.find((a) => a.id === agentId);
+  if (!agent) throw new Error('Agent not found.');
+  if (agent.userId) throw new Error('This agent already has login credentials. Use Reset Password instead.');
+
+  let userUid = `user-${agentId}`;
+  if (!isConfigPlaceholder) {
+    let secondaryApp;
+    try {
+      const appName = `secondary-auth-agent-${Date.now()}`;
+      secondaryApp = initializeApp(firebaseConfig, appName);
+      const secondaryAuth = getAuth(secondaryApp);
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, normalizedEmail, password);
+      userUid = cred.user.uid;
+      await secondarySignOut(secondaryAuth);
+    } catch (authErr: any) {
+      if (authErr?.code === 'auth/email-already-in-use') {
+        throw new Error('This email address is already in use by another user account.');
+      }
+      throw new Error(`Login setup failed: ${authErr?.message || authErr}`);
+    } finally {
+      if (secondaryApp) { try { await deleteApp(secondaryApp); } catch { /* ignore */ } }
+    }
+  }
+
+  const userDocData: UserDoc = {
+    uid: userUid,
+    name: agent.contactPerson,
+    email: normalizedEmail,
+    role: 'agent',
+    agentId: agentId,
+    agencyName: agent.companyName,
+    isActive: true,
+    phone: agent.mobile || '',
+    createdAt: new Date().toISOString(),
+    createdBy: actor.uid,
+    lastLoginAt: '',
+  };
+  const updatedAgent: AgentDoc = { ...agent, userId: userUid, email: normalizedEmail };
+  try {
+    if (!isConfigPlaceholder) {
+      await Promise.all([
+        setDoc(doc(db, USERS_COLLECTION, userUid), stripUndefinedDeep(userDocData)),
+        updateDoc(doc(db, AGENTS_COLLECTION, agentId), stripUndefinedDeep({ userId: userUid, email: normalizedEmail })),
+      ]);
+    }
+  } catch (err) {
+    throw new Error(`Login user created but linking failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  try {
+    const existingUsers = await fetchAllUsers().catch(() => []);
+    localStorage.setItem('safardesk_users_directory', JSON.stringify([userDocData, ...existingUsers]));
+  } catch { /* ignore */ }
+
+  await logAuditEvent({
+    action: 'AGENT_LOGIN_SETUP',
+    userId: actor.uid,
+    userName: actor.name || 'Owner',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: userUid,
+    targetUserName: agent.companyName,
+    details: { agentCode: agent.agentCode },
+  });
+
+  return { userUid };
+}
+
 export async function createAgentWithCredentials(
   actor: UserProfile,
   data: {

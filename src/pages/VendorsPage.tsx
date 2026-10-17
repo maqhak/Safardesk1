@@ -34,7 +34,7 @@ import {
   generateNextVendorCode,
   backfillMissingVendorLedgerAccounts
 } from '../services/masterService';
-import { fetchLedgerAccounts } from '../services/agentService';
+import { fetchLedgerAccounts, createAgentBasic } from '../services/agentService';
 import { formatMoney } from '../utils/formatters';
 
 export const VendorsPage: React.FC = () => {
@@ -62,6 +62,7 @@ export const VendorsPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [notes, setNotes] = useState('');
   const [defBuyPrice, setDefBuyPrice] = useState('');
+  const [alsoAgent, setAlsoAgent] = useState(false);
 
   // Edit Vendor Modal
   const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
@@ -133,14 +134,14 @@ const loadData = async () => {
     e.preventDefault();
     if (!userProfile) return;
 
-    if (!name.trim() || !contactPerson.trim() || !mobile.trim()) {
-      showError('Please complete required fields.');
+    if (!name.trim() || !contactPerson.trim()) {
+      showError('Party name and Owner name are required.');
       return;
     }
 
     setCreating(true);
     try {
-      await createVendor(userProfile, {
+      const vendor = await createVendor(userProfile, {
         name,
         country,
         city,
@@ -151,7 +152,25 @@ const loadData = async () => {
         defaultBuyingPricePerVisa: parseFloat(defBuyPrice) || undefined,
       });
 
-      success(`Vendor / Sub-Vendor "${name}" created with auto ledger account.`);
+      // Dual-role: also create the linked Agent record (shares the vendor's ledger account)
+      let agentCode = '';
+      if (alsoAgent) {
+        const { agent } = await createAgentBasic(userProfile, {
+          companyName: name,
+          contactPerson,
+          mobile,
+          city,
+          email,
+          notes: `Dual-role linked to vendor ${vendor.vendorCode}`,
+          alsoVendor: true,
+          linkedVendorId: vendor.id,
+          skipLedger: true, // one party, one account — vendor's account
+        });
+        agentCode = agent.agentCode;
+        await updateVendor(userProfile, vendor.id, { alsoAgent: true, linkedAgentId: agent.id });
+      }
+
+      success(`Vendor / Sub-Vendor "${name}" created with auto ledger account.${alsoAgent ? ` Linked agent ${agentCode} created (shared account).` : ''}`);
       setAddModalOpen(false);
       setName('');
       setContactPerson('');
@@ -159,6 +178,7 @@ const loadData = async () => {
       setEmail('');
       setNotes('');
       setDefBuyPrice('');
+      setAlsoAgent(false);
       await loadData();
     } catch (err: any) {
       showError(err?.message || 'Failed to create vendor.');
@@ -417,7 +437,6 @@ const loadData = async () => {
               value={mobile}
               onChange={(e) => setMobile(e.target.value)}
               placeholder="e.g. +966 55 000 0000"
-              required
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -426,7 +445,6 @@ const loadData = async () => {
               value={country}
               onChange={(e) => setCountry(e.target.value)}
               defaultValue="Saudi Arabia"
-              required
             />
             <Input
               label="Email Address"
@@ -457,6 +475,18 @@ const loadData = async () => {
               className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20"
             />
           </div>
+          <label className="flex items-start gap-2 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={alsoAgent}
+              onChange={(e) => setAlsoAgent(e.target.checked)}
+              className="w-4 h-4 mt-0.5 accent-[#0e2c4c]"
+            />
+            <span>
+              <span className="font-bold text-slate-800">Ye party hum se bhi khareedti hai (Agent bhi hai)</span>
+              <span className="block text-slate-500">Ek hi khata rahega — dena/lena auto net hoga.</span>
+            </span>
+          </label>
         </form>
       </Modal>
 

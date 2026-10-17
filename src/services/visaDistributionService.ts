@@ -121,6 +121,21 @@ export async function createVisaDistributionBatch(params: {
   const distribId = `distrib-${Date.now()}`;
   const distribNo = `DIST-${Math.floor(1000 + Math.random() * 9000)}`;
 
+  // Dual-role routing: if an agent is linked to a vendor (one party, one account),
+  // its Dr postings go to the shared vendor ledger account. Non-dual agents keep
+  // the original accountId behavior untouched.
+  const dualRoleVendorAccount = new Map<string, string>();
+  try {
+    const { fetchAgents } = await import('./agentService');
+    const allAgents = await fetchAgents();
+    for (const [agentId] of agentBatches.entries()) {
+      const ag: any = allAgents.find((a: any) => a.id === agentId);
+      if (ag?.linkedVendorId) {
+        dualRoleVendorAccount.set(agentId, `ledger-vnd-${ag.linkedVendorId}`);
+      }
+    }
+  } catch { /* non-dual fallback below */ }
+
   // Resolve Shirka display name for stamping + vendor name/code for its ledger account
   let shirkaName = '';
   let vendorName = '';
@@ -323,7 +338,7 @@ export async function createVisaDistributionBatch(params: {
           id: `le-${seq}`,
           entryNo: `LE-${seq}`,
           date: params.date,
-          accountId: agentId,
+          accountId: dualRoleVendorAccount.get(agentId) || agentId,
           entryType: 'Invoice',
           transNo: invoiceNo,
           particulars: `Visa — ${v?.pilgrimName || 'Pilgrim'} | PP: ${v?.passportNumber || '—'} | ${g.groupCode}${g.groupName && g.groupName !== g.groupCode ? ` (${g.groupName})` : ''} — SAR ${sar.toLocaleString()}/visa`,

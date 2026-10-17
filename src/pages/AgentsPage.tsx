@@ -53,7 +53,8 @@ import {
 import { 
   fetchAgents, 
   fetchLedgerAccounts, 
-  createAgentWithCredentials, 
+  createAgentBasic,
+  setupAgentLogin,
   updateAgent, 
   toggleAgentStatus, 
   resetAgentPasswordByOwner, 
@@ -62,6 +63,7 @@ import {
   repairMissingAgentLedgers,
   getAgentIdentityIds
 } from '../services/agentService';
+import { createVendor } from '../services/masterService';
 import { TENANT } from '../config';
 import { getCurrentRate } from '../services/exchangeRateService';
 import { formatMoney, formatDate } from '../utils/formatters';
@@ -96,6 +98,13 @@ export const AgentsPage: React.FC = () => {
   const [defSellPrice, setDefSellPrice] = useState<string>('');
   const [loginPassword, setLoginPassword] = useState('');
   const [notes, setNotes] = useState('');
+  const [alsoVendor, setAlsoVendor] = useState(false);
+  // "Setup Login" modal (login created later, not during account creation)
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [loginTargetAgent, setLoginTargetAgent] = useState<AgentDoc | null>(null);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginNewPassword, setLoginNewPassword] = useState('');
+  const [settingUpLogin, setSettingUpLogin] = useState(false);
 
   // "Success Credential Share" Modal state
   const [successModalOpen, setSuccessModalOpen] = useState<boolean>(false);
@@ -171,24 +180,19 @@ export const AgentsPage: React.FC = () => {
     return l ? l.currentBalanceSAR : 0;
   };
 
-  // Submit Add Agent form
+  // Submit Add Agent form — only Party name + Owner name mandatory; no login at creation.
   const handleAddAgent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userProfile) return;
 
-    if (!companyName.trim() || !contactPerson.trim() || !mobile.trim() || !email.trim() || !city.trim()) {
-      showError('Please complete all required fields.');
-      return;
-    }
-
-    if (!loginPassword || loginPassword.length < 6) {
-      showError('Login password must be at least 6 characters.');
+    if (!companyName.trim() || !contactPerson.trim()) {
+      showError('Party name and Owner name are required.');
       return;
     }
 
     setCreating(true);
     try {
-      const { agent } = await createAgentWithCredentials(userProfile, {
+      const { agent } = await createAgentBasic(userProfile, {
         companyName,
         contactPerson,
         mobile,
@@ -197,22 +201,30 @@ export const AgentsPage: React.FC = () => {
         dueLimitSAR,
         exchangeRatePKRRate,
         defaultSellingPricePerVisa: parseFloat(defSellPrice) || undefined,
-        loginPassword,
         notes,
       });
 
-      // Prepare success modal
-      setCreatedAgentInfo({
-        agentCode: agent.agentCode,
-        companyName: agent.companyName,
-        email: agent.email,
-        password: loginPassword,
-        contactPerson: agent.contactPerson,
-      });
+      // Dual-role: also create the linked Vendor record (shares the agent's ledger account)
+      let vendorCode = '';
+      if (alsoVendor) {
+        const vendor = await createVendor(userProfile, {
+          name: companyName,
+          country: '',
+          city,
+          contactPerson,
+          mobile,
+          email,
+          notes: `Dual-role linked to agent ${agent.agentCode}`,
+          alsoAgent: true,
+          linkedAgentId: agent.id,
+        } as any);
+        vendorCode = vendor.vendorCode;
+        await updateAgent(agent.id, { alsoVendor: true, linkedVendorId: vendor.id } as any);
+      }
+
+      success(`Agent "${companyName}" created.${alsoVendor ? ` Linked vendor ${vendorCode} created (shared account).` : ''} Login can be set up later from the agent row.`);
 
       setAddModalOpen(false);
-      setSuccessModalOpen(true);
-      setCredentialsCopied(false);
 
       // Reset form fields
       setCompanyName('');
@@ -223,8 +235,8 @@ export const AgentsPage: React.FC = () => {
       setDueLimitSAR(50000);
       setExchangeRatePKRRate(getCurrentRate('SAR-PKR'));
       setDefSellPrice('');
-      setLoginPassword('');
       setNotes('');
+      setAlsoVendor(false);
 
       await loadData();
     } catch (err: any) {
@@ -320,6 +332,31 @@ Please keep these credentials safe and change password after first login.`;
       setResetModalOpen(true);
     } catch (err: any) {
       showError(err?.message || 'Failed to reset password.');
+    }
+  };
+
+  // Setup login later (not during account creation)
+  const openSetupLogin = (agent: AgentDoc) => {
+    setLoginTargetAgent(agent);
+    setLoginEmail(agent.email || '');
+    setLoginNewPassword('');
+    setLoginModalOpen(true);
+  };
+  const handleSetupLogin = async () => {
+    if (!userProfile || !loginTargetAgent) return;
+    setSettingUpLogin(true);
+    try {
+      await setupAgentLogin(userProfile, loginTargetAgent.id, loginEmail, loginNewPassword);
+      success(`Login created for ${loginTargetAgent.companyName}. Share the credentials with them.`);
+      setLoginModalOpen(false);
+      setLoginTargetAgent(null);
+      setLoginEmail('');
+      setLoginNewPassword('');
+      await loadData();
+    } catch (err: any) {
+      showError(err?.message || 'Failed to set up login.');
+    } finally {
+      setSettingUpLogin(false);
     }
   };
 
@@ -683,6 +720,18 @@ Please keep these credentials safe and change password after first login.`;
                                   Reset Key
                                 </Button>
 
+                                {!agent.userId && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    leftIcon={<UserPlus className="w-3.5 h-3.5 text-slate-500" />}
+                                    onClick={() => openSetupLogin(agent)}
+                                    title="Create portal login for this agent"
+                                  >
+                                    Setup Login
+                                  </Button>
+                                )}
+
                                 <Button
                                   variant={agent.isActive ? 'outline' : 'primary'}
                                   size="sm"
@@ -710,7 +759,7 @@ Please keep these credentials safe and change password after first login.`;
         isOpen={addModalOpen}
         onClose={() => setAddModalOpen(false)}
         title="Register New B2B Sub-Agent"
-        subtitle={`Creates Auth credentials, Agent profile, and auto-provisions ledger account in one flow`}
+        subtitle={`Only Party name and Owner name are required — login is set up later`}
         size="2xl"
         footer={
           <>
@@ -723,7 +772,7 @@ Please keep these credentials safe and change password after first login.`;
               loading={creating}
               onClick={handleAddAgent}
             >
-              Register Agent & Create Ledger
+              Create Agent
             </Button>
           </>
         }
@@ -762,14 +811,12 @@ Please keep these credentials safe and change password after first login.`;
               value={mobile}
               onChange={(e) => setMobile(e.target.value)}
               placeholder="e.g. +92 300 1234567"
-              required
             />
             <Input
               label="City"
               value={city}
               onChange={(e) => setCity(e.target.value)}
               placeholder="e.g. Karachi / Islamabad / Lahore"
-              required
             />
           </div>
 
@@ -781,7 +828,6 @@ Please keep these credentials safe and change password after first login.`;
               onChange={(e) => setDueLimitSAR(Number(e.target.value))}
               placeholder="e.g. 50000"
               helperText="Outstanding balance ceiling before alert"
-              required
             />
             <Input
               label="SAR → PKR Exchange Rate"
@@ -791,7 +837,6 @@ Please keep these credentials safe and change password after first login.`;
               onChange={(e) => setExchangeRatePKRRate(Number(e.target.value))}
               placeholder="e.g. 74.50"
               helperText="Specific rate for this agent ledger"
-              required
             />
             <Input
               label="Default Selling Price / Visa (SAR)"
@@ -805,30 +850,20 @@ Please keep these credentials safe and change password after first login.`;
             />
           </div>
 
-          {/* Login Credentials Section */}
-          <div className="pt-3 border-t border-slate-100">
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
-              Agent Portal Login Credentials
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="Login Username (Email)"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="e.g. agent.alquds@gmail.com"
-                required
-              />
-              <Input
-                label="Login Password (Set by Owner)"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="Minimum 6 characters"
-                helperText="Owner shares this manually with the agent"
-                required
-              />
-            </div>
-          </div>
+          {/* Login is set up later via "Setup Login" on the agent row — not during creation. */}
+
+          <label className="flex items-start gap-2 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={alsoVendor}
+              onChange={(e) => setAlsoVendor(e.target.checked)}
+              className="w-4 h-4 mt-0.5 accent-[#0e2c4c]"
+            />
+            <span>
+              <span className="font-bold text-slate-800">Hum is party se bhi khareedte hain (Vendor bhi hai)</span>
+              <span className="block text-slate-500">Ek hi khata rahega — dena/lena auto net hoga.</span>
+            </span>
+          </label>
 
           <div>
             <label className="text-xs font-semibold text-slate-700 block mb-1">
@@ -1032,6 +1067,47 @@ Please keep these credentials safe and change password after first login.`;
 
           <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900">
             Share this via WhatsApp or direct SMS. The agent will be prompted to change it on login.
+          </div>
+        </div>
+      </Modal>
+
+      {/* 4b. SETUP LOGIN MODAL (login created later, not during account creation) */}
+      <Modal
+        isOpen={loginModalOpen}
+        onClose={() => setLoginModalOpen(false)}
+        title="Setup Agent Login"
+        subtitle={`Create portal login for ${loginTargetAgent?.companyName}`}
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setLoginModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" loading={settingUpLogin} onClick={handleSetupLogin}>
+              Create Login
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4 pt-1">
+          <Input
+            label="Login Email"
+            type="email"
+            value={loginEmail}
+            onChange={(e) => setLoginEmail(e.target.value)}
+            placeholder="e.g. agent@example.com"
+            required
+          />
+          <Input
+            label="Password (min 6 characters)"
+            type="text"
+            value={loginNewPassword}
+            onChange={(e) => setLoginNewPassword(e.target.value)}
+            placeholder="Set a password and share it with the agent"
+            required
+          />
+          <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900">
+            Share these credentials with the agent via WhatsApp. They can change the password after first login.
           </div>
         </div>
       </Modal>

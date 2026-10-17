@@ -27,6 +27,9 @@ export interface VendorDoc {
   createdAt: string;
   createdBy: string;
   updatedAt?: string;
+  /** Dual-role: this vendor also buys from us (acts as Agent). One party, one ledger account. */
+  alsoAgent?: boolean;
+  linkedAgentId?: string; // AgentDoc id of the linked agent record
 }
 
 export interface RoomTypeRate {

@@ -294,9 +294,20 @@ export async function postVoucherToLedger(actor: UserProfile, voucher: VoucherDo
   const findAccount = (linkId?: string | null) =>
     accounts.find((a: any) => a.linkedId === linkId || (a as any).linkedAgentId === linkId);
 
-  // Dr leg: the agent (B2B) or customer (B2C) receivable ledger
+  // Dr leg: the agent (B2B) or customer (B2C) receivable ledger.
+  // Dual-role: if the agent is linked to a vendor (one party, one account),
+  // post to the shared vendor ledger account.
   const linked = voucher.agentId || voucher.customerId;
-  const receivable = findAccount(linked);
+  let receivable = findAccount(linked);
+  if (!receivable && voucher.agentId) {
+    try {
+      const { fetchAgents } = await import('./agentService');
+      const ag: any = (await fetchAgents()).find((a: any) => a.id === voucher.agentId);
+      if (ag?.linkedVendorId) {
+        receivable = accounts.find((a: any) => a.id === `ledger-vnd-${ag.linkedVendorId}`);
+      }
+    } catch { /* fall through to error below */ }
+  }
   if (!receivable) {
     throw new Error(
       'Voucher ledger posting failed: no ledger account found for the linked agent/customer. Create it in Masters first.'
