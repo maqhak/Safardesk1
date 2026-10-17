@@ -16,7 +16,7 @@ import { getCurrentRate } from './exchangeRateService';
 const JV_COLLECTION = 'journal_vouchers';
 const LOCAL_STORAGE_JV_KEY = 'safardesk_journal_vouchers_v1';
 const ENTRIES_COLLECTION = 'ledger_entries';
-const LOCAL_STORAGE_ENTRIES_KEY = 'safardesk_ledger_entries_v4';
+const LOCAL_STORAGE_ENTRIES_KEY = 'safardesk_ledger_entries_v5';
 
 // Seed demo Journal Vouchers showing Adjustment, Netting, and Direct Settlement with voice proof
 export const INITIAL_JOURNAL_VOUCHERS: JournalVoucherDoc[] = [

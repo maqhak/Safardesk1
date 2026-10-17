@@ -24,7 +24,7 @@ const ENTRIES_COLLECTION = 'ledger_entries';
 const LOCAL_STORAGE_DISTRIB_KEY = 'safardesk_visa_distributions_v1';
 const LOCAL_STORAGE_INVOICES_KEY = 'safardesk_visa_invoices_v1';
 const LOCAL_STORAGE_VISAS_KEY = 'safardesk_visas_directory';
-const LOCAL_STORAGE_ENTRIES_KEY = 'safardesk_ledger_entries_v4';
+const LOCAL_STORAGE_ENTRIES_KEY = 'safardesk_ledger_entries_v5';
 
 export async function fetchVisaDistributions(): Promise<VisaDistributionDoc[]> {
   try {

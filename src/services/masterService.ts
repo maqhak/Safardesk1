@@ -272,7 +272,7 @@ export async function createVendor(
 
   // Also persist the auto-created ledger account locally (same key the ledger pages read)
   try {
-    const LEDGER_LOCAL_KEY = 'safardesk_ledger_accounts_v4';
+    const LEDGER_LOCAL_KEY = 'safardesk_ledger_accounts_v5';
     const stored = localStorage.getItem(LEDGER_LOCAL_KEY);
     const existing: any[] = stored ? JSON.parse(stored) : [];
     if (!existing.some((a) => a.id === cleanLedger.id)) {
@@ -887,7 +887,7 @@ export async function backfillMissingVendorLedgerAccounts(actor: UserProfile): P
     }
   } catch { /* fall through to local check */ }
   try {
-    const stored = localStorage.getItem('safardesk_ledger_accounts_v4');
+    const stored = localStorage.getItem('safardesk_ledger_accounts_v5');
     const local: any[] = stored ? JSON.parse(stored) : [];
     local.forEach((a) => a && a.id && existingIds.add(a.id));
   } catch { /* ignore */ }
@@ -967,7 +967,7 @@ export async function backfillMissingVendorLedgerAccounts(actor: UserProfile): P
 
   if (newLocal.length > 0) {
     try {
-      const KEY = 'safardesk_ledger_accounts_v4';
+      const KEY = 'safardesk_ledger_accounts_v5';
       const stored = localStorage.getItem(KEY);
       const existing: any[] = stored ? JSON.parse(stored) : [];
       localStorage.setItem(KEY, JSON.stringify([...newLocal, ...existing]));
