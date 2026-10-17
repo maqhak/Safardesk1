@@ -82,4 +82,7 @@ export interface VisaInvoiceDoc {
   createdBy: string;
   createdAt: string;
   isVoid?: boolean;
+  voidReason?: string;
+  voidedAt?: string;
+  voidedBy?: string;
 }

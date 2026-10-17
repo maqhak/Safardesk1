@@ -27,7 +27,7 @@ import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { useDeepOpen } from '../hooks/useDeepOpen';
-import { fetchVisaInvoices, markCommissionPaid, backfillInvoiceShirkaIds, getVVEditData, updateVisaInvoiceRates, VVEditGroup } from '../services/visaDistributionService';
+import { fetchVisaInvoices, markCommissionPaid, backfillInvoiceShirkaIds, getVVEditData, updateVisaInvoiceRates, voidVisaInvoice, VVEditGroup } from '../services/visaDistributionService';
 import { PACKAGE_TYPES } from '../types/visaDistribution';
 import { fetchVendors } from '../services/masterService';
 import { fetchLedgerAccounts } from '../services/accountingService';
@@ -138,9 +138,9 @@ export const VisaInvoicesPage: React.FC = () => {
     });
   }, [invoices, agentFilter, startDate, endDate, search, agentMap, vendorMap]);
 
-  // Total VV value (selling)
+  // Total VV value (selling) — voided VVs excluded
   const totalVVSAR = useMemo(() => {
-    return invoices.reduce((sum, inv) => sum + inv.sellingTotalSAR, 0);
+    return invoices.reduce((sum, inv) => sum + (inv.isVoid ? 0 : inv.sellingTotalSAR), 0);
   }, [invoices]);
 
   const handleOpenDetail = (inv: VisaInvoiceDoc) => {
@@ -235,6 +235,25 @@ export const VisaInvoicesPage: React.FC = () => {
       showError(err.message || 'Failed to update VV.');
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  const handleVoidVV = async () => {
+    if (!selectedInvoice || !canEditVV || selectedInvoice.isVoid) return;
+    const reason = window.prompt(`Void VV ${selectedInvoice.invoiceNo}? Enter reason (e.g. duplicate visa):`);
+    if (!reason || !reason.trim()) return;
+    const confirmed = window.confirm(
+      `Void VV ${selectedInvoice.invoiceNo} (SAR ${selectedInvoice.sellingTotalSAR.toLocaleString()})?\n\nIts ledger legs will be voided. The VV stays in the list as Voided for audit. This cannot be undone.`
+    );
+    if (!confirmed) return;
+    try {
+      await voidVisaInvoice(selectedInvoice.id, reason.trim(), userProfile?.name || 'Owner');
+      success(`VV ${selectedInvoice.invoiceNo} voided.`);
+      setDetailModalOpen(false);
+      setSelectedInvoice(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err.message || 'Failed to void VV.');
     }
   };
 
@@ -426,10 +445,13 @@ export const VisaInvoicesPage: React.FC = () => {
                     <tr
                       key={inv.id || idx}
                       onClick={() => handleOpenDetail(inv)}
-                      className="hover:bg-slate-50 cursor-pointer transition"
+                      className={`cursor-pointer transition ${inv.isVoid ? 'bg-rose-50/40 opacity-70' : 'hover:bg-slate-50'}`}
                     >
                       <td className="py-2.5 px-3 font-mono font-bold text-[var(--theme-primary)] whitespace-nowrap">
                         {inv.invoiceNo}
+                        {inv.isVoid && (
+                          <span className="ml-2 inline-block px-1.5 py-0.5 text-[10px] font-bold uppercase bg-rose-100 text-rose-700 rounded">Voided</span>
+                        )}
                       </td>
                       <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">
                         {inv.date}
@@ -501,7 +523,7 @@ export const VisaInvoicesPage: React.FC = () => {
                   Mark Commission Paid →
                 </Button>
               )}
-              {canEditVV && (
+              {canEditVV && !selectedInvoice?.isVoid && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -510,6 +532,20 @@ export const VisaInvoicesPage: React.FC = () => {
                 >
                   Edit VV
                 </Button>
+              )}
+              {canEditVV && !selectedInvoice?.isVoid && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-rose-700 border-rose-300 hover:bg-rose-50"
+                  leftIcon={<Ban className="w-4 h-4" />}
+                  onClick={handleVoidVV}
+                >
+                  Void VV
+                </Button>
+              )}
+              {selectedInvoice?.isVoid && (
+                <Badge variant="danger" size="sm">Voided{selectedInvoice.voidReason ? ` — ${selectedInvoice.voidReason}` : ''}</Badge>
               )}
               <Button
                 variant="outline"

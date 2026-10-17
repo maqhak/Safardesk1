@@ -227,6 +227,33 @@ export async function createVisaDistributionBatch(params: {
   const updatedVisas: VisaDoc[] = [...allVisas];
   const visaById = new Map<string, VisaDoc>(updatedVisas.map((v) => [v.id, v]));
 
+  // Guard: skip visas that are already distributed (stale UI can resubmit them —
+  // this is how the same visa ended up on two VVs). Fail loudly if ALL are dupes.
+  const skippedDistributed: string[] = [];
+  params.agentGroupMap.forEach((data, key) => {
+    const freshIds = data.visaIds.filter((vId) => {
+      const v = visaById.get(vId);
+      if (v && v.status === 'Distributed') {
+        skippedDistributed.push(`${v.pilgrimName || vId} (${v.passportNumber || 'no passport'})`);
+        return false;
+      }
+      return true;
+    });
+    if (freshIds.length !== data.visaIds.length) {
+      params.agentGroupMap.set(key, { ...data, visaIds: freshIds });
+    }
+  });
+  // Drop groups left with zero visas
+  for (const [key, data] of Array.from(params.agentGroupMap.entries())) {
+    if (data.visaIds.length === 0) params.agentGroupMap.delete(key);
+  }
+  if (params.agentGroupMap.size === 0) {
+    throw new Error(
+      `All selected visas are already distributed — nothing to distribute.` +
+      (skippedDistributed.length ? ` Skipped: ${skippedDistributed.slice(0, 5).join('; ')}${skippedDistributed.length > 5 ? ` (+${skippedDistributed.length - 5} more)` : ''}` : '')
+    );
+  }
+
   let totalVisasAll = 0;
   let totalBuyingAll = 0;
   let totalSellingAll = 0;
@@ -694,6 +721,70 @@ export async function updateVisaInvoiceRates(
     targetUserId: updated.id,
     targetUserName: updated.invoiceNo,
     details: { sellingTotalSAR, buyingTotalSAR, marginSAR, groups: params.groups.length },
+  }).catch(() => {});
+
+  return updated;
+}
+
+/**
+ * Void a VV (owner or staff with Visas edit access).
+ * Marks the VV doc void + voids all its 'Invoice' ledger legs (audit trail
+ * kept via reversals). Visa docs are left untouched — they may be billed
+ * on another VV (e.g. double-import cleanup).
+ */
+export async function voidVisaInvoice(
+  invoiceId: string,
+  reason: string,
+  voidedBy: string
+): Promise<VisaInvoiceDoc> {
+  if (!reason.trim()) throw new Error('A void reason is required.');
+  const invoices = await fetchVisaInvoices();
+  const invoice = invoices.find((i) => i.id === invoiceId);
+  if (!invoice) throw new Error('VV not found');
+  if ((invoice as any).isVoid) throw new Error('VV is already voided');
+
+  // Void all live ledger legs for this VV
+  const allEntries = await fetchLedgerEntries();
+  const legs = allEntries.filter(
+    (e) => e.transNo === invoice.invoiceNo && e.entryType === 'Invoice' && !e.isVoid
+  );
+  for (const leg of legs) {
+    await voidLedgerEntry(leg.id, `VV ${invoice.invoiceNo} voided: ${reason.trim()}`, voidedBy);
+  }
+
+  const now = new Date().toISOString();
+  const updated: VisaInvoiceDoc = {
+    ...invoice,
+    isVoid: true,
+    voidReason: reason.trim(),
+    voidedAt: now,
+    voidedBy,
+  } as VisaInvoiceDoc;
+
+  const existingInvoices = await fetchVisaInvoices();
+  const allInvoices = [updated, ...existingInvoices.filter((i) => i.id !== invoice.id)];
+  try { localStorage.setItem(LOCAL_STORAGE_INVOICES_KEY, JSON.stringify(allInvoices)); } catch { /* ignore */ }
+  bustPrefix('visa_invoices');
+  bust('ledger:entries:all'); bustPrefix('ledger:entries:');
+
+  if (!isConfigPlaceholder) {
+    try {
+      await setDoc(doc(db, INVOICES_COLLECTION, updated.id), stripUndefinedDeep(updated));
+    } catch (err) {
+      console.warn('Could not sync VV void to Firestore:', err);
+      throw err;
+    }
+  }
+
+  await logAuditEvent({
+    action: 'VOID_VV',
+    userId: voidedBy,
+    userName: voidedBy,
+    userEmail: '',
+    userRole: 'owner',
+    targetUserId: updated.id,
+    targetUserName: updated.invoiceNo,
+    details: { reason: reason.trim(), legsVoided: legs.length },
   }).catch(() => {});
 
   return updated;

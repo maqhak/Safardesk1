@@ -335,6 +335,16 @@ export const VisasPage: React.FC = () => {
       showError('Applicant Name and Passport Number are required.');
       return;
     }
+    // Duplicate check — same passport must not be added twice
+    const dupPassport = visas.find(
+      (v) => (v.passportNumber || '').trim().toUpperCase() === manualPassport.trim().toUpperCase()
+    );
+    if (dupPassport) {
+      showError(
+        `Passport ${manualPassport} already exists (${dupPassport.pilgrimName}, ${dupPassport.groupCode}, status: ${dupPassport.status}). Duplicate not added.`
+      );
+      return;
+    }
 
     try {
       if (!manualVendorId) {
