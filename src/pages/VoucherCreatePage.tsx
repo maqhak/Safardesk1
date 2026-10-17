@@ -100,6 +100,18 @@ export interface HotelRow {
   rateSAR: number;
 }
 
+/** One sector-wise transport leg in the voucher. */
+export interface TransportRow {
+  id: string;
+  sector: string;
+  date: string;
+  vehicle: string;
+  rateSAR: number;
+  selfGari: boolean;
+}
+
+const TRANSPORT_SECTORS = ['Arrival', 'Departure', 'Makkah to Madina', 'Madina to Makkah', 'Roundtrip'];
+
 const blankLeg = (): FlightLeg => ({
   from: '',
   depDate: todayStr(),
@@ -125,6 +137,15 @@ const blankHotelRow = (): HotelRow => ({
   nights: 0,
   checkOut: todayStr(),
   rateSAR: 0,
+});
+
+const blankTransportRow = (): TransportRow => ({
+  id: uid(),
+  sector: '',
+  date: todayStr(),
+  vehicle: '',
+  rateSAR: 0,
+  selfGari: false,
 });
 
 /** One Oracle flight strip: [Flight: label] Dep sector/date/hrs/min | Arr sector/date/hrs/min | Airline | Flight# | PNR */
@@ -275,6 +296,9 @@ export const VoucherCreatePage: React.FC = () => {
   const [makZiaratRate, setMakZiaratRate] = useState('');
   const [tranType, setTranType] = useState('');
   const [transportChargeSAR, setTransportChargeSAR] = useState('');
+  // Sector-wise transport legs (repeating rows). Legacy single-block fields
+  // above are kept for prefill compat; the grid is the source of truth.
+  const [transportRows, setTransportRows] = useState<TransportRow[]>([blankTransportRow()]);
   const [madZiaratRate, setMadZiaratRate] = useState('');
   const [trip, setTrip] = useState('');
   const [voucherRemarks, setVoucherRemarks] = useState('');
@@ -510,6 +534,20 @@ export const VoucherCreatePage: React.FC = () => {
       return next;
     });
 
+  // ---- Transport rows (sector-wise) ----
+  const updateTransportRow = (id: string, patch: Partial<TransportRow>) =>
+    setTransportRows((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  const addTransportRow = () => setTransportRows((rows) => [...rows, blankTransportRow()]);
+  const delTransportRow = (id: string) =>
+    setTransportRows((rows) => {
+      if (rows.length <= 1) return rows;
+      return rows.filter((r) => r.id !== id);
+    });
+  const validTransportRows = useMemo(
+    () => transportRows.filter((r) => r.sector && r.vehicle),
+    [transportRows]
+  );
+
   const namedHotelRows = useMemo(() => hotelRows.filter((r) => r.hotelName.trim() !== ''), [hotelRows]);
   const totalNights = useMemo(() => namedHotelRows.reduce((s, r) => s + (r.nights || 0), 0), [namedHotelRows]);
   const paxCount = selectedVisaIds.length;
@@ -518,7 +556,10 @@ export const VoucherCreatePage: React.FC = () => {
     () => namedHotelRows.reduce((s, r) => s + paxCount * (r.nights || 0) * (r.rateSAR || 0), 0),
     [namedHotelRows, paxCount]
   );
-  const transportSAR = useMemo(() => (tranType ? parseFloat(transportChargeSAR) || 0 : 0), [tranType, transportChargeSAR]);
+  const transportSAR = useMemo(
+    () => validTransportRows.reduce((s, r) => s + (r.selfGari ? 0 : r.rateSAR || 0), 0),
+    [validTransportRows]
+  );
   const totalSAR = hotelsSAR + transportSAR;
   const effectiveRate = parseFloat(srRate) || getCurrentRate('SAR-PKR') || 0;
   const effectivePackageType = packageText.trim();
@@ -534,14 +575,14 @@ export const VoucherCreatePage: React.FC = () => {
 
   /** Backend sectors: single transport sector from Tran Type + charge. */
   const backendSectors: SectorItem[] = useMemo(() => {
-    if (!tranType) return [];
-    return [{
-      type: 'Arrival',
-      date: depLeg.arrDate || todayStr(),
-      vehicleType: tranType as any,
-      transportRateSAR: transportSAR,
-    }];
-  }, [tranType, transportSAR, depLeg.arrDate]);
+    return validTransportRows.map((r) => ({
+      type: r.sector,
+      date: r.date || todayStr(),
+      vehicleType: r.vehicle as any,
+      isSelfGari: r.selfGari || undefined,
+      transportRateSAR: r.selfGari ? 0 : r.rateSAR || 0,
+    }));
+  }, [validTransportRows]);
 
   // ---- Copy From: clone an existing voucher's fields ----
   const handleCopyFrom = (voucherId: string) => {
@@ -555,6 +596,23 @@ export const VoucherCreatePage: React.FC = () => {
     setTransportBy(v.transportCompany || '');
     setTranType(v.transportType || v.sectors?.[0]?.vehicleType || '');
     setTransportChargeSAR(v.sectors?.[0]?.transportRateSAR ? String(v.sectors[0].transportRateSAR) : '');
+    // Sector-wise transport rows
+    if (Array.isArray(v.sectors) && v.sectors.length > 0) {
+      setTransportRows(v.sectors.map((s: any) => ({
+        id: uid(),
+        sector: s.type || '',
+        date: s.date || todayStr(),
+        vehicle: s.vehicleType || '',
+        rateSAR: s.transportRateSAR || 0,
+        selfGari: !!s.isSelfGari,
+      })));
+    } else if (v.transportType) {
+      const r = blankTransportRow();
+      r.sector = 'Arrival'; r.vehicle = v.transportType; r.rateSAR = 0;
+      setTransportRows([r]);
+    } else {
+      setTransportRows([blankTransportRow()]);
+    }
     setTrip(v.trip || '');
     setMakZiarat(v.makkahShirka || '');
     setMakZiaratRate(v.makkahZiarat?.rateSAR ? String(v.makkahZiarat.rateSAR) : '');
@@ -636,6 +694,19 @@ export const VoucherCreatePage: React.FC = () => {
     setTransportBy(v.transportCompany || '');
     setTranType(v.transportType || v.sectors?.[0]?.vehicleType || '');
     setTransportChargeSAR(v.sectors?.[0]?.transportRateSAR ? String(v.sectors[0].transportRateSAR) : '');
+    // Sector-wise transport rows
+    if (Array.isArray(v.sectors) && v.sectors.length > 0) {
+      setTransportRows(v.sectors.map((s: any) => ({
+        id: uid(),
+        sector: s.type || '',
+        date: s.date || todayStr(),
+        vehicle: s.vehicleType || '',
+        rateSAR: s.transportRateSAR || 0,
+        selfGari: !!s.isSelfGari,
+      })));
+    } else {
+      setTransportRows([blankTransportRow()]);
+    }
     setTrip(v.trip || '');
     setMakZiarat(v.makkahShirka || '');
     setMakZiaratRate(v.makkahZiarat?.rateSAR ? String(v.makkahZiarat.rateSAR) : '');
@@ -743,8 +814,8 @@ export const VoucherCreatePage: React.FC = () => {
         return null;
       }
     }
-    if (namedHotelRows.length === 0 && !tranType) {
-      showError('Please add at least one hotel row (with a name) or select a transport type.');
+    if (namedHotelRows.length === 0 && validTransportRows.length === 0) {
+      showError('Please add at least one hotel row (with a name) or one transport leg (sector + vehicle).');
       return null;
     }
 
@@ -1365,6 +1436,67 @@ export const VoucherCreatePage: React.FC = () => {
                   <label className={labelCls}>Remarks</label>
                   <input type="text" value={voucherRemarks} onChange={(e) => setVoucherRemarks(e.target.value)} placeholder="Remarks" className={inputCls} />
                 </div>
+              </div>
+              {/* Sector-wise transport legs */}
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className={labelCls}>Transport Legs (sector-wise)</span>
+                  <button type="button" onClick={addTransportRow} className="px-2.5 py-1 text-xs font-bold bg-[#0e2c4c] text-white rounded-lg hover:bg-[#16406e]">+ Add Leg</button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-slate-500">
+                        <th className="p-1.5 font-bold">Sector</th>
+                        <th className="p-1.5 font-bold">Date</th>
+                        <th className="p-1.5 font-bold">Vehicle</th>
+                        {!isAgent && <th className="p-1.5 font-bold">Rate (SAR)</th>}
+                        <th className="p-1.5 font-bold text-center">Self Gari</th>
+                        <th className="p-1.5 w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {transportRows.map((row) => (
+                        <tr key={row.id} className="border-t border-slate-100">
+                          <td className="p-1.5">
+                            <select value={row.sector} onChange={(e) => updateTransportRow(row.id, { sector: e.target.value })} className={`${inputCls} !p-1.5`}>
+                              <option value="">-- Sector --</option>
+                              {TRANSPORT_SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                          </td>
+                          <td className="p-1.5">
+                            <input type="date" value={row.date} onChange={(e) => updateTransportRow(row.id, { date: e.target.value })} className={`${inputCls} font-mono !p-1.5`} />
+                          </td>
+                          <td className="p-1.5">
+                            <select value={row.vehicle} onChange={(e) => updateTransportRow(row.id, { vehicle: e.target.value })} className={`${inputCls} !p-1.5`}>
+                              <option value="">-- Vehicle --</option>
+                              {TRANSPORT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                          </td>
+                          {!isAgent && (
+                            <td className="p-1.5">
+                              <input
+                                type="number" min="0" step="10" value={row.rateSAR || ''}
+                                onChange={(e) => updateTransportRow(row.id, { rateSAR: parseFloat(e.target.value) || 0 })}
+                                disabled={row.selfGari}
+                                placeholder="0" className={`${inputCls} font-mono !p-1.5 disabled:bg-slate-100`}
+                              />
+                            </td>
+                          )}
+                          <td className="p-1.5 text-center">
+                            <input type="checkbox" checked={row.selfGari} onChange={(e) => updateTransportRow(row.id, { selfGari: e.target.checked })} className="w-4 h-4 accent-[#0e2c4c]" />
+                          </td>
+                          <td className="p-1.5 text-center">
+                            <button type="button" onDoubleClick={() => delTransportRow(row.id)} title="Double-click to delete" className="p-1.5 rounded-lg bg-white border border-slate-300 text-red-600 hover:bg-red-50">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1">Double-click 🗑 to remove a leg. Total transport: SAR {transportSAR.toLocaleString()}</div>
               </div>
             </Card>
 
