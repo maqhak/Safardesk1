@@ -1001,8 +1001,8 @@ export function computeLedgerStatement(
 ): LedgerStatementSummary {
   // Sort all entries strictly in chronological date order, then by createdAt / entryNo
   const sorted = [...entries].sort((a, b) => {
-    if (a.date !== b.date) return a.date.localeCompare(b.date);
-    return a.entryNo.localeCompare(b.entryNo);
+    if (a.date !== b.date) return (a.date || '').localeCompare(b.date || '');
+    return (a.entryNo || a.transNo || '').localeCompare(b.entryNo || b.transNo || '');
   });
 
   // Calculate opening balance prior to startDate from all NON-VOID entries

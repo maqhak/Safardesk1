@@ -169,8 +169,8 @@ export const DayBookPage: React.FC = () => {
       return true;
     }).sort((a, b) => {
       // Primary sort: Date descending (latest first) or ascending
-      if (a.date !== b.date) return b.date.localeCompare(a.date);
-      return b.entryNo.localeCompare(a.entryNo);
+      if (a.date !== b.date) return (b.date || '').localeCompare(a.date || '');
+      return (b.entryNo || b.transNo || '').localeCompare(a.entryNo || a.transNo || '');
     });
   }, [entries, startDate, endDate, entryTypeFilter, accountTypeFilter, search, accountMap]);
 
