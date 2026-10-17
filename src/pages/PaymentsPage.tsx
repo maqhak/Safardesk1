@@ -593,6 +593,25 @@ export const PaymentsPage: React.FC = () => {
               <span>Drive Settings</span>
             </Link>
 
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Plus className="w-4 h-4" />}
+              onClick={() => {
+                setNewBankName('');
+                setNewBankTitle('');
+                setNewBankNumber('');
+                setNewBankIban('');
+                setNewBankBranch('');
+                setNewBankCurrency('SAR');
+                setNewBankLedgerId('auto');
+                setBankModalOpen(true);
+              }}
+              className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+            >
+              Add Bank Account
+            </Button>
+
             {canCreate && (
               <Button
                 variant="primary"
