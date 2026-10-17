@@ -386,7 +386,10 @@ export const PaymentsPage: React.FC = () => {
       const now = new Date().toISOString();
       let ledgerId = newBankLedgerId;
       if (newBankLedgerId === 'auto') {
-        const existingCodes = accounts
+        // Fetch FRESH accounts — page state can be stale if banks were just added,
+        // which caused duplicate BNK-001 codes.
+        const freshAccounts = await fetchLedgerAccounts().catch(() => accounts);
+        const existingCodes = freshAccounts
           .filter((a) => a.accountType === 'bank' && /^BNK-\d+$/.test(a.accountCode))
           .map((a) => parseInt(a.accountCode.split('-')[1], 10));
         const nextNum = String(Math.max(0, ...existingCodes) + 1).padStart(3, '0');

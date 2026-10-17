@@ -153,7 +153,8 @@ export const BalancesSummaryPage: React.FC = () => {
     try {
       const { saveLedgerAccount } = await import('../services/accountingService');
       const now = new Date().toISOString();
-      const existingCodes = accounts
+      const freshAccounts = await fetchLedgerAccounts().catch(() => accounts);
+      const existingCodes = freshAccounts
         .filter((a) => a.accountType === 'bank' && /^BNK-\d+$/.test(a.accountCode))
         .map((a) => parseInt(a.accountCode.split('-')[1], 10));
       const nextNum = String(Math.max(0, ...existingCodes) + 1).padStart(3, '0');
