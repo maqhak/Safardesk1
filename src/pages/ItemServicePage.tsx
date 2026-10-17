@@ -248,8 +248,9 @@ export const ItemServicePage: React.FC = () => {
       setItemDescription('');
       setItemDate(new Date().toISOString().split('T')[0]);
       await loadData();
-    } catch {
-      showError('Failed to post item/service entry.');
+    } catch (err: any) {
+      console.error('postItemServiceEntry failed:', err);
+      showError(`Failed to post item/service entry: ${err?.message || err || 'unknown error'}`);
     } finally {
       setSaving(false);
     }

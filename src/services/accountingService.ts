@@ -673,7 +673,7 @@ export async function saveLedgerAccount(account: LedgerAccountDoc): Promise<Ledg
   } catch (err) {
     console.warn('Could not save ledger account to Firestore:', err);
   }
-  localStorage.setItem(LOCAL_STORAGE_ACCOUNTS_KEY, JSON.stringify(next));
+  try { localStorage.setItem(LOCAL_STORAGE_ACCOUNTS_KEY, JSON.stringify(next)); } catch { /* storage full/blocked — Firestore is source of truth */ }
   return account;
 }
 /**
@@ -794,7 +794,7 @@ export async function postBalancedTransaction(params: {
   };
 
   const updated = [debitEntry, creditEntry, ...currentEntries];
-  localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(updated));
+  try { localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(updated)); } catch { /* storage full/blocked — Firestore is source of truth */ }
 
   try {
     if (!isConfigPlaceholder) {
@@ -943,7 +943,7 @@ export async function voidLedgerEntry(
   };
 
   currentEntries[index] = updatedEntry;
-  localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(currentEntries));
+  try { localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(currentEntries)); } catch { /* storage full/blocked — Firestore is source of truth */ }
 
   try {
     if (!isConfigPlaceholder) {
@@ -975,7 +975,7 @@ export async function voidLedgerEntry(
     createdAt: now,
   };
   const withReversal = [reversal, ...currentEntries];
-  localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(withReversal));
+  try { localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(withReversal)); } catch { /* storage full/blocked — Firestore is source of truth */ }
 
   try {
     if (!isConfigPlaceholder) {
@@ -1598,7 +1598,7 @@ export async function cacheAccountBalancesSnapshot(summary: BalancesSummaryData)
     };
   });
 
-  localStorage.setItem(LOCAL_STORAGE_ACCOUNTS_KEY, JSON.stringify(updatedAccounts));
+  try { localStorage.setItem(LOCAL_STORAGE_ACCOUNTS_KEY, JSON.stringify(updatedAccounts)); } catch { /* storage full/blocked — Firestore is source of truth */ }
 
   try {
     if (!isConfigPlaceholder) {

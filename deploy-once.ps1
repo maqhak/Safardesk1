@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
   SafarDesk — One-Build-Many-Tenants deploy.
-  Builds ONCE with the unified .env, then deploys the SAME dist/ to all 5 agencies.
+  Builds ONCE with the unified .env, then deploys the SAME dist/ to all 9 agencies.
 #>
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -23,7 +23,10 @@ $projects = @(
   'safardesk-leading-travels-01',
   'safardesk-6brothers',
   'fs-travel-n-tours',
-  'safardesk-ub-travels'
+  'safardesk-ub-travels',
+  'safardesk-skyship-travels',
+  'safardesk-bin-hamid',
+  'safardesk-ibex'
 )
 
 foreach ($p in $projects) {
