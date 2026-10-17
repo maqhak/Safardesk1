@@ -721,7 +721,10 @@ export const VoucherCreatePage: React.FC = () => {
     setMakkahStaffPhone(v.makkahStaffPhone || '');
     setMadinaStaffName(v.madinaStaffName || '');
     setMadinaStaffPhone(v.madinaStaffPhone || '');
-    setPackageIncludes(v.packageIncludes && v.packageIncludes.length > 0 ? [...v.packageIncludes] : [...DEFAULT_PACKAGE_INCLUDES]);
+    // Only fall back to defaults for OLD vouchers saved before this feature
+    // (field missing). An explicitly-saved empty list means "nothing checked"
+    // and must NOT auto-tick Ziyarat / Daily Breakfast etc.
+    setPackageIncludes(Array.isArray(v.packageIncludes) ? [...v.packageIncludes] : [...DEFAULT_PACKAGE_INCLUDES]);
     // Pilgrim flags (wob / transport paid / going)
     const fl: Record<string, { wob: boolean; trnsPaid: boolean; going: boolean }> = {};
     (v.passengers || []).forEach((p: any) => {
