@@ -13,7 +13,7 @@ import { aoaToCSV, downloadCSVText } from '../utils/csv';
 import { getCurrentRate } from './exchangeRateService';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { cached, bust } from './queryCache';
+import { cached, bust, bustPrefix } from './queryCache';
 
 const ACCOUNTS_COLLECTION = 'ledger_accounts';
 const ENTRIES_COLLECTION = 'ledger_entries';
