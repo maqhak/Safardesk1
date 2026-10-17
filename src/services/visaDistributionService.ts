@@ -6,7 +6,8 @@ import {
   CommissionDetails
 } from '../types/visaDistribution';
 import { VisaDoc, fetchVisas } from './visaService';
-import { fetchLedgerAccounts, fetchLedgerEntries, postBalancedTransaction, saveLedgerAccount } from './accountingService';
+import { fetchLedgerAccounts, fetchLedgerEntries, postBalancedTransaction, saveLedgerAccount, voidLedgerEntry } from './accountingService';
+import { bust, bustPrefix } from './queryCache';
 import { LedgerEntryDoc, LedgerAccountDoc } from '../types/accounting';
 import { collection, getDocs, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
@@ -459,6 +460,243 @@ export async function createVisaDistributionBatch(params: {
   });
 
   return { distribution, invoices: createdInvoices };
+}
+
+/** Per-group rate row for VV editing (prefill + save). */
+export interface VVEditGroup {
+  groupCode: string;
+  groupName: string;
+  visaCount: number;
+  sellingPricePerVisa: number;
+  buyingPricePerVisa: number;
+  packageType?: string;
+}
+
+/**
+ * Build VV edit prefill: per-group selling from VV lines, per-group buying
+ * from the distribution doc (falls back to VV average when missing).
+ */
+export async function getVVEditData(invoiceId: string): Promise<{ invoice: VisaInvoiceDoc; groups: VVEditGroup[] }> {
+  const [invoices, distributions] = await Promise.all([fetchVisaInvoices(), fetchVisaDistributions()]);
+  const invoice = invoices.find((i) => i.id === invoiceId);
+  if (!invoice) throw new Error('VV not found');
+  const distrib = distributions.find((d) => d.id === invoice.distributionId);
+  const buyByGroup = new Map<string, number>();
+  distrib?.groups.forEach((g) => {
+    if (g.agentId === invoice.agentId) buyByGroup.set(g.groupCode, g.buyingPricePerVisa);
+  });
+  const avgBuying = invoice.lines.length > 0 ? invoice.buyingTotalSAR / invoice.lines.length : 0;
+
+  const gmap = new Map<string, VVEditGroup>();
+  invoice.lines.forEach((l) => {
+    let g = gmap.get(l.groupCode);
+    if (!g) {
+      g = {
+        groupCode: l.groupCode,
+        groupName: l.groupName || l.groupCode,
+        visaCount: 0,
+        sellingPricePerVisa: l.sellingPricePerVisa,
+        buyingPricePerVisa: buyByGroup.get(l.groupCode) ?? Math.round(avgBuying * 100) / 100,
+        packageType: l.packageType || '',
+      };
+      gmap.set(l.groupCode, g);
+    }
+    g.visaCount += 1;
+  });
+  return { invoice, groups: Array.from(gmap.values()) };
+}
+
+/**
+ * Owner (or staff with Visas edit permission) updates a VV's rates.
+ * Old 'Invoice' ledger legs are voided (audit trail kept) and fresh legs
+ * are posted under the SAME VV number with the corrected amounts.
+ */
+export async function updateVisaInvoiceRates(
+  invoiceId: string,
+  params: {
+    date: string;
+    exchangeRate: number;
+    groups: VVEditGroup[];
+    editedBy: string;
+  }
+): Promise<VisaInvoiceDoc> {
+  const invoices = await fetchVisaInvoices();
+  const invoice = invoices.find((i) => i.id === invoiceId);
+  if (!invoice) throw new Error('VV not found');
+  if (!params.date) throw new Error('Date is required');
+  if (!(params.exchangeRate > 0)) throw new Error('Exchange rate must be greater than zero');
+
+  const groupMap = new Map(params.groups.map((g) => [g.groupCode, g]));
+  const now = new Date().toISOString();
+
+  // 1) Void old ledger legs for this VV (history preserved via reversals)
+  const allEntries = await fetchLedgerEntries();
+  const oldLegs = allEntries.filter(
+    (e) => e.transNo === invoice.invoiceNo && e.entryType === 'Invoice' && !e.isVoid
+  );
+  for (const leg of oldLegs) {
+    await voidLedgerEntry(leg.id, `VV ${invoice.invoiceNo} edited — rates updated`, params.editedBy);
+  }
+
+  // 2) Rebuild pax lines with new group rates
+  const newLines: InvoicePaxLine[] = invoice.lines.map((l) => {
+    const g = groupMap.get(l.groupCode);
+    const selling = g ? Math.round(g.sellingPricePerVisa * 100) / 100 : l.sellingPricePerVisa;
+    return {
+      ...l,
+      sellingPricePerVisa: selling,
+      lineTotalSAR: selling,
+      packageType: g?.packageType || l.packageType,
+    };
+  });
+  let sellingTotalSAR = 0;
+  let buyingTotalSAR = 0;
+  const visasByGroup = new Map<string, number>();
+  newLines.forEach((l) => {
+    sellingTotalSAR += l.lineTotalSAR;
+    visasByGroup.set(l.groupCode, (visasByGroup.get(l.groupCode) || 0) + 1);
+  });
+  visasByGroup.forEach((count, code) => {
+    const g = groupMap.get(code);
+    const buying = g ? Math.round(g.buyingPricePerVisa * 100) / 100 : 0;
+    buyingTotalSAR += Math.round(buying * count * 100) / 100;
+  });
+  sellingTotalSAR = Math.round(sellingTotalSAR * 100) / 100;
+  buyingTotalSAR = Math.round(buyingTotalSAR * 100) / 100;
+  const marginSAR = Math.round((sellingTotalSAR - buyingTotalSAR) * 100) / 100;
+  const totalsPKR = Math.round(sellingTotalSAR * params.exchangeRate * 100) / 100;
+
+  const updated: VisaInvoiceDoc = {
+    ...invoice,
+    date: params.date,
+    lines: newLines,
+    sellingTotalSAR,
+    buyingTotalSAR,
+    marginSAR,
+    exchangeRate: params.exchangeRate,
+    totalsPKR,
+  };
+
+  // 3) Resolve ledger accounts (mirror of create flow)
+  const ledgerAccounts = await fetchLedgerAccounts();
+  let marginAccount = ledgerAccounts.find(
+    (a) => a.accountCode === 'SYS-MARGIN' || a.title.toLowerCase().includes('visa margin')
+  );
+  if (!marginAccount) {
+    marginAccount = {
+      id: 'acc-sys-margin', accountCode: 'SYS-MARGIN', accountType: 'income',
+      title: 'Income — Visa Margin', isSystem: true, isActive: true,
+      openingBalanceSAR: 0, openingBalancePKR: 0, createdAt: now, createdBy: params.editedBy,
+    };
+    try { await saveLedgerAccount(marginAccount); } catch { /* entries still carry correct accountId */ }
+  }
+  let vendorLedgerAccount = ledgerAccounts.find(
+    (a) => a.id === `ledger-vnd-${invoice.vendorId}` ||
+      (((a as any).linkedAgentId === invoice.vendorId || (a as any).linkedId === invoice.vendorId) && a.accountType === 'vendor')
+  );
+  if (!vendorLedgerAccount) {
+    vendorLedgerAccount = {
+      id: `ledger-vnd-${invoice.vendorId}`, accountCode: '', accountType: 'vendor',
+      title: 'Vendor', linkedId: invoice.vendorId, isSystem: false, isActive: true,
+      openingBalanceSAR: 0, openingBalancePKR: 0, createdAt: now, createdBy: params.editedBy,
+    };
+    try { await saveLedgerAccount(vendorLedgerAccount); } catch { /* best-effort */ }
+  }
+  // Dual-role: agent linked to a vendor posts Dr to the shared vendor account
+  let agentAccountId = invoice.agentId;
+  try {
+    const { fetchAgents } = await import('./agentService');
+    const ag: any = (await fetchAgents()).find((a: any) => a.id === invoice.agentId);
+    if (ag?.linkedVendorId) agentAccountId = `ledger-vnd-${ag.linkedVendorId}`;
+  } catch { /* keep agentId */ }
+
+  // 4) Post fresh legs under the SAME VV number — mirror of the create flow:
+  //     per-pax Dr agent legs + summary Cr vendor leg + summary Cr margin leg.
+  const rate = params.exchangeRate;
+  const currentEntries = await fetchLedgerEntries();
+  const baseSeq = currentEntries.length + 30000;
+  const newLegs: LedgerEntryDoc[] = [];
+  let seq = baseSeq;
+  const mkLeg = (
+    accountId: string, particulars: string,
+    debitSAR: number, creditSAR: number
+  ): LedgerEntryDoc => {
+    seq += 1;
+    return {
+      id: `le-${seq}`,
+      entryNo: `LE-${seq}`,
+      date: params.date,
+      accountId,
+      entryType: 'Invoice',
+      transNo: invoice.invoiceNo,
+      particulars,
+      invoiceRef: invoice.invoiceNo,
+      rate,
+      debitSAR: Math.round(debitSAR * 100) / 100,
+      creditSAR: Math.round(creditSAR * 100) / 100,
+      debitPKR: Math.round(debitSAR * rate * 100) / 100,
+      creditPKR: Math.round(creditSAR * rate * 100) / 100,
+      createdBy: params.editedBy,
+      createdAt: now,
+      isVoid: false,
+    };
+  };
+
+  // (a) Per-pax Dr agent legs
+  for (const l of newLines) {
+    newLegs.push(mkLeg(
+      agentAccountId,
+      `Visa — ${l.pilgrimName} | PP: ${l.passportNumber} | ${l.groupCode}${l.groupName && l.groupName !== l.groupCode ? ` (${l.groupName})` : ''} — SAR ${l.sellingPricePerVisa.toLocaleString()}/visa (edited)`,
+      l.lineTotalSAR, 0
+    ));
+  }
+  // (b) Vendor payable (buying total)
+  newLegs.push(mkLeg(
+    vendorLedgerAccount.id,
+    `Visa Purchase Cost for VV #${invoice.invoiceNo} (${newLines.length} Visas) — edited`,
+    0, buyingTotalSAR
+  ));
+  // (c) Margin (selling - buying)
+  newLegs.push(mkLeg(
+    marginAccount.id,
+    `Gross Visa Margin for VV #${invoice.invoiceNo} — edited`,
+    0, marginSAR
+  ));
+
+  // Persist invoice + legs
+  const existingInvoices = await fetchVisaInvoices();
+  const allInvoices = [updated, ...existingInvoices.filter((i) => i.id !== invoice.id)];
+  try { localStorage.setItem(LOCAL_STORAGE_INVOICES_KEY, JSON.stringify(allInvoices)); } catch { /* ignore */ }
+  const existingEntries = await fetchLedgerEntries();
+  const allEntriesNew = [...newLegs, ...existingEntries];
+  try { localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(allEntriesNew)); } catch { /* ignore */ }
+  bust('ledger:entries:all'); bustPrefix('ledger:entries:');
+  bustPrefix('visa_invoices');
+
+  if (!isConfigPlaceholder) {
+    try {
+      await Promise.all([
+        setDoc(doc(db, INVOICES_COLLECTION, updated.id), stripUndefinedDeep(updated)),
+        ...newLegs.map((e) => setDoc(doc(db, ENTRIES_COLLECTION, e.id), stripUndefinedDeep(e))),
+      ]);
+    } catch (err) {
+      console.warn('Could not sync VV edit to Firestore:', err);
+      throw err;
+    }
+  }
+
+  await logAuditEvent({
+    action: 'EDIT_VV_RATES',
+    userId: params.editedBy,
+    userName: params.editedBy,
+    userEmail: '',
+    userRole: 'owner',
+    targetUserId: updated.id,
+    targetUserName: updated.invoiceNo,
+    details: { sellingTotalSAR, buyingTotalSAR, marginSAR, groups: params.groups.length },
+  }).catch(() => {});
+
+  return updated;
 }
 
 export async function markCommissionPaid(

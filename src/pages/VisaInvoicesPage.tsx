@@ -14,7 +14,8 @@ import {
   Users,
   Check,
   Ban,
-  Scale
+  Scale,
+  Pencil
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -26,7 +27,8 @@ import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { useDeepOpen } from '../hooks/useDeepOpen';
-import { fetchVisaInvoices, markCommissionPaid, backfillInvoiceShirkaIds } from '../services/visaDistributionService';
+import { fetchVisaInvoices, markCommissionPaid, backfillInvoiceShirkaIds, getVVEditData, updateVisaInvoiceRates, VVEditGroup } from '../services/visaDistributionService';
+import { PACKAGE_TYPES } from '../types/visaDistribution';
 import { fetchVendors } from '../services/masterService';
 import { fetchLedgerAccounts } from '../services/accountingService';
 import { VisaInvoiceDoc } from '../types/visaDistribution';
@@ -42,6 +44,8 @@ export const VisaInvoicesPage: React.FC = () => {
 
   const isOwner = role === 'owner';
   const canView = useCan('Visas', 'view') || isOwner;
+  // VV edit: owner always; staff only if owner granted Visas edit access
+  const canEditVV = useCan('Visas', 'edit');
 
   const [loading, setLoading] = useState<boolean>(true);
   const [invoices, setInvoices] = useState<VisaInvoiceDoc[]>([]);
@@ -70,6 +74,15 @@ export const VisaInvoicesPage: React.FC = () => {
   const [invoiceForCommission, setInvoiceForCommission] = useState<VisaInvoiceDoc | null>(null);
   const [selectedPaymentAccountId, setSelectedPaymentAccountId] = useState<string>('');
   const [commissionPaying, setCommissionPaying] = useState<boolean>(false);
+
+  // VV Edit state (owner or staff with Visas edit access)
+  const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
+  const [editInvoice, setEditInvoice] = useState<VisaInvoiceDoc | null>(null);
+  const [editGroups, setEditGroups] = useState<VVEditGroup[]>([]);
+  const [editDate, setEditDate] = useState<string>('');
+  const [editRate, setEditRate] = useState<number>(0);
+  const [editSaving, setEditSaving] = useState<boolean>(false);
+  const [editLoading, setEditLoading] = useState<boolean>(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -143,6 +156,86 @@ export const VisaInvoicesPage: React.FC = () => {
     setInvoiceForCommission(inv);
     setSelectedPaymentAccountId(cashOrBankAccounts[0]?.id || '');
     setCommissionModalOpen(true);
+  };
+
+  const handleOpenEdit = async (inv: VisaInvoiceDoc) => {
+    if (!canEditVV) {
+      showError('Only the Owner (or staff with VV edit access) can edit a VV.');
+      return;
+    }
+    setEditLoading(true);
+    setEditInvoice(inv);
+    setEditModalOpen(true);
+    try {
+      const { groups } = await getVVEditData(inv.id);
+      setEditGroups(groups);
+      setEditDate(inv.date);
+      setEditRate(inv.exchangeRate || 0);
+    } catch (err: any) {
+      showError(err.message || 'Failed to load VV for editing.');
+      setEditModalOpen(false);
+      setEditInvoice(null);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const updateEditGroup = (code: string, field: 'sellingPricePerVisa' | 'buyingPricePerVisa' | 'packageType', value: any) => {
+    setEditGroups((prev) => prev.map((g) => (g.groupCode === code ? { ...g, [field]: value } : g)));
+  };
+
+  const editTotals = useMemo(() => {
+    let sell = 0, buy = 0;
+    editGroups.forEach((g) => {
+      sell += g.visaCount * (g.sellingPricePerVisa || 0);
+      buy += g.visaCount * (g.buyingPricePerVisa || 0);
+    });
+    return { sell, buy, margin: sell - buy };
+  }, [editGroups]);
+
+  const handleSaveEdit = async () => {
+    if (!editInvoice || !canEditVV) return;
+    if (!editDate) {
+      showError('Please select a date.');
+      return;
+    }
+    if (!(editRate > 0)) {
+      showError('Please enter a valid exchange rate.');
+      return;
+    }
+    for (const g of editGroups) {
+      if (!(g.sellingPricePerVisa > 0)) {
+        showError(`Selling rate for group ${g.groupCode} must be greater than zero.`);
+        return;
+      }
+      if (!(g.buyingPricePerVisa >= 0)) {
+        showError(`Buying rate for group ${g.groupCode} cannot be negative.`);
+        return;
+      }
+    }
+    const confirmed = window.confirm(
+      `Update VV ${editInvoice.invoiceNo}?\n\nNew totals: Selling SAR ${editTotals.sell.toLocaleString()}, Buying SAR ${editTotals.buy.toLocaleString()}, Margin SAR ${editTotals.margin.toLocaleString()}.\n\nOld ledger legs will be voided and fresh legs posted under the same VV number.`
+    );
+    if (!confirmed) return;
+    setEditSaving(true);
+    try {
+      const updated = await updateVisaInvoiceRates(editInvoice.id, {
+        date: editDate,
+        exchangeRate: editRate,
+        groups: editGroups,
+        editedBy: userProfile?.name || 'Owner',
+      });
+      success(`VV ${updated.invoiceNo} updated — Selling SAR ${updated.sellingTotalSAR.toLocaleString()}, Margin SAR ${updated.marginSAR.toLocaleString()}.`);
+      setEditModalOpen(false);
+      setEditInvoice(null);
+      setDetailModalOpen(false);
+      setSelectedInvoice(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err.message || 'Failed to update VV.');
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const handleConfirmMarkCommissionPaid = async () => {
@@ -408,6 +501,16 @@ export const VisaInvoicesPage: React.FC = () => {
                   Mark Commission Paid →
                 </Button>
               )}
+              {canEditVV && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Pencil className="w-4 h-4 text-[var(--theme-primary)]" />}
+                  onClick={() => selectedInvoice && handleOpenEdit(selectedInvoice)}
+                >
+                  Edit VV
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -646,6 +749,124 @@ export const VisaInvoicesPage: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* VV Edit Modal — owner or staff with Visas edit access */}
+      {canEditVV && (
+        <Modal
+          isOpen={editModalOpen}
+          onClose={() => { setEditModalOpen(false); setEditInvoice(null); }}
+          title={editInvoice ? `Edit VV ${editInvoice.invoiceNo}` : 'Edit VV'}
+          subtitle="Har group ka rate changeable hai — save par purani ledger legs void ho kar nayi legs usi VV number se post hongi."
+          size="lg"
+          footer={
+            <div className="flex items-center justify-end gap-2 w-full">
+              <Button variant="outline" size="sm" onClick={() => { setEditModalOpen(false); setEditInvoice(null); }}>
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" onClick={handleSaveEdit} loading={editSaving} disabled={editLoading}>
+                Save Changes
+              </Button>
+            </div>
+          }
+        >
+          {editLoading ? (
+            <div className="py-10 text-center text-xs text-slate-500">Loading VV details…</div>
+          ) : (
+            <div className="space-y-4 py-2 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">VV Date *</label>
+                  <input
+                    type="date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Exchange Rate (1 SAR = ? PKR) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editRate || ''}
+                    onChange={(e) => setEditRate(parseFloat(e.target.value) || 0)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 text-slate-600 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200">
+                    <tr>
+                      <th className="p-2.5">Group</th>
+                      <th className="p-2.5 text-center">Visas</th>
+                      <th className="p-2.5">Package Type</th>
+                      <th className="p-2.5 text-right">Selling / Visa (SAR) *</th>
+                      <th className="p-2.5 text-right">Buying / Visa (SAR) *</th>
+                      <th className="p-2.5 text-right">Margin</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {editGroups.map((g) => (
+                      <tr key={g.groupCode}>
+                        <td className="p-2.5">
+                          <div className="font-mono font-bold text-[var(--theme-primary)]">{g.groupCode}</div>
+                          <div className="text-[11px] text-slate-500">{g.groupName}</div>
+                        </td>
+                        <td className="p-2.5 text-center font-mono font-bold">{g.visaCount}</td>
+                        <td className="p-2.5">
+                          <select
+                            value={g.packageType || ''}
+                            onChange={(e) => updateEditGroup(g.groupCode, 'packageType', e.target.value)}
+                            className="w-32 p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                          >
+                            <option value="">-- None --</option>
+                            {PACKAGE_TYPES.map((p) => (
+                              <option key={p} value={p}>{p}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="p-2.5">
+                          <input
+                            type="number" min="0" step="1"
+                            value={g.sellingPricePerVisa || ''}
+                            onChange={(e) => updateEditGroup(g.groupCode, 'sellingPricePerVisa', parseFloat(e.target.value) || 0)}
+                            className="w-28 p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-emerald-700 text-right"
+                          />
+                        </td>
+                        <td className="p-2.5">
+                          <input
+                            type="number" min="0" step="1"
+                            value={g.buyingPricePerVisa || ''}
+                            onChange={(e) => updateEditGroup(g.groupCode, 'buyingPricePerVisa', parseFloat(e.target.value) || 0)}
+                            className="w-28 p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-rose-700 text-right"
+                          />
+                        </td>
+                        <td className="p-2.5 text-right font-mono font-bold text-slate-700">
+                          SAR {(g.visaCount * ((g.sellingPricePerVisa || 0) - (g.buyingPricePerVisa || 0))).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
+                    <tr>
+                      <td className="p-2.5" colSpan={3}>New Totals</td>
+                      <td className="p-2.5 text-right font-mono text-emerald-700">SAR {editTotals.sell.toLocaleString()}</td>
+                      <td className="p-2.5 text-right font-mono text-rose-700">SAR {editTotals.buy.toLocaleString()}</td>
+                      <td className="p-2.5 text-right font-mono">SAR {editTotals.margin.toLocaleString()}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <p className="text-[11px] text-slate-500 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                Save karne par: purani legs void (audit trail mehfooz) + nayi legs usi VV number se post. Agent ka receivable, vendor ka payable aur margin sab update ho jayenge.
+              </p>
+            </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 };
