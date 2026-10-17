@@ -577,7 +577,7 @@ export const DayBookPage: React.FC = () => {
 
                       {/* Rate */}
                       <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">
-                        {e.rate ? e.rate.toFixed(2) : '—'}
+                        {e.rate ? Number(e.rate).toFixed(2) : '—'}
                       </td>
 
                       {/* Debit */}

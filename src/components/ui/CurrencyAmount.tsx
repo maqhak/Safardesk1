@@ -60,7 +60,7 @@ export const CurrencyAmount: React.FC<CurrencyAmountProps> = ({
   if (layout === 'inline') {
     return (
       <span
-        title={showRateTooltip ? `Conversion Rate: 1 SAR = ${rate.toFixed(2)} PKR` : undefined}
+        title={showRateTooltip ? `Conversion Rate: 1 SAR = ${Number(rate).toFixed(2)} PKR` : undefined}
         className={cn(
           'inline-flex items-center gap-1.5 font-mono tabular-nums whitespace-nowrap',
           sizeStyles[size].sar,
@@ -90,7 +90,7 @@ export const CurrencyAmount: React.FC<CurrencyAmountProps> = ({
   // Default 'stacked' layout
   return (
     <div
-      title={showRateTooltip ? `Rate: 1 SAR = ${rate.toFixed(2)} PKR` : undefined}
+      title={showRateTooltip ? `Rate: 1 SAR = ${Number(rate).toFixed(2)} PKR` : undefined}
       className={cn('flex flex-col font-mono tabular-nums leading-tight', alignStyles[align], className)}
     >
       <span className={cn('text-slate-900 tracking-tight', sizeStyles[size].sar)}>

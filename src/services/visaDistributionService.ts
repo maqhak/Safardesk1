@@ -260,7 +260,7 @@ export async function createVisaDistributionBatch(params: {
 
   for (const [agentId, batch] of agentBatches.entries()) {
     // Fix #29: each agent's invoice uses its own MANUALLY entered SAR->PKR rate.
-    const exchangeRate = batch.exchangeRateSARPKR > 0 ? batch.exchangeRateSARPKR : getCurrentRate('SAR-PKR');
+    const exchangeRate = Number(batch.exchangeRateSARPKR) > 0 ? Number(batch.exchangeRateSARPKR) : getCurrentRate('SAR-PKR');
 
     batch.groups.forEach((g) => {
       createdGroups.push({

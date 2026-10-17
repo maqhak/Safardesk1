@@ -1050,7 +1050,7 @@ export function computeLedgerStatement(
     periodRows.push({
       entry: e,
       runningBalance: runningBalance,
-      formattedRate: e.rate ? e.rate.toFixed(2) : '—',
+      formattedRate: e.rate ? Number(e.rate).toFixed(2) : '—',
     });
   });
 
@@ -1114,7 +1114,7 @@ export function exportLedgerToCSV(
     const voucherRef = e.voucherNo ? ` [Voucher: ${e.voucherNo}]` : '';
 
     lines.push(
-      `"${e.date}","${e.entryType}","${transNo}","${particularsEscaped}${voucherRef}","${invRef}",${e.rate.toFixed(2)},${debit.toFixed(2)},${credit.toFixed(2)},${r.runningBalance.toFixed(2)},"${status}"`
+      `"${e.date}","${e.entryType}","${transNo}","${particularsEscaped}${voucherRef}","${invRef}",${Number(e.rate).toFixed(2)},${debit.toFixed(2)},${credit.toFixed(2)},${r.runningBalance.toFixed(2)},"${status}"`
     );
   });
 
@@ -1169,7 +1169,7 @@ function statementTableRows(statement: LedgerStatementSummary): Array<Array<stri
       s.ticketNo,
       s.sector,
     ];
-    if (showRate) row.push(Number(e.rate.toFixed(2)));
+    if (showRate) row.push(Number(Number(e.rate).toFixed(2)));
     row.push(
       Number(debit.toFixed(2)),
       Number(credit.toFixed(2)),
@@ -1357,7 +1357,7 @@ export function exportLedgerToPDF(statement: LedgerStatementSummary, companyName
       e.particulars + (e.isVoid ? ' (VOIDED)' : ''),
       e.invoiceRef || '—',
     ];
-    if (showRate) row.push(e.rate ? e.rate.toFixed(2) : '—');
+    if (showRate) row.push(e.rate ? Number(e.rate).toFixed(2) : '—');
     row.push(moneyBlank(debit || 0), moneyBlank(credit || 0), money(r.runningBalance));
     body.push(row);
   });
@@ -1652,7 +1652,7 @@ export function exportDayBookToCSV(
     const particulars = `"${(e.particulars || '').replace(/"/g, '""')}"`;
 
     lines.push(
-      `"${e.date}","${e.transNo || e.entryNo}","${accCode}",${accTitle},"${accType}","${e.entryType}",${particulars},${e.rate.toFixed(2)},${debit.toFixed(2)},${credit.toFixed(2)},"${status}"`
+      `"${e.date}","${e.transNo || e.entryNo}","${accCode}",${accTitle},"${accType}","${e.entryType}",${particulars},${Number(e.rate).toFixed(2)},${debit.toFixed(2)},${credit.toFixed(2)},"${status}"`
     );
   });
 
