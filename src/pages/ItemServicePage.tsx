@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Package, Search, Upload, Download, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Plus, Package, Search, Upload, Download, CheckCircle2, AlertCircle, Printer, Pencil } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -16,6 +16,7 @@ import {
   voidLedgerEntry,
 } from '../services/accountingService';
 import { formatMoney } from '../utils/formatters';
+import { TENANT } from '../config';
 const formatPKR = (n: number) => formatMoney(n, 'PKR');
 
 interface ItemServiceRow {
@@ -94,6 +95,11 @@ export const ItemServicePage: React.FC = () => {
   const [itemRate, setItemRate] = useState<number>(0);
   const [itemDescription, setItemDescription] = useState<string>('');
 
+  // Edit mode — null = create new; transNo = editing that entry (har cheez editable)
+  const [editingTransNo, setEditingTransNo] = useState<string | null>(null);
+  // Receipt modal
+  const [receiptRow, setReceiptRow] = useState<ItemServiceRow | null>(null);
+
   // Bulk import
   const [importModalOpen, setImportModalOpen] = useState<boolean>(false);
   const [importing, setImporting] = useState<boolean>(false);
@@ -136,7 +142,9 @@ export const ItemServicePage: React.FC = () => {
     }
     const out: ItemServiceRow[] = [];
     groups.forEach((list, transNo) => {
-      const first = list[0];
+      // Use the first live (non-void, non-reversal) leg for name/date — void/edit cycles add reversal entries
+      const live = list.filter((e) => !e.isVoid && (/^(Sale|Purchase):/.test(e.particulars || '')));
+      const first = live[0] || list.find((e) => !e.isVoid) || list[0];
       const base = stripPrefix(first.particulars || '');
       const { itemName: name, description } = splitItemDesc(base);
       let buyingPKR = 0;
@@ -191,6 +199,49 @@ export const ItemServicePage: React.FC = () => {
     );
   }, [filtered]);
 
+  const handleEdit = (row: ItemServiceRow) => {
+    if (!isOwner) {
+      showError('Only the Owner can edit entries.');
+      return;
+    }
+    if (row.voided) {
+      showError('Voided entries cannot be edited.');
+      return;
+    }
+    // Derive supplier/customer account IDs from the live ledger legs
+    const group = entries.filter((e) => e.transNo === row.transNo && !e.isVoid);
+    let supplierId = '', customerId = '', rate = masterRate;
+    for (const e of group) {
+      const p = e.particulars || '';
+      if (p.startsWith('Sale:') && e.debitSAR > 0 && !customerId) customerId = e.accountId;
+      if (p.startsWith('Purchase:') && e.creditSAR > 0 && !supplierId) supplierId = e.accountId;
+      if (e.rate && e.rate > 0) rate = e.rate;
+    }
+    setEditingTransNo(row.transNo);
+    setItemDate(row.date);
+    setItemName(row.itemName);
+    setItemDescription(row.description || '');
+    setItemSupplierId(supplierId);
+    setItemCustomerId(customerId);
+    setItemBuyingPKR(row.buyingPKR);
+    setItemSellingPKR(row.sellingPKR);
+    setItemCurrency('PKR');
+    setItemRate(rate);
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setEditingTransNo(null);
+    setItemName('');
+    setItemSupplierId('');
+    setItemCustomerId('');
+    setItemBuyingPKR(0);
+    setItemSellingPKR(0);
+    setItemDescription('');
+    setItemDate(new Date().toISOString().split('T')[0]);
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!itemName.trim()) {
@@ -224,7 +275,14 @@ export const ItemServicePage: React.FC = () => {
 
     setSaving(true);
     try {
-      const transNo = `ITM-${Date.now().toString().slice(-6)}`;
+      // Edit mode: void the old legs (audit trail kept), then re-post SAME transNo with new values
+      const transNo = editingTransNo || `ITM-${Date.now().toString().slice(-6)}`;
+      if (editingTransNo) {
+        const oldGroup = entries.filter((e) => e.transNo === editingTransNo && !e.isVoid);
+        for (const e of oldGroup) {
+          await voidLedgerEntry(e.id, 'Edited — replaced with updated values', userProfile?.name || 'Owner');
+        }
+      }
       await postItemServiceEntry({
         date: itemDate,
         transNo,
@@ -238,15 +296,12 @@ export const ItemServicePage: React.FC = () => {
         createdBy: userProfile?.name || 'Operator',
       });
       const marginEntered = Math.round((itemSellingPKR - itemBuyingPKR) * 100) / 100;
-      success(`Item/Service entry ${transNo} posted.${marginEntered !== 0 ? ` Margin: ${itemCurrency} ${marginEntered.toLocaleString()}` : ''}`);
-      setModalOpen(false);
-      setItemName('');
-      setItemSupplierId('');
-      setItemCustomerId('');
-      setItemBuyingPKR(0);
-      setItemSellingPKR(0);
-      setItemDescription('');
-      setItemDate(new Date().toISOString().split('T')[0]);
+      success(
+        editingTransNo
+          ? `Entry ${transNo} updated.${marginEntered !== 0 ? ` Margin: ${itemCurrency} ${marginEntered.toLocaleString()}` : ''}`
+          : `Item/Service entry ${transNo} posted.${marginEntered !== 0 ? ` Margin: ${itemCurrency} ${marginEntered.toLocaleString()}` : ''}`
+      );
+      closeModal();
       await loadData();
     } catch (err: any) {
       console.error('postItemServiceEntry failed:', err);
@@ -516,6 +571,7 @@ export const ItemServicePage: React.FC = () => {
                   size="sm"
                   leftIcon={<Plus className="w-4 h-4" />}
                   onClick={() => {
+                    setEditingTransNo(null);
                     setItemRate(masterRate);
                     setModalOpen(true);
                   }}
@@ -561,18 +617,19 @@ export const ItemServicePage: React.FC = () => {
                 <th className="py-3 px-3 font-bold text-right">Selling (PKR)</th>
                 <th className="py-3 px-3 font-bold text-right">Margin</th>
                 {isOwner && <th className="py-3 px-3 font-bold text-center">Action</th>}
+                <th className="py-3 px-3 font-bold text-center">Receipt</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={isOwner ? 9 : 8} className="py-12 text-center text-slate-500">
+                  <td colSpan={isOwner ? 10 : 9} className="py-12 text-center text-slate-500">
                     Loading item/service entries...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={isOwner ? 9 : 8} className="py-8 text-center text-slate-500">
+                  <td colSpan={isOwner ? 10 : 9} className="py-8 text-center text-slate-500">
                     <Package className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                     No item/service entries yet.
                   </td>
@@ -602,17 +659,37 @@ export const ItemServicePage: React.FC = () => {
                       {isOwner && (
                         <td className="py-2.5 px-3 text-center whitespace-nowrap">
                           {!r.voided ? (
-                            <button
-                              onClick={() => handleVoid(r)}
-                              className="text-[11px] font-semibold text-rose-600 hover:text-rose-800 hover:underline"
-                            >
-                              Void
-                            </button>
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => handleEdit(r)}
+                                className="text-[11px] font-semibold text-[var(--theme-primary)] hover:underline inline-flex items-center gap-1"
+                              >
+                                <Pencil className="w-3 h-3" /> Edit
+                              </button>
+                              <button
+                                onClick={() => handleVoid(r)}
+                                className="text-[11px] font-semibold text-rose-600 hover:text-rose-800 hover:underline"
+                              >
+                                Void
+                              </button>
+                            </div>
                           ) : (
                             <span className="text-[11px] text-slate-400">Voided</span>
                           )}
                         </td>
                       )}
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                        {!r.voided ? (
+                          <button
+                            onClick={() => setReceiptRow(r)}
+                            className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 hover:underline inline-flex items-center gap-1"
+                          >
+                            <Printer className="w-3 h-3" /> Receipt
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-slate-300">—</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })
@@ -622,20 +699,20 @@ export const ItemServicePage: React.FC = () => {
         </div>
       </Card>
 
-      {/* Create Modal */}
+      {/* Create / Edit Modal */}
       <Modal
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title="Item / Service Entry"
-        subtitle="Record a non-visa product or service: bought from a supplier, sold to a customer."
+        onClose={closeModal}
+        title={editingTransNo ? `Edit Item / Service Entry ${editingTransNo}` : 'Item / Service Entry'}
+        subtitle={editingTransNo ? 'Har field changeable hai — save par purani legs void ho kar nayi values post hongi (audit trail mehfooz).' : 'Record a non-visa product or service: bought from a supplier, sold to a customer.'}
         size="lg"
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={() => setModalOpen(false)}>
+            <Button variant="outline" size="sm" onClick={closeModal}>
               Cancel
             </Button>
             <Button variant="primary" size="sm" onClick={handleSave} loading={saving}>
-              Post Entry
+              {editingTransNo ? 'Save Changes' : 'Post Entry'}
             </Button>
           </>
         }
@@ -876,6 +953,85 @@ export const ItemServicePage: React.FC = () => {
           Supplier/Customer match by <strong>account code</strong> (e.g. VND-003) or <strong>name</strong>. Only valid rows will be imported — each gets its own trans #.
         </div>
       </Modal>
+
+      {/* Receipt Modal — printable invoice/service receipt */}
+      {receiptRow && (
+        <Modal
+          isOpen={!!receiptRow}
+          onClose={() => setReceiptRow(null)}
+          title={`Receipt ${receiptRow.transNo}`}
+          subtitle={`${receiptRow.date} • ${receiptRow.itemName}`}
+          size="md"
+          footer={
+            <div className="flex items-center justify-end gap-2 w-full">
+              <Button variant="outline" size="sm" onClick={() => setReceiptRow(null)}>
+                Close
+              </Button>
+              <Button variant="primary" size="sm" onClick={() => window.print()} rightIcon={<Printer className="w-3.5 h-3.5" />}>
+                Print Receipt
+              </Button>
+            </div>
+          }
+        >
+          <div className="py-2 text-xs">
+            <div className="bg-[#0e2c4c] text-white rounded-xl p-5 flex items-center justify-between">
+              <div>
+                <div className="text-slate-300 uppercase text-[10px] tracking-wider">Item / Service Receipt</div>
+                <div className="text-2xl font-mono font-bold mt-1 text-[#c9a227]">{receiptRow.transNo}</div>
+                <div className="text-slate-200 text-xs mt-1">{TENANT.companyName}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-slate-300 text-[10px] uppercase tracking-wider">Date</div>
+                <div className="text-lg font-mono font-bold">{receiptRow.date}</div>
+              </div>
+            </div>
+
+            <div className="mt-4 border border-slate-200 rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100">
+                <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Item / Service</div>
+                <div className="font-bold text-slate-900 text-sm mt-0.5">{receiptRow.itemName}</div>
+                {receiptRow.description && <div className="text-slate-600 mt-0.5">{receiptRow.description}</div>}
+              </div>
+              <div className="grid grid-cols-2 divide-x divide-slate-100">
+                <div className="px-4 py-3">
+                  <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Supplier (From)</div>
+                  <div className="font-semibold text-slate-900 mt-0.5">{receiptRow.supplierName || '—'}</div>
+                </div>
+                <div className="px-4 py-3">
+                  <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Customer (To)</div>
+                  <div className="font-semibold text-slate-900 mt-0.5">{receiptRow.customerName || '—'}</div>
+                </div>
+              </div>
+            </div>
+
+            <table className="w-full mt-4 text-xs border border-slate-200 rounded-xl overflow-hidden">
+              <thead>
+                <tr className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
+                  <th className="text-left px-4 py-2.5 font-bold">Detail</th>
+                  <th className="text-right px-4 py-2.5 font-bold">Amount (PKR)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                <tr>
+                  <td className="px-4 py-2.5 text-slate-700">Buying Price</td>
+                  <td className="px-4 py-2.5 text-right font-mono">{receiptRow.buyingPKR > 0 ? formatPKR(receiptRow.buyingPKR) : '—'}</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-2.5 text-slate-700">Selling Price</td>
+                  <td className="px-4 py-2.5 text-right font-mono font-bold">{receiptRow.sellingPKR > 0 ? formatPKR(receiptRow.sellingPKR) : '—'}</td>
+                </tr>
+                <tr className="bg-slate-50">
+                  <td className="px-4 py-2.5 font-bold text-slate-900">Margin</td>
+                  <td className={`px-4 py-2.5 text-right font-mono font-bold ${receiptRow.sellingPKR - receiptRow.buyingPKR >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    {formatPKR(Math.round((receiptRow.sellingPKR - receiptRow.buyingPKR) * 100) / 100)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="text-[10px] text-slate-400 mt-3 text-center">System-generated receipt • {TENANT.companyName}</p>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
