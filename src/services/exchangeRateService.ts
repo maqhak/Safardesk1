@@ -17,6 +17,8 @@ export interface ExchangeRateDoc {
 
 const DEFAULT_RATES: Record<string, number> = {
   'SAR-PKR': 74.50,
+  'SAR-PKR-BUY': 75.50, // Buying ROE: company pays out SAR (sent payments)
+  'SAR-PKR-SELL': 76.50, // Selling ROE: company receives SAR (received payments)
   'USD-SAR': 3.75,
   'USD-PKR': 278.50,
 };
@@ -72,6 +74,16 @@ export async function loadExchangeRates(): Promise<void> {
 export function getCurrentRate(pair: string = 'SAR-PKR'): number {
   const rates = fetchExchangeRates();
   return rates[pair] || DEFAULT_RATES[pair] || 74.50;
+}
+
+/** Buying ROE — used when the company PAYS OUT (sent payments, vendor costs). */
+export function getBuyRate(): number {
+  return getCurrentRate('SAR-PKR-BUY');
+}
+
+/** Selling ROE — used when the company RECEIVES (received payments, agent collections). */
+export function getSellRate(): number {
+  return getCurrentRate('SAR-PKR-SELL');
 }
 
 export async function updateExchangeRate(

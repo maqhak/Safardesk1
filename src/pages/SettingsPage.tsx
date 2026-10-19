@@ -32,7 +32,7 @@ import {
   saveGeminiApiKey,
   clearGeminiApiKey
 } from '../services/driveService';
-import { updateExchangeRate, getCurrentRate } from '../services/exchangeRateService';
+import { updateExchangeRate, getCurrentRate, getBuyRate, getSellRate } from '../services/exchangeRateService';
 import { ThemeSettings } from '../components/settings/ThemeSettings';
 import { DriveIntegrationDoc } from '../types/payment';
 
@@ -45,6 +45,8 @@ export const SettingsPage: React.FC = () => {
   const [primaryCurrency, setPrimaryCurrency] = useState(TENANT.currency.primary);
   const [secondaryCurrency, setSecondaryCurrency] = useState(TENANT.currency.secondary);
   const [exchangeRate, setExchangeRate] = useState(String(getCurrentRate('SAR-PKR')));
+  const [buyRate, setBuyRate] = useState(String(getBuyRate()));
+  const [sellRate, setSellRate] = useState(String(getSellRate()));
   const [supportEmail, setSupportEmail] = useState(TENANT.contact.email);
   const [supportPhone, setSupportPhone] = useState(TENANT.contact.phone);
 
@@ -164,6 +166,14 @@ export const SettingsPage: React.FC = () => {
       const rate = parseFloat(exchangeRate);
       if (!isNaN(rate) && rate > 0 && userProfile) {
         await updateExchangeRate(userProfile, 'SAR-PKR', rate);
+      }
+      const br = parseFloat(buyRate);
+      if (!isNaN(br) && br > 0 && userProfile) {
+        await updateExchangeRate(userProfile, 'SAR-PKR-BUY', br);
+      }
+      const sr = parseFloat(sellRate);
+      if (!isNaN(sr) && sr > 0 && userProfile) {
+        await updateExchangeRate(userProfile, 'SAR-PKR-SELL', sr);
       }
       // Save tenant branding to Firestore (applies immediately, no redeploy)
       if (userProfile && role === 'owner') {
@@ -304,6 +314,22 @@ export const SettingsPage: React.FC = () => {
                   value={exchangeRate}
                   onChange={(e) => setExchangeRate(e.target.value)}
                   helperText="Default rate for ledgers"
+                />
+                <Input
+                  label="Buying ROE (1 SAR = PKR)"
+                  type="number"
+                  step="0.01"
+                  value={buyRate}
+                  onChange={(e) => setBuyRate(e.target.value)}
+                  helperText="Used for SENT payments (company pays out)"
+                />
+                <Input
+                  label="Selling ROE (1 SAR = PKR)"
+                  type="number"
+                  step="0.01"
+                  value={sellRate}
+                  onChange={(e) => setSellRate(e.target.value)}
+                  helperText="Used for RECEIVED payments (company collects)"
                 />
               </div>
 

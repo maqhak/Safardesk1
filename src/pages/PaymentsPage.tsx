@@ -139,16 +139,27 @@ export const PaymentsPage: React.FC = () => {
   const [selectedBankId, setSelectedBankId] = useState<string>('');
   const [enteredAmount, setEnteredAmount] = useState<number>(0);
   const [amountCurrency, setAmountCurrency] = useState<'SAR' | 'PKR'>('SAR');
-  const masterRate = useCurrentRate('SAR-PKR');
-  const [exchangeRate, setExchangeRate] = useState<number>(masterRate);
+  // Dual ROE: SENT payments (company pays out) use Buying ROE, RECEIVED use Selling ROE.
+  const buyRate = useCurrentRate('SAR-PKR-BUY');
+  const sellRate = useCurrentRate('SAR-PKR-SELL');
+  const rateForType = (t: PaymentEntryType) =>
+    t === 'cash-sent' || t === 'bank-sent' ? buyRate : sellRate;
+  const [exchangeRate, setExchangeRate] = useState<number>(sellRate);
 
   // Payment amount can be entered in SAR or PKR (toggle); ledger always posts both.
   const amountSAR = amountCurrency === 'SAR' ? enteredAmount : (exchangeRate > 0 ? enteredAmount / exchangeRate : 0);
   const amountPKR = amountCurrency === 'PKR' ? enteredAmount : enteredAmount * exchangeRate;
 
+  // Keep the rate field in sync when the direction (sent/received) changes.
+  const handleEntryTypeChange = (t: PaymentEntryType) => {
+    setEntryType(t);
+    setExchangeRate(rateForType(t));
+  };
+
   useEffect(() => {
-    setExchangeRate(masterRate);
-  }, [masterRate]);
+    setExchangeRate(rateForType(entryType));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buyRate, sellRate]);
   const [againstInvoiceNo, setAgainstInvoiceNo] = useState<string>('');
   const [particulars, setParticulars] = useState<string>('');
   
@@ -205,11 +216,11 @@ export const PaymentsPage: React.FC = () => {
       setDate(new Date().toISOString().split('T')[0]);
       setEntryType('cash-received');
       setSelectedPayerPayeeId(payerPayeeAccounts[0]?.id || '');
+      setExchangeRate(sellRate);
       setSelectedCashTillId(cashAccounts[0]?.id || '');
       setSelectedBankId(banks[0]?.id || '');
       setEnteredAmount(0);
       setAmountCurrency('SAR');
-      setExchangeRate(masterRate);
       setAgainstInvoiceNo('');
       setParticulars('');
       setReceiptDataUrl('');
@@ -224,9 +235,9 @@ export const PaymentsPage: React.FC = () => {
 
   const handlePayerPayeeChange = (accId: string) => {
     setSelectedPayerPayeeId(accId);
-    // Prefill from the Exchange Rate Master; the agent/staff can still type a
-    // manual per-agent rate (locked rule: each agent's rate is manual).
-    setExchangeRate(masterRate);
+    // Prefill from the directional ROE (buy for sent, sell for received);
+    // the agent/staff can still type a manual per-payment rate.
+    setExchangeRate(rateForType(entryType));
   };
 
   const handleInvoiceChange = (invNo: string) => {
@@ -1301,7 +1312,7 @@ export const PaymentsPage: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               <button
                 type="button"
-                onClick={() => setEntryType('cash-received')}
+                onClick={() => handleEntryTypeChange('cash-received')}
                 className={`p-2.5 rounded-xl border text-left cursor-pointer transition flex flex-col justify-between ${
                   entryType === 'cash-received'
                     ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20'
@@ -1318,7 +1329,7 @@ export const PaymentsPage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => setEntryType('cash-sent')}
+                onClick={() => handleEntryTypeChange('cash-sent')}
                 className={`p-2.5 rounded-xl border text-left cursor-pointer transition flex flex-col justify-between ${
                   entryType === 'cash-sent'
                     ? 'border-rose-600 bg-rose-50/60 ring-2 ring-rose-500/20'
@@ -1335,7 +1346,7 @@ export const PaymentsPage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => setEntryType('bank-received')}
+                onClick={() => handleEntryTypeChange('bank-received')}
                 className={`p-2.5 rounded-xl border text-left cursor-pointer transition flex flex-col justify-between ${
                   entryType === 'bank-received'
                     ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20'
@@ -1352,7 +1363,7 @@ export const PaymentsPage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => setEntryType('bank-sent')}
+                onClick={() => handleEntryTypeChange('bank-sent')}
                 className={`p-2.5 rounded-xl border text-left cursor-pointer transition flex flex-col justify-between ${
                   entryType === 'bank-sent'
                     ? 'border-rose-600 bg-rose-50/60 ring-2 ring-rose-500/20'
@@ -1489,7 +1500,11 @@ export const PaymentsPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Exchange Rate (SAR→PKR)</label>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                Exchange Rate (SAR→PKR) <span className="text-[10px] font-normal text-slate-400">
+                  {(entryType === 'cash-sent' || entryType === 'bank-sent') ? '· Buying ROE' : '· Selling ROE'}
+                </span>
+              </label>
               <input
                 type="number"
                 step="0.01"
@@ -1498,7 +1513,7 @@ export const PaymentsPage: React.FC = () => {
                   const v = e.target.value;
                   setExchangeRate(v === '' ? 0 : parseFloat(v) || 0);
                 }}
-                placeholder={masterRate.toFixed(2)}
+                placeholder={rateForType(entryType).toFixed(2)}
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
               />
             </div>
