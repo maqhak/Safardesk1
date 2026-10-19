@@ -9,7 +9,8 @@ import {
   Database,
   Plane,
   Edit,
-  Power
+  Power,
+  Trash2
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -17,12 +18,13 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { DataTable, Column } from '../components/ui/DataTable';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { AirlineDoc, AirportRef } from '../types/master';
-import { fetchAirlines, createAirline, updateAirline, toggleAirlineStatus, fetchAirports } from '../services/masterService';
+import { fetchAirlines, createAirline, updateAirline, toggleAirlineStatus, deleteAirline, fetchAirports } from '../services/masterService';
 import { AirlineSelect, AirportSelect } from '../components/ui';
 
 export const AirlinesPage: React.FC = () => {
@@ -159,6 +161,33 @@ export const AirlinesPage: React.FC = () => {
     }
   };
 
+  // Delete Airline (confirm first)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false);
+  const [airlineToDelete, setAirlineToDelete] = useState<AirlineDoc | null>(null);
+  const [deleting, setDeleting] = useState<boolean>(false);
+
+  const handleDeleteClick = (a: AirlineDoc) => {
+    setAirlineToDelete(a);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!userProfile || !airlineToDelete) return;
+    setDeleting(true);
+    try {
+      await deleteAirline(userProfile, airlineToDelete.id);
+      success(`Airline ${airlineToDelete.iataCode} deleted successfully.`);
+      setDeleteConfirmOpen(false);
+      setAirlineToDelete(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err?.message || 'Failed to delete airline.');
+      setDeleteConfirmOpen(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const filteredAirlines = airlines.filter((a) =>
     a.iataCode.toLowerCase().includes(search.toLowerCase()) ||
     a.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -224,6 +253,17 @@ export const AirlinesPage: React.FC = () => {
                 {row.isActive ? 'Deactivate' : 'Activate'}
               </Button>
             </>
+          )}
+          {userProfile?.role === 'owner' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleDeleteClick(row)}
+              className="text-rose-600 hover:text-rose-700"
+              leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+            >
+              Delete
+            </Button>
           )}
         </div>
       ),
@@ -462,6 +502,24 @@ export const AirlinesPage: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* DELETE AIRLINE CONFIRMATION */}
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Airline"
+        message={
+          <>
+            Are you sure you want to delete airline <strong>{airlineToDelete?.iataCode}</strong> ({airlineToDelete?.name})?
+            <br /><br />
+            This will permanently delete this record. This data cannot be recovered.
+          </>
+        }
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   );
 };

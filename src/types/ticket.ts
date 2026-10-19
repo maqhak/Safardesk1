@@ -64,6 +64,8 @@ export interface TicketDoc {
   buyerName: string;
   status: 'Booked' | 'Issued' | 'Cancelled' | 'Refunded';
   exchangeRateSARPKR: number;
+  buyROE?: number; // Dual ROE: cost side (purchaseCostSAR = purchaseCostPKR / buyROE)
+  sellROE?: number; // Dual ROE: revenue side (salePriceSAR = salePricePKR / sellROE)
   purchaseCostPKR: number;
   salePricePKR: number;
   purchaseCurrency?: 'PKR' | 'SAR' | 'USD';

@@ -16,6 +16,7 @@ import {
   AlertCircle, 
   Eye, 
   Ban, 
+  Pencil,
   ArrowUpRight, 
   ArrowDownLeft, 
   ExternalLink,
@@ -55,6 +56,7 @@ import {
   fetchInvoices, 
   createPayment, 
   voidPayment, 
+  editPayment,
   getNextPaymentNumber, 
   processReceiptFile,
   retryDriveUploadForPayment,
@@ -65,6 +67,7 @@ import { fetchLedgerAccounts,
   saveLedgerAccount,} from '../services/accountingService';
 import { getDriveIntegration } from '../services/driveService';
 import { ReceiptViewerModal } from '../components/accounting/ReceiptViewerModal';
+import { DeleteConfirmModal } from '../components/accounting/DeleteConfirmModal';
 import { Link } from 'react-router-dom';
 
 export const PaymentsPage: React.FC = () => {
@@ -112,6 +115,16 @@ export const PaymentsPage: React.FC = () => {
   const [paymentToVoid, setPaymentToVoid] = useState<PaymentDoc | null>(null);
   const [voidReason, setVoidReason] = useState<string>('');
   const [voiding, setVoiding] = useState<boolean>(false);
+
+  // Edit Payment Modal (Owner/Staff)
+  const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
+  const [paymentToEdit, setPaymentToEdit] = useState<PaymentDoc | null>(null);
+  const [editDate, setEditDate] = useState<string>('');
+  const [editFromId, setEditFromId] = useState<string>('');
+  const [editToId, setEditToId] = useState<string>('');
+  const [editAmountSAR, setEditAmountSAR] = useState<number>(0);
+  const [editParticulars, setEditParticulars] = useState<string>('');
+  const [editing, setEditing] = useState<boolean>(false);
 
   // Retry state
   const [retryingId, setRetryingId] = useState<string | null>(null);
@@ -506,6 +519,61 @@ export const PaymentsPage: React.FC = () => {
       showError('Failed to delete payment.');
     } finally {
       setVoiding(false);
+    }
+  };
+
+  // Open Edit modal prefilled with the payment's current values
+  const openEditModal = (p: PaymentDoc) => {
+    setPaymentToEdit(p);
+    setEditDate(p.date || '');
+    setEditFromId(p.fromAccountId || '');
+    setEditToId(p.toAccountId || '');
+    setEditAmountSAR(p.amountSAR || 0);
+    setEditParticulars(p.particulars || '');
+    setEditModalOpen(true);
+  };
+
+  const handleConfirmEdit = async () => {
+    if (!paymentToEdit) return;
+    if (!editDate) {
+      showError('Date is required.');
+      return;
+    }
+    if (!(editAmountSAR > 0)) {
+      showError('Amount must be greater than zero.');
+      return;
+    }
+    if (!editFromId || !editToId) {
+      showError('Both from and to accounts are required.');
+      return;
+    }
+    if (editFromId === editToId) {
+      showError('From and to accounts cannot be the same.');
+      return;
+    }
+
+    setEditing(true);
+    try {
+      const updated = await editPayment(
+        paymentToEdit.id,
+        {
+          date: editDate,
+          fromAccountId: editFromId,
+          toAccountId: editToId,
+          amountSAR: editAmountSAR,
+          particulars: editParticulars,
+          exchangeRate: paymentToEdit.exchangeRate || 0,
+        },
+        userProfile?.name || 'Owner'
+      );
+      success(`Payment #${updated.paymentNo} updated — corrected payment reposted.`);
+      setEditModalOpen(false);
+      setPaymentToEdit(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err.message || 'Failed to update payment.');
+    } finally {
+      setEditing(false);
     }
   };
 
@@ -936,7 +1004,7 @@ export const PaymentsPage: React.FC = () => {
                 <th className="py-3 px-3 text-right">Amount (PKR)</th>
                 <th className="py-3 px-3 text-center">AI Audit</th>
                 <th className="py-3 px-3 text-center">Drive Receipt</th>
-                {isOwner && <th className="py-3 px-3 text-center">Action</th>}
+                {!isAgent && <th className="py-3 px-3 text-center">Action</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white">
@@ -1136,22 +1204,34 @@ export const PaymentsPage: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Action (Owner only) */}
-                      {isOwner && (
+                      {/* Action (Owner/Staff only) */}
+                      {!isAgent && (
                         <td className="py-2.5 px-3 text-center whitespace-nowrap">
                           {!isVoid && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPaymentToVoid(p);
-                                setVoidReason('');
-                                setVoidModalOpen(true);
-                              }}
-                              className="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition cursor-pointer"
-                              title="Delete Payment Permanently"
-                            >
-                              <Ban className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(p)}
+                                className="text-slate-400 hover:text-sky-600 p-1 rounded hover:bg-sky-50 transition cursor-pointer"
+                                title="Edit Payment"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              {isOwner && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPaymentToVoid(p);
+                                    setVoidReason('');
+                                    setVoidModalOpen(true);
+                                  }}
+                                  className="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition cursor-pointer"
+                                  title="Delete Payment Permanently"
+                                >
+                                  <Ban className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           )}
                         </td>
                       )}
@@ -1189,40 +1269,97 @@ export const PaymentsPage: React.FC = () => {
         agentOwnAccountId={userProfile?.agentId || 'acc-agt-001'}
       />
 
-      {/* Delete Payment Modal (Owner Only) */}
-      <Modal
+      {/* Delete Payment Modal (Owner/Staff) */}
+      <DeleteConfirmModal
         isOpen={voidModalOpen}
         onClose={() => setVoidModalOpen(false)}
         title={`Delete Payment #${paymentToVoid?.paymentNo}`}
-        subtitle="This will permanently remove the payment and its ledger entries from the system. No trace will remain."
+        recordLabel={paymentToVoid ? `${paymentToVoid.paymentNo} • ${paymentToVoid.entryType} • ${paymentToVoid.date} • ${(paymentToVoid.enteredCurrency || 'SAR')} ${((paymentToVoid.enteredCurrency === 'PKR' ? paymentToVoid.amountPKR : paymentToVoid.amountSAR) || 0).toLocaleString()}` : undefined}
+        deleting={voiding}
+        onConfirm={handleConfirmVoid}
+      />
+
+      {/* Edit Payment Modal (Owner/Staff) — prefilled; save reposts corrected payment with same number */}
+      <Modal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title={`Edit Payment #${paymentToEdit?.paymentNo}`}
+        subtitle="The original payment is removed and a corrected payment is reposted with the same payment number."
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={() => setVoidModalOpen(false)}>
+            <Button variant="outline" size="sm" onClick={() => setEditModalOpen(false)}>
               Cancel
             </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              loading={voiding}
-              onClick={handleConfirmVoid}
-            >
-              Delete Permanently
+            <Button variant="primary" size="sm" loading={editing} onClick={handleConfirmEdit}>
+              Save Changes
             </Button>
           </>
         }
       >
-        <div className="space-y-4 py-2 text-xs">
-          {paymentToVoid && (
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
-              <div><strong>Payment No:</strong> {paymentToVoid.paymentNo} ({paymentToVoid.entryType})</div>
-              <div><strong>Date:</strong> {paymentToVoid.date}</div>
-              <div><strong>Amount:</strong> {paymentToVoid.enteredCurrency || 'SAR'} {(paymentToVoid.enteredCurrency === 'PKR' ? paymentToVoid.amountPKR : paymentToVoid.amountSAR).toLocaleString()}</div>
-              <div><strong>Particulars:</strong> {paymentToVoid.particulars}</div>
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Date *</label>
+              <input
+                type="date"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900"
+              />
             </div>
-          )}
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 font-semibold">
-            ⚠ This payment and its ledger entries will be permanently deleted from the system. This cannot be undone.
+            <div>
+              <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Amount (SAR) *</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={editAmountSAR || ''}
+                onChange={(e) => setEditAmountSAR(parseFloat(e.target.value) || 0)}
+                className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 text-right"
+              />
+            </div>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">From Account *</label>
+              <select
+                value={editFromId}
+                onChange={(e) => setEditFromId(e.target.value)}
+                className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900"
+              >
+                <option value="">-- Select --</option>
+                {accounts.map((a: any) => (
+                  <option key={a.id} value={a.id}>{a.title} ({a.accountCode})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">To Account *</label>
+              <select
+                value={editToId}
+                onChange={(e) => setEditToId(e.target.value)}
+                className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900"
+              >
+                <option value="">-- Select --</option>
+                {accounts.map((a: any) => (
+                  <option key={a.id} value={a.id}>{a.title} ({a.accountCode})</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Particulars</label>
+            <input
+              type="text"
+              value={editParticulars}
+              onChange={(e) => setEditParticulars(e.target.value)}
+              placeholder="Payment description"
+              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900"
+            />
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Type ({paymentToEdit?.entryType}), receipt and invoice link are kept unchanged.
+          </p>
         </div>
       </Modal>
 

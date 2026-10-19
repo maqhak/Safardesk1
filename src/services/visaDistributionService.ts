@@ -13,7 +13,7 @@ import { collection, getDocs, doc, setDoc, deleteDoc, query, where } from 'fireb
 import { db, isConfigPlaceholder } from './firebase';
 import { logAuditEvent } from './userService';
 import { stripUndefinedDeep } from '../utils/firestoreSanitize';
-import { getCurrentRate } from './exchangeRateService';
+import { getCurrentRate, getBuyRate, getSellRate } from './exchangeRateService';
 import { UserProfile } from '../types/auth';
 
 const DISTRIB_COLLECTION = 'visa_distributions';
@@ -81,6 +81,8 @@ export async function createVisaDistributionBatch(params: {
     visaIds: string[];
     packageType?: string;
     exchangeRateSARPKR: number; // Fix #29: manually entered per-agent SAR->PKR rate
+    buyROE?: number; // Dual ROE: cost side (defaults to Settings Buying ROE)
+    sellROE?: number; // Dual ROE: revenue side (defaults to Settings Selling ROE)
     commission?: {
       enabled: boolean;
       recipientName: string;
@@ -121,21 +123,6 @@ export async function createVisaDistributionBatch(params: {
 
   const distribId = `distrib-${Date.now()}`;
   const distribNo = `DIST-${Math.floor(1000 + Math.random() * 9000)}`;
-
-  // Dual-role routing: if an agent is linked to a vendor (one party, one account),
-  // its Dr postings go to the shared vendor ledger account. Non-dual agents keep
-  // the original accountId behavior untouched.
-  const dualRoleVendorAccount = new Map<string, string>();
-  try {
-    const { fetchAgents } = await import('./agentService');
-    const allAgents = await fetchAgents();
-    for (const [agentId] of agentBatches.entries()) {
-      const ag: any = allAgents.find((a: any) => a.id === agentId);
-      if (ag?.linkedVendorId) {
-        dualRoleVendorAccount.set(agentId, `ledger-vnd-${ag.linkedVendorId}`);
-      }
-    }
-  } catch { /* non-dual fallback below */ }
 
   // Resolve Shirka display name for stamping + vendor name/code for its ledger account
   let shirkaName = '';
@@ -258,9 +245,29 @@ export async function createVisaDistributionBatch(params: {
   let totalBuyingAll = 0;
   let totalSellingAll = 0;
 
+  // Dual-role routing: if an agent is linked to a vendor (one party, one account),
+  // its Dr postings go to the shared vendor ledger account. Non-dual agents keep
+  // the original accountId behavior untouched.
+  const dualRoleVendorAccount = new Map<string, string>();
+  try {
+    const { fetchAgents } = await import('./agentService');
+    const allAgents = await fetchAgents();
+    for (const [agentId] of agentBatches.keys()) {
+      const ag: any = allAgents.find((a: any) => a.id === agentId);
+      if (ag?.linkedVendorId) {
+        dualRoleVendorAccount.set(agentId, `ledger-vnd-${ag.linkedVendorId}`);
+      }
+    }
+  } catch { /* non-dual fallback below */ }
+
   for (const [agentId, batch] of agentBatches.entries()) {
-    // Fix #29: each agent's invoice uses its own MANUALLY entered SAR->PKR rate.
-    const exchangeRate = Number(batch.exchangeRateSARPKR) > 0 ? Number(batch.exchangeRateSARPKR) : getCurrentRate('SAR-PKR');
+    // Dual ROE: revenue side uses sellROE, cost side uses buyROE.
+    // Manual per-group entry wins; otherwise the agent's manual rate; otherwise Settings.
+    const agentManual = Number(batch.exchangeRateSARPKR) > 0 ? Number(batch.exchangeRateSARPKR) : 0;
+    const sellROE = Number((batch as any).sellROE) > 0 ? Number((batch as any).sellROE) : (agentManual || getSellRate());
+    const buyROE = Number((batch as any).buyROE) > 0 ? Number((batch as any).buyROE) : (agentManual || getBuyRate());
+    // Legacy single-rate field kept for backward compatibility (mirrors sellROE).
+    const exchangeRate = sellROE;
 
     batch.groups.forEach((g) => {
       createdGroups.push({
@@ -293,7 +300,9 @@ export async function createVisaDistributionBatch(params: {
 
     const marginSAR = batch.sellingTotalSAR - batch.buyingTotalSAR;
     const invoiceNo = await getNextInvoiceNumber();
-    const totalsPKR = Math.round(batch.sellingTotalSAR * exchangeRate * 100) / 100;
+    const sellingTotalPKR = Math.round(batch.sellingTotalSAR * sellROE * 100) / 100;
+    const buyingTotalPKR = Math.round(batch.buyingTotalSAR * buyROE * 100) / 100;
+    const totalsPKR = sellingTotalPKR;
 
     // One invoice, but lines split per PAX (one by one) — each pilgrim's
     // name + passport + individual rate on its own row, never lumped.
@@ -336,6 +345,10 @@ export async function createVisaDistributionBatch(params: {
       buyingTotalSAR: batch.buyingTotalSAR,
       marginSAR,
       exchangeRate,
+      buyROE,
+      sellROE,
+      buyingTotalPKR,
+      sellingTotalPKR,
       totalsPKR,
       // NOTE (VV rename): `status` is kept on the doc for backward compatibility
       // with legacy INV- docs, but the VV UI no longer displays or filters by
@@ -359,7 +372,7 @@ export async function createVisaDistributionBatch(params: {
       g.visaIds.forEach((vId) => {
         const v = visaById.get(vId);
         const sar = g.sellingPricePerVisa;
-        const pkr = Math.round(sar * exchangeRate * 100) / 100;
+        const pkr = Math.round(sar * sellROE * 100) / 100;
         paxCount += 1;
         const seq = baseSeq + paxCount;
         newLedgerEntries.push({
@@ -369,9 +382,9 @@ export async function createVisaDistributionBatch(params: {
           accountId: dualRoleVendorAccount.get(agentId) || agentId,
           entryType: 'Invoice',
           transNo: invoiceNo,
-          particulars: `Visa — ${v?.pilgrimName || 'Pilgrim'} | PP: ${v?.passportNumber || '—'} | ${g.groupCode}${g.groupName && g.groupName !== g.groupCode ? ` (${g.groupName})` : ''} — SAR ${sar.toLocaleString()}/visa`,
+          particulars: `Visa — ${v?.pilgrimName || 'Pilgrim'} | PP: ${v?.passportNumber || '—'} | ${g.groupCode}${g.groupName && g.groupName !== g.groupCode ? ` (${g.groupName})` : ''} — SAR ${sar.toLocaleString()}/visa @${sellROE}`,
           invoiceRef: invoiceNo,
-          rate: exchangeRate,
+          rate: sellROE,
           debitSAR: sar,
           creditSAR: 0,
           debitPKR: pkr,
@@ -386,7 +399,7 @@ export async function createVisaDistributionBatch(params: {
     // (b) Credit Vendor (Shirka) ledger payable = buyingTotalSAR
     // accountId MUST be the vendor's ledger account id (`ledger-vnd-<vendorId>`),
     // NOT the raw vendorId — entries only attach to accounts by exact id match.
-    const creditVendorPKR = Math.round(batch.buyingTotalSAR * exchangeRate * 100) / 100;
+    const creditVendorPKR = Math.round(batch.buyingTotalSAR * buyROE * 100) / 100;
     newLedgerEntries.push({
       id: `le-${baseSeq + paxCount + 1}`,
       entryNo: `LE-${baseSeq + paxCount + 1}`,
@@ -394,9 +407,9 @@ export async function createVisaDistributionBatch(params: {
       accountId: vendorLedgerAccount.id,
       entryType: 'Invoice',
       transNo: invoiceNo,
-      particulars: `Visa Purchase Cost for VV #${invoiceNo} (${batch.totalVisas} Visas)${shirkaName ? ` — ${shirkaName}` : ''}`,
+      particulars: `Visa Purchase Cost for VV #${invoiceNo} (${batch.totalVisas} Visas)${shirkaName ? ` — ${shirkaName}` : ''} @${buyROE}`,
       invoiceRef: invoiceNo,
-      rate: exchangeRate,
+      rate: buyROE,
       debitSAR: 0,
       creditSAR: batch.buyingTotalSAR,
       debitPKR: 0,
@@ -407,7 +420,7 @@ export async function createVisaDistributionBatch(params: {
     });
 
     // (c) Credit "Income — Visa Margin" system account = marginSAR
-    const creditMarginPKR = Math.round(marginSAR * exchangeRate * 100) / 100;
+    const creditMarginPKR = Math.round((sellingTotalPKR - buyingTotalPKR) * 100) / 100;
     newLedgerEntries.push({
       id: `le-${baseSeq + paxCount + 2}`,
       entryNo: `LE-${baseSeq + paxCount + 2}`,
@@ -788,6 +801,54 @@ export async function voidVisaInvoice(
   }).catch(() => {});
 
   return updated;
+}
+
+/**
+ * Hard-delete a VV (Owner only). Follows the voidVisaInvoice pattern:
+ * live ledger legs are voided first so the books stay balanced, then the VV
+ * document is permanently removed from Firestore and localStorage.
+ */
+export async function deleteVisaInvoice(invoiceId: string, actor: UserProfile): Promise<void> {
+  if (actor.role !== 'owner') {
+    throw new Error('Only the Owner can delete a VV.');
+  }
+  const invoices = await fetchVisaInvoices();
+  const invoice = invoices.find((i) => i.id === invoiceId);
+  if (!invoice) throw new Error('VV not found.');
+
+  // Void all live ledger legs for this VV (same pattern as voidVisaInvoice)
+  const allEntries = await fetchLedgerEntries();
+  const legs = allEntries.filter(
+    (e) => e.transNo === invoice.invoiceNo && e.entryType === 'Invoice' && !e.isVoid
+  );
+  for (const leg of legs) {
+    await voidLedgerEntry(leg.id, `VV ${invoice.invoiceNo} deleted`, actor.name || actor.email);
+  }
+
+  if (!isConfigPlaceholder) {
+    try {
+      await deleteDoc(doc(db, INVOICES_COLLECTION, invoiceId));
+    } catch (err) {
+      console.warn('Could not delete VV from Firestore:', err);
+      throw err;
+    }
+  }
+
+  const remaining = invoices.filter((i) => i.id !== invoiceId);
+  try { localStorage.setItem(LOCAL_STORAGE_INVOICES_KEY, JSON.stringify(remaining)); } catch { /* ignore */ }
+  bustPrefix('visa_invoices');
+  bust('ledger:entries:all'); bustPrefix('ledger:entries:');
+
+  await logAuditEvent({
+    action: 'DELETE_VV',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: invoice.id,
+    targetUserName: invoice.invoiceNo,
+    details: { legsVoided: legs.length },
+  }).catch(() => {});
 }
 
 export async function markCommissionPaid(

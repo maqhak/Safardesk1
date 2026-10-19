@@ -23,21 +23,113 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
+import { DeleteConfirmModal } from '../components/accounting/DeleteConfirmModal';
 import { formatDate } from '../utils/formatters';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { usePresetSearch } from '../hooks/useDeepOpen';
-import { fetchVisas, saveVisasBatch, saveVisaImportBatch, VisaDoc } from '../services/visaService';
+import { fetchVisas, saveVisasBatch, saveVisaImportBatch, updateVisa, deleteVisasBatch, VisaDoc } from '../services/visaService';
 import { fetchVendors } from '../services/masterService';
 import { VendorDoc } from '../types/master';
 import { logAuditEvent } from '../services/userService';
 import { useAuth } from '../contexts/AuthContext';
+
+/** Prefilled edit form for a visa record (Owner/Staff only). */
+const VisaEditForm: React.FC<{
+  visa: VisaDoc;
+  saving: boolean;
+  onCancel: () => void;
+  onSave: (patch: Partial<VisaDoc>) => void;
+}> = ({ visa, saving, onCancel, onSave }) => {
+  const [name, setName] = useState(visa.pilgrimName);
+  const [passport, setPassport] = useState(visa.passportNumber);
+  const [nationality, setNationality] = useState(visa.nationality);
+  const [gender, setGender] = useState(visa.gender || 'Male');
+  const [age, setAge] = useState(String(visa.age ?? ''));
+  const [issueDate, setIssueDate] = useState(visa.visaIssueDate || '');
+  const [groupCode, setGroupCode] = useState(visa.groupCode);
+  const [groupName, setGroupName] = useState(visa.groupName || '');
+
+  const fieldCls = "w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900";
+  const labelCls = "block text-[10px] uppercase font-bold text-slate-500 mb-1";
+
+  return (
+    <div className="space-y-3">
+      {visa.status === 'Distributed' && (
+        <p className="text-[11px] bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-2 font-medium">
+          This visa is already distributed — changing Group or Passport may affect its VV. Edit carefully.
+        </p>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls}>Mutamer Name *</label>
+          <input className={fieldCls} value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div>
+          <label className={labelCls}>Passport Number *</label>
+          <input className={fieldCls} value={passport} onChange={(e) => setPassport(e.target.value)} />
+        </div>
+        <div>
+          <label className={labelCls}>Nationality</label>
+          <input className={fieldCls} value={nationality} onChange={(e) => setNationality(e.target.value)} />
+        </div>
+        <div>
+          <label className={labelCls}>Gender</label>
+          <select className={fieldCls} value={gender} onChange={(e) => setGender(e.target.value)}>
+            <option>Male</option>
+            <option>Female</option>
+          </select>
+        </div>
+        <div>
+          <label className={labelCls}>Age</label>
+          <input type="number" min="0" className={fieldCls} value={age} onChange={(e) => setAge(e.target.value)} />
+        </div>
+        <div>
+          <label className={labelCls}>Visa Issue Date</label>
+          <input type="date" className={fieldCls} value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
+        </div>
+        <div>
+          <label className={labelCls}>Group Code *</label>
+          <input className={fieldCls} value={groupCode} onChange={(e) => setGroupCode(e.target.value)} />
+        </div>
+        <div>
+          <label className={labelCls}>Group Name</label>
+          <input className={fieldCls} value={groupName} onChange={(e) => setGroupName(e.target.value)} />
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 pt-2">
+        <Button variant="outline" size="sm" onClick={onCancel} disabled={saving}>Cancel</Button>
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={saving || !name.trim() || !passport.trim() || !groupCode.trim()}
+          onClick={() =>
+            onSave({
+              pilgrimName: name.trim(),
+              passportNumber: passport.trim(),
+              nationality: nationality.trim() || 'Pakistani',
+              gender,
+              age: age === '' ? undefined : Number(age),
+              visaIssueDate: issueDate || undefined,
+              groupCode: groupCode.trim(),
+              groupName: groupName.trim() || undefined,
+            })
+          }
+        >
+          {saving ? 'Saving…' : 'Save Changes'}
+        </Button>
+      </div>
+    </div>
+  );
+};
 
 export const VisasPage: React.FC = () => {
   const { success, error: showError, info } = useToast();
   const navigate = useNavigate();
   const { userProfile } = useAuth();
   const canCreate = useCan('Visas', 'create');
+  const canManage = userProfile?.role === 'owner' || userProfile?.role === 'staff'; // Edit: Owner/Staff, never Agent
+  const isOwner = userProfile?.role === 'owner'; // Delete: Owner only
 
   const [visas, setVisas] = useState<VisaDoc[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -56,6 +148,12 @@ export const VisasPage: React.FC = () => {
   const [manualGroupName, setManualGroupName] = useState('Manual Umrah Group');
   const [manualGender, setManualGender] = useState('Male');
   const [manualAge, setManualAge] = useState<number>(30);
+
+  // Edit / Delete visa (Owner/Staff only)
+  const [editVisa, setEditVisa] = useState<VisaDoc | null>(null);
+  const [editSaving, setEditSaving] = useState<boolean>(false);
+  const [deleteVisa, setDeleteVisa] = useState<VisaDoc | null>(null);
+  const [deletingVisa, setDeletingVisa] = useState<boolean>(false);
   const [manualVendorId, setManualVendorId] = useState('');
   const [manualShirkaId, setManualShirkaId] = useState('');
 
@@ -398,6 +496,36 @@ export const VisasPage: React.FC = () => {
     }
   };
 
+  const handleSaveVisaEdit = async (patch: Partial<VisaDoc>) => {
+    if (!editVisa || !userProfile) return;
+    setEditSaving(true);
+    try {
+      await updateVisa(editVisa.id, patch, userProfile);
+      success('Visa record updated.');
+      setEditVisa(null);
+      await loadVisas();
+    } catch (e: any) {
+      showError(e.message || 'Failed to update visa.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDeleteVisa = async () => {
+    if (!deleteVisa) return;
+    setDeletingVisa(true);
+    try {
+      await deleteVisasBatch([deleteVisa.id]);
+      success(`Visa for ${deleteVisa.pilgrimName} deleted.`);
+      setDeleteVisa(null);
+      await loadVisas();
+    } catch (e: any) {
+      showError(e.message || 'Failed to delete visa.');
+    } finally {
+      setDeletingVisa(false);
+    }
+  };
+
   const columns: Column<VisaDoc>[] = [
     {
       key: 'pilgrimName',
@@ -443,6 +571,25 @@ export const VisasPage: React.FC = () => {
         if (row.status === 'Approved') return <Badge variant="navy" dot>Approved</Badge>;
         return <Badge variant="gold" dot>Pending</Badge>;
       },
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'center',
+      render: (row) => (
+        <div className="flex items-center justify-center gap-1.5">
+          {canManage && (
+            <Button variant="outline" size="sm" onClick={() => setEditVisa(row)}>
+              Edit
+            </Button>
+          )}
+          {isOwner && (
+            <Button variant="danger" size="sm" onClick={() => setDeleteVisa(row)}>
+              Delete
+            </Button>
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -922,6 +1069,35 @@ export const VisasPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Edit Visa Modal (Owner/Staff only) */}
+      <Modal
+        isOpen={!!editVisa}
+        onClose={() => !editSaving && setEditVisa(null)}
+        title={`Edit Visa — ${editVisa?.passportNumber || ''}`}
+        subtitle={editVisa ? `${editVisa.pilgrimName} • Group ${editVisa.groupCode}` : ''}
+        size="lg"
+      >
+        {editVisa && (
+          <VisaEditForm
+            key={editVisa.id}
+            visa={editVisa}
+            saving={editSaving}
+            onCancel={() => setEditVisa(null)}
+            onSave={handleSaveVisaEdit}
+          />
+        )}
+      </Modal>
+
+      {/* Delete Visa (Owner/Staff only) */}
+      <DeleteConfirmModal
+        isOpen={!!deleteVisa}
+        onClose={() => !deletingVisa && setDeleteVisa(null)}
+        title={`Delete Visa — ${deleteVisa?.passportNumber || ''}`}
+        recordLabel={deleteVisa ? `${deleteVisa.pilgrimName} • ${deleteVisa.passportNumber} • Group ${deleteVisa.groupCode}` : ''}
+        deleting={deletingVisa}
+        onConfirm={handleDeleteVisa}
+      />
     </div>
   );
 };

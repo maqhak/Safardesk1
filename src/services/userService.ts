@@ -5,6 +5,7 @@ import {
   getDocs, 
   setDoc, 
   updateDoc, 
+  deleteDoc, 
   addDoc, 
   query, 
   orderBy, 
@@ -567,5 +568,60 @@ function resizeImageToDataUrl(file: File, maxDim: number): Promise<string> {
     };
 
     img.src = url;
+  });
+}
+
+/**
+ * Permanently delete a staff user account (Owner only).
+ * - Owner accounts can NEVER be deleted here (bootstrap rule).
+ * - The Owner can never delete their own account.
+ * - Agent logins are managed in the Agents registry (deleting an agent there
+ *   also removes its login doc), so this function refuses agent users to avoid
+ *   orphaned agent master records — use Suspend on the Agents page instead.
+ * The Firebase Auth account itself cannot be removed client-side; deleting the
+ * users doc blocks all access because AuthContext resolves roles from it.
+ */
+export async function deleteUser(actor: UserProfile, targetUserId: string): Promise<void> {
+  if (actor.role !== 'owner') {
+    throw new Error('Unauthorized: Only the Owner can delete user accounts.');
+  }
+  if (actor.uid === targetUserId) {
+    throw new Error('You cannot delete your own account.');
+  }
+
+  const users = await fetchAllUsers();
+  const target = users.find((u) => u.uid === targetUserId);
+  if (!target) {
+    throw new Error('User not found.');
+  }
+  if (target.role === 'owner') {
+    throw new Error('Operation Forbidden: Owner accounts cannot be deleted.');
+  }
+  if (target.role === 'agent') {
+    throw new Error('Agent logins are managed in the Agents registry. Suspend the agent there instead.');
+  }
+
+  try {
+    if (!isConfigPlaceholder) {
+      await deleteDoc(doc(db, USERS_COLLECTION, targetUserId));
+    }
+  } catch (err) {
+    throw new Error(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  cacheUsersLocally(users.filter((u) => u.uid !== targetUserId));
+
+  await logAuditEvent({
+    action: 'DELETE_USER',
+    userId: actor.uid,
+    userName: actor.name || 'Owner',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: target.uid,
+    targetUserName: target.name,
+    details: {
+      email: target.email,
+      role: target.role,
+    },
   });
 }

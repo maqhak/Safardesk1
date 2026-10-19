@@ -164,6 +164,8 @@ export interface VoucherDoc {
     totalSAR: number;
     totalPKR: number;
     exchangeRate?: number;
+    buyROE?: number; // Dual ROE: cost side
+    sellROE?: number; // Dual ROE: revenue side
   };
   commission: VoucherCommission;
   createdBy: string;

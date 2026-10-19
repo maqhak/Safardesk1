@@ -3,7 +3,8 @@ import {
   doc, 
   getDocs, 
   setDoc, 
-  updateDoc 
+  updateDoc,
+  deleteDoc 
 } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { TicketDoc, TicketSector } from '../types/ticket';
@@ -11,8 +12,8 @@ import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 import { UserProfile } from '../types/auth';
 import { LedgerEntryDoc } from '../types/agent';
 import { logAuditEvent } from './userService';
-import { getCurrentRate } from './exchangeRateService';
-import { fetchLedgerAccounts, postBalancedTransaction } from './accountingService';
+import { getCurrentRate, getBuyRate, getSellRate } from './exchangeRateService';
+import { fetchLedgerAccounts, postBalancedTransaction, fetchLedgerEntries, voidLedgerEntry } from './accountingService';
 
 const TICKETS_COLLECTION = 'tickets';
 const LEDGER_ENTRIES_COLLECTION = 'ledgerEntries';
@@ -161,10 +162,13 @@ export async function createTicket(
   actor: UserProfile,
   data: Omit<TicketDoc, 'id' | 'marginSAR' | 'purchaseCostSAR' | 'salePriceSAR' | 'createdAt' | 'createdBy' | 'createdByName'>
 ): Promise<TicketDoc> {
-  const rate = data.exchangeRateSARPKR || getCurrentRate('SAR-PKR');
+  // Dual ROE: cost side uses buyROE, revenue side uses sellROE.
+  const buyROE = Number((data as any).buyROE) > 0 ? Number((data as any).buyROE) : (data.exchangeRateSARPKR || getBuyRate());
+  const sellROE = Number((data as any).sellROE) > 0 ? Number((data as any).sellROE) : (data.exchangeRateSARPKR || getSellRate());
+  const rate = sellROE; // legacy single-rate field mirrors the revenue side
   // User enters both purchase & sale in PKR → derive SAR for ledger
-  const purchaseCostSAR = Math.round((data.purchaseCostPKR / rate) * 100) / 100;
-  const salePriceSAR = Math.round((data.salePricePKR / rate) * 100) / 100;
+  const purchaseCostSAR = Math.round((data.purchaseCostPKR / buyROE) * 100) / 100;
+  const salePriceSAR = Math.round((data.salePricePKR / sellROE) * 100) / 100;
   const marginSAR = Math.round((salePriceSAR - purchaseCostSAR) * 100) / 100;
 
   // Keep the legacy single-sector fields in sync with sectors[0] so older
@@ -307,4 +311,162 @@ export async function refundTicket(
   });
 
   return updated;
+}
+
+/**
+ * Update an existing ticket (owner/staff edit flow). Recomputes marginSAR
+ * from purchaseCostPKR/salePricePKR with the same pattern as createTicket.
+ * Status transitions are intentionally NOT editable here — the refund flow
+ * (refundTicket) stays the only path to 'Refunded', so an edit can never
+ * clobber refund state.
+ */
+export async function updateTicket(
+  actor: UserProfile,
+  ticketId: string,
+  updates: Partial<TicketDoc>
+): Promise<TicketDoc> {
+  if (actor.role !== 'owner' && actor.role !== 'staff') {
+    throw new Error('Only Owner or Staff can edit a ticket.');
+  }
+  const tickets = await fetchTickets();
+  const index = tickets.findIndex((t) => t.id === ticketId);
+  if (index === -1) {
+    throw new Error('Ticket not found');
+  }
+
+  const existing = tickets[index];
+  const now = new Date().toISOString();
+  const buyROE = Number((updates as any).buyROE ?? (existing as any).buyROE) > 0
+    ? Number((updates as any).buyROE ?? (existing as any).buyROE)
+    : (updates.exchangeRateSARPKR ?? existing.exchangeRateSARPKR ?? getBuyRate());
+  const sellROE = Number((updates as any).sellROE ?? (existing as any).sellROE) > 0
+    ? Number((updates as any).sellROE ?? (existing as any).sellROE)
+    : (updates.exchangeRateSARPKR ?? existing.exchangeRateSARPKR ?? getSellRate());
+  const rate = sellROE;
+  const purchaseCostPKR = updates.purchaseCostPKR ?? existing.purchaseCostPKR;
+  const salePricePKR = updates.salePricePKR ?? existing.salePricePKR;
+  const purchaseCostSAR = Math.round((purchaseCostPKR / buyROE) * 100) / 100;
+  const salePriceSAR = Math.round((salePricePKR / sellROE) * 100) / 100;
+  const marginSAR = Math.round((salePriceSAR - purchaseCostSAR) * 100) / 100;
+
+  const updated: TicketDoc = {
+    ...existing,
+    ...stripUndefinedDeep(updates),
+    status: existing.status, // status transitions stay with the refund flow
+    exchangeRateSARPKR: rate,
+    buyROE,
+    sellROE,
+    purchaseCostPKR,
+    purchaseCostSAR,
+    salePricePKR,
+    salePriceSAR,
+    marginSAR,
+    updatedAt: now,
+  };
+  (updated as any).updatedBy = actor.uid;
+
+  // Keep the legacy single-sector fields mirroring sectors[0]
+  if (updates.sectors && updates.sectors.length > 0) {
+    updated.sectorFrom = updates.sectors[0].from;
+    updated.sectorTo = updates.sectors[0].to;
+    updated.flightNo = updates.sectors[0].flightNo || updated.flightNo;
+    updated.flightDate = updates.sectors[0].flightDate || updated.flightDate;
+  }
+
+  tickets[index] = updated;
+  localStorage.setItem(LOCAL_STORAGE_TICKETS_KEY, JSON.stringify(tickets));
+
+  if (!isConfigPlaceholder) {
+    try {
+      await updateDoc(doc(db, TICKETS_COLLECTION, ticketId), stripUndefinedDeep({ ...updated }));
+    } catch (err) {
+      throw new Error('Ticket could not be updated in Firebase. Please try again.');
+    }
+  }
+
+  // Ledger stays in sync: if prices/rate changed on a non-refunded ticket,
+  // void the old sale legs and repost with the new amounts (same PNR/transNo).
+  const financialChanged =
+    (updates.salePricePKR ?? existing.salePricePKR) !== existing.salePricePKR ||
+    (updates.purchaseCostPKR ?? existing.purchaseCostPKR) !== existing.purchaseCostPKR ||
+    (updates.exchangeRateSARPKR ?? existing.exchangeRateSARPKR) !== existing.exchangeRateSARPKR;
+  if (financialChanged && existing.status !== 'Refunded') {
+    try {
+      const legs = await fetchLedgerEntries();
+      const saleLegs = legs.filter(
+        (e) => e.transNo === existing.pnr && e.entryType === 'Invoice' && !e.isVoid
+      );
+      for (const leg of saleLegs) {
+        await voidLedgerEntry(leg.id, `Ticket ${existing.pnr} edited — reposted`, actor.name || actor.email || 'system');
+      }
+      if (saleLegs.length > 0) {
+        await postTicketSaleToLedger(actor, updated);
+      }
+    } catch (err) {
+      console.warn('Ticket ledger repost failed after edit:', err);
+      // Ticket itself is saved; ledger repost failure is logged, not hidden.
+      throw new Error('Ticket updated, but its ledger entries could not be reposted. Please check the ledger.');
+    }
+  }
+
+  await logAuditEvent({
+    action: 'UPDATE_TICKET',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: ticketId,
+    targetUserName: updated.pnr,
+    details: { pnr: updated.pnr, salePricePKR: updated.salePricePKR },
+  });
+
+  return updated;
+}
+
+/** Delete a ticket: void its ledger legs first (sale + any refund reversal),
+ * then remove the ticket doc from Firestore AND localStorage. */
+export async function deleteTicket(actor: UserProfile, ticketId: string): Promise<void> {
+  if (actor.role !== 'owner') {
+    throw new Error('Only the Owner can delete a ticket.');
+  }
+  const existing = await fetchTickets();
+  const t = existing.find((item) => item.id === ticketId);
+  if (!t) {
+    throw new Error('Ticket not found');
+  }
+
+  // Unwind the books: void every live ledger leg tied to this PNR so no
+  // orphan receivable/income entries remain after the ticket is gone.
+  const legs = await fetchLedgerEntries();
+  const ticketLegs = legs.filter(
+    (e) => e.transNo === t.pnr && (e.entryType === 'Invoice' || e.entryType === 'Refund') && !e.isVoid
+  );
+  for (const leg of ticketLegs) {
+    await voidLedgerEntry(leg.id, `Ticket ${t.pnr} deleted`, actor.name || actor.email || 'system');
+  }
+
+  const updated = existing.filter((item) => item.id !== ticketId);
+  localStorage.setItem(LOCAL_STORAGE_TICKETS_KEY, JSON.stringify(updated));
+
+  if (!isConfigPlaceholder) {
+    try {
+      await deleteDoc(doc(db, TICKETS_COLLECTION, ticketId));
+    } catch (err) {
+      // No false success: the local copy was already removed from the
+      // in-memory list, but the next fetchTickets() merge will bring the
+      // Firestore copy back — the failure is visible and retryable.
+      throw new Error('Ticket could not be deleted from Firebase. Please try again.');
+    }
+  }
+
+  await logAuditEvent({
+    action: 'DELETE_TICKET',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: ticketId,
+    targetUserName: t.pnr,
+    details: { pnr: t.pnr },
+  });
 }

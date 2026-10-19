@@ -10,6 +10,7 @@ import {
   Calendar,
   FileSpreadsheet,
   TrendingUp,
+  Trash2,
   X
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -18,12 +19,16 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { DataTable, Column } from '../components/ui/DataTable';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { ExchangeRateDoc } from '../types/finance';
 import { fetchExchangeRates, createExchangeRate, convert } from '../services/financeService';
+import { doc, deleteDoc } from 'firebase/firestore';
+import { db, isConfigPlaceholder } from '../services/firebase';
+import { logAuditEvent } from '../services/userService';
 
 export const ExchangeRatesPage: React.FC = () => {
   const { userProfile } = useAuth();
@@ -182,6 +187,59 @@ export const ExchangeRatesPage: React.FC = () => {
     }
   };
 
+  // Delete Rate Entry (confirm first) — removes that specific historical entry
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false);
+  const [rateToDelete, setRateToDelete] = useState<ExchangeRateDoc | null>(null);
+  const [deleting, setDeleting] = useState<boolean>(false);
+
+  const handleDeleteClick = (r: ExchangeRateDoc) => {
+    setRateToDelete(r);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!userProfile || !rateToDelete) return;
+    setDeleting(true);
+    try {
+      try {
+        if (!isConfigPlaceholder) {
+          await deleteDoc(doc(db, 'exchangeRates', rateToDelete.id));
+        }
+      } catch (err) {
+        console.warn('Firestore delete failed for exchange rate:', err);
+      }
+
+      // Remove from local cache too
+      try {
+        const stored = localStorage.getItem('safardesk_exchange_rates');
+        if (stored) {
+          const list = JSON.parse(stored).filter((r: any) => r?.id !== rateToDelete.id);
+          localStorage.setItem('safardesk_exchange_rates', JSON.stringify(list));
+        }
+      } catch { /* best-effort */ }
+
+      await logAuditEvent({
+        action: 'DELETE_EXCHANGE_RATE',
+        userId: userProfile.uid,
+        userName: userProfile.name || 'User',
+        userEmail: userProfile.email,
+        userRole: userProfile.role,
+        targetUserId: rateToDelete.id,
+        details: { pair: rateToDelete.pair, rate: rateToDelete.rate, effectiveDate: rateToDelete.effectiveDate },
+      });
+
+      success(`Exchange rate ${rateToDelete.pair} (effective ${rateToDelete.effectiveDate}) deleted.`);
+      setDeleteConfirmOpen(false);
+      setRateToDelete(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err?.message || 'Failed to delete exchange rate.');
+      setDeleteConfirmOpen(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const downloadSampleCsv = () => {
     const csvContent = "Pair,Rate,EffectiveDate\nSAR/PKR,74.50,2026-10-02\nUSD/PKR,278.50,2026-10-02\nAED/PKR,75.80,2026-10-02";
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -226,6 +284,26 @@ export const ExchangeRatesPage: React.FC = () => {
       key: 'addedBy',
       header: 'Added By',
       render: (row) => <span className="text-slate-600 text-xs">{row.addedBy}</span>,
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'right',
+      render: (row) => (
+        <div className="flex items-center justify-end gap-2">
+          {userProfile?.role === 'owner' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleDeleteClick(row)}
+              className="text-rose-600 hover:text-rose-700"
+              leftIcon={<Trash2 className="w-4 h-4" />}
+            >
+              Delete
+            </Button>
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -441,6 +519,24 @@ export const ExchangeRatesPage: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* DELETE RATE ENTRY CONFIRMATION */}
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Exchange Rate Entry"
+        message={
+          <>
+            Are you sure you want to delete the <strong>{rateToDelete?.pair}</strong> rate of <strong>{rateToDelete?.rate?.toFixed(2)}</strong> (effective {rateToDelete?.effectiveDate})?
+            <br /><br />
+            This will permanently delete this record. This data cannot be recovered.
+          </>
+        }
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   );
 };

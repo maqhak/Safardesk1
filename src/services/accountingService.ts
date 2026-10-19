@@ -315,6 +315,20 @@ export const INITIAL_LEDGER_ACCOUNTS: LedgerAccountDoc[] = [
     createdAt: '2026-01-01T00:00:00Z',
     createdBy: 'system',
   },
+  {
+    id: 'acc-sys-007',
+    accountCode: 'SYS-007',
+    accountType: 'income',
+    title: 'Forex Gain/Loss',
+    linkedId: null,
+    isSystem: true,
+    isActive: true,
+    openingBalanceSAR: 0,
+    openingBalancePKR: 0,
+    notes: 'Gain/loss from dual ROE postings (buying ROE on costs, selling ROE on revenue)',
+    createdAt: '2026-01-01T00:00:00Z',
+    createdBy: 'system',
+  },
 ];
 
 export const INITIAL_LEDGER_ENTRIES: LedgerEntryDoc[] = [
@@ -727,6 +741,9 @@ export async function postBalancedTransaction(params: {
   invoiceRef?: string;
   voucherNo?: string;
   rate: number;
+  /** Dual ROE: when debitRate != creditRate, a forex gain/loss leg auto-balances the PKR side. */
+  debitRate?: number;
+  creditRate?: number;
   debitAccountId: string;
   creditAccountId: string;
   amountSAR: number;
@@ -740,6 +757,10 @@ export async function postBalancedTransaction(params: {
   const currentEntries = await fetchLedgerEntries();
   const nextNum = currentEntries.length + 10001;
 
+  const debitRate = params.debitRate && params.debitRate > 0 ? params.debitRate : params.rate;
+  const creditRate = params.creditRate && params.creditRate > 0 ? params.creditRate : params.rate;
+  const debitPKR = Math.round(params.amountSAR * debitRate * 100) / 100;
+  const creditPKR = Math.round(params.amountSAR * creditRate * 100) / 100;
   const amountPKR = Math.round(params.amountSAR * params.rate * 100) / 100;
   const now = new Date().toISOString();
 
@@ -753,10 +774,10 @@ export async function postBalancedTransaction(params: {
     particulars: params.particulars,
     invoiceRef: params.invoiceRef || null,
     voucherNo: params.voucherNo || null,
-    rate: params.rate,
+    rate: debitRate,
     debitSAR: params.amountSAR,
     creditSAR: 0,
-    debitPKR: amountPKR,
+    debitPKR,
     creditPKR: 0,
     driveFileUrl: params.driveFileUrl || null,
     proofType: params.proofType || null,
@@ -778,11 +799,11 @@ export async function postBalancedTransaction(params: {
     particulars: params.particulars,
     invoiceRef: params.invoiceRef || null,
     voucherNo: params.voucherNo || null,
-    rate: params.rate,
+    rate: creditRate,
     debitSAR: 0,
     creditSAR: params.amountSAR,
     debitPKR: 0,
-    creditPKR: amountPKR,
+    creditPKR,
     driveFileUrl: params.driveFileUrl || null,
     proofType: params.proofType || null,
     createdBy: params.createdBy,
@@ -793,7 +814,39 @@ export async function postBalancedTransaction(params: {
     paxCount: (params.mofaPax || 0) + (params.hotelPax || 0),
   };
 
-  const updated = [debitEntry, creditEntry, ...currentEntries];
+  const extraLegs: LedgerEntryDoc[] = [];
+  const forexDiff = Math.round((debitPKR - creditPKR) * 100) / 100;
+  if (forexDiff !== 0) {
+    // Dual ROE: balance the PKR side through Forex Gain/Loss (SAR stays balanced).
+    const forexAccountId = await ensureForexAccount(params.createdBy);
+    const isGain = forexDiff > 0;
+    extraLegs.push({
+      id: `le-${nextNum + 2}`,
+      entryNo: `LE-${nextNum + 2}`,
+      date: params.date,
+      accountId: forexAccountId,
+      entryType: params.entryType,
+      transNo: params.transNo,
+      particulars: `Forex ${isGain ? 'gain' : 'loss'} — dual ROE (${debitRate}/${creditRate}): ${params.particulars}`,
+      invoiceRef: params.invoiceRef || null,
+      voucherNo: params.voucherNo || null,
+      rate: params.rate,
+      debitSAR: 0,
+      creditSAR: 0,
+      debitPKR: isGain ? 0 : Math.abs(forexDiff),
+      creditPKR: isGain ? forexDiff : 0,
+      driveFileUrl: params.driveFileUrl || null,
+      proofType: params.proofType || null,
+      createdBy: params.createdBy,
+      createdAt: now,
+      isVoid: false,
+      mofaPax: params.mofaPax || 0,
+      hotelPax: params.hotelPax || 0,
+      paxCount: (params.mofaPax || 0) + (params.hotelPax || 0),
+    });
+  }
+
+  const updated = [debitEntry, creditEntry, ...extraLegs, ...currentEntries];
   try { localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(updated)); } catch { /* storage full/blocked — Firestore is source of truth */ }
 
   try {
@@ -801,6 +854,7 @@ export async function postBalancedTransaction(params: {
       await Promise.all([
         setDoc(doc(db, ENTRIES_COLLECTION, debitEntry.id), stripUndefinedDeep(debitEntry)),
         setDoc(doc(db, ENTRIES_COLLECTION, creditEntry.id), stripUndefinedDeep(creditEntry)),
+        ...extraLegs.map((leg) => setDoc(doc(db, ENTRIES_COLLECTION, leg.id), stripUndefinedDeep(leg))),
       ]);
     }
   } catch (err) {
@@ -858,6 +912,34 @@ export async function ensureItemServiceAccounts(createdBy: string): Promise<{ in
 }
 
 /**
+ * Ensure the Forex Gain/Loss system account exists (created on demand).
+ * Used by dual-ROE postings where debit and credit PKR differ.
+ */
+export async function ensureForexAccount(createdBy: string): Promise<string> {
+  const accounts = await fetchLedgerAccounts();
+  let forex = accounts.find((a) => a.id === 'acc-sys-007' || a.accountCode === 'SYS-007');
+  if (!forex) {
+    const now = new Date().toISOString();
+    forex = {
+      id: 'acc-sys-007',
+      accountCode: 'SYS-007',
+      accountType: 'income',
+      title: 'Forex Gain/Loss',
+      linkedId: null,
+      isSystem: true,
+      isActive: true,
+      openingBalanceSAR: 0,
+      openingBalancePKR: 0,
+      notes: 'Gain/loss from dual ROE postings (buying ROE on costs, selling ROE on revenue)',
+      createdAt: now,
+      createdBy,
+    };
+    await saveLedgerAccount(forex);
+  }
+  return forex.id;
+}
+
+/**
  * Post an Item/Service entry (non-visa product or service sale/purchase).
  * Posts two balanced pairs under one transNo:
  *   1) Dr Customer (selling) / Cr Item-Service Income (selling)
@@ -874,6 +956,8 @@ export async function postItemServiceEntry(params: {
   buyingSAR: number;
   sellingSAR: number;
   rate: number;
+  buyROE?: number; // Dual ROE: cost side (defaults to rate)
+  sellROE?: number; // Dual ROE: revenue side (defaults to rate)
   createdBy: string;
 }): Promise<{ transNo: string }> {
   const { incomeId, costId } = await ensureItemServiceAccounts(params.createdBy);
@@ -881,13 +965,16 @@ export async function postItemServiceEntry(params: {
     ? `${params.itemName} — ${params.description.trim()}`
     : params.itemName;
 
+  const sellROE = params.sellROE && params.sellROE > 0 ? params.sellROE : params.rate;
+  const buyROE = params.buyROE && params.buyROE > 0 ? params.buyROE : params.rate;
+
   if (params.customerAccountId && params.sellingSAR > 0) {
     await postBalancedTransaction({
       date: params.date,
       entryType: 'Item/Service',
       transNo: params.transNo,
       particulars: `Sale: ${baseParticulars}`,
-      rate: params.rate,
+      rate: sellROE,
       debitAccountId: params.customerAccountId,
       creditAccountId: incomeId,
       amountSAR: Math.round(params.sellingSAR * 100) / 100,
@@ -901,7 +988,7 @@ export async function postItemServiceEntry(params: {
       entryType: 'Item/Service',
       transNo: params.transNo,
       particulars: `Purchase: ${baseParticulars}`,
-      rate: params.rate,
+      rate: buyROE,
       debitAccountId: costId,
       creditAccountId: params.supplierAccountId,
       amountSAR: Math.round(params.buyingSAR * 100) / 100,
@@ -958,6 +1045,7 @@ export async function voidLedgerEntry(
   // live reversal on top would double-correct the books (bug seen 2026-10-19 on
   // FST PMT-00102: one-sided reversal left a bogus live leg). The struck-through
   // voided entry itself is the audit trail.
+  bust('ledger:entries:all'); bustPrefix('ledger:entries:'); // drop stale cache so lists refresh
   return updatedEntry;
 }
 
@@ -977,6 +1065,89 @@ export async function deleteLedgerEntry(entryId: string): Promise<void> {
   } catch (err) {
     console.warn('Could not delete ledger entry from Firestore:', err);
   }
+  bust('ledger:entries:all'); bustPrefix('ledger:entries:'); // drop stale cache so lists refresh
+}
+
+/**
+ * Edit a ledger entry (Owner/Staff): void-and-repost with the SAME transNo.
+ * The original leg is voided (kept as struck-through audit trail); a corrected
+ * leg is posted under the same transNo with a new entry number, stamped with
+ * the editor's name.
+ */
+export async function editLedgerEntry(
+  entryId: string,
+  updates: { date: string; particulars: string; amountSAR: number; rate: number },
+  editedBy: string
+): Promise<LedgerEntryDoc> {
+  const currentEntries = await fetchLedgerEntries();
+  const index = currentEntries.findIndex((e) => e.id === entryId);
+  if (index === -1) {
+    throw new Error('Ledger entry not found');
+  }
+  const original = currentEntries[index];
+  if (original.isVoid) {
+    throw new Error('Cannot edit a voided entry');
+  }
+  if (!updates.date) {
+    throw new Error('Date is required');
+  }
+  if (!(updates.amountSAR > 0)) {
+    throw new Error('Amount must be greater than zero');
+  }
+  if (!(updates.rate > 0)) {
+    throw new Error('Exchange rate must be greater than zero');
+  }
+
+  // 1) Void the original leg (audit trail preserved)
+  await voidLedgerEntry(entryId, 'Edited — corrected entry reposted', editedBy);
+
+  // 2) Repost the corrected leg under the SAME transNo
+  const fresh = await fetchLedgerEntries();
+  const nextNum = fresh.length + 10001;
+  const isDebitSide = (original.debitSAR || 0) > 0;
+  const amountPKR = Math.round(updates.amountSAR * updates.rate * 100) / 100;
+  const now = new Date().toISOString();
+  const corrected: LedgerEntryDoc = {
+    id: `le-${nextNum}`,
+    entryNo: `LE-${nextNum}`,
+    date: updates.date,
+    accountId: original.accountId,
+    entryType: original.entryType,
+    transNo: original.transNo,
+    particulars: updates.particulars,
+    invoiceRef: original.invoiceRef || null,
+    voucherNo: original.voucherNo || null,
+    rate: updates.rate,
+    debitSAR: isDebitSide ? updates.amountSAR : 0,
+    creditSAR: isDebitSide ? 0 : updates.amountSAR,
+    debitPKR: isDebitSide ? amountPKR : 0,
+    creditPKR: isDebitSide ? 0 : amountPKR,
+    driveFileUrl: original.driveFileUrl || null,
+    proofType: original.proofType || null,
+    createdBy: editedBy,
+    createdAt: now,
+    isVoid: false,
+    voidReason: null,
+    voidedAt: null,
+    voidedBy: null,
+    reversalOf: null,
+    paxCount: original.paxCount || 0,
+    paxType: original.paxType || null,
+    mofaPax: original.mofaPax || 0,
+    hotelPax: original.hotelPax || 0,
+  };
+
+  const updated = [corrected, ...fresh];
+  try { localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(updated)); } catch { /* storage full/blocked — Firestore is source of truth */ }
+  try {
+    if (!isConfigPlaceholder) {
+      await setDoc(doc(db, ENTRIES_COLLECTION, corrected.id), stripUndefinedDeep(corrected));
+    }
+  } catch (err) {
+    console.warn('Could not sync edited ledger entry to Firestore:', err);
+  }
+  bust('ledger:entries:all'); bustPrefix('ledger:entries:');
+  return corrected;
 }
 
 /**

@@ -391,6 +391,7 @@ export async function createPayment(params: {
   receiptFileName?: string;
   receiptFileType?: 'image' | 'pdf';
   createdBy: string;
+  paymentNo?: string; // optional — preserves the number when reposting an edited payment
 }): Promise<PaymentDoc> {
   bust('payments:all'); // fresh read after write
   // HARD VALIDATION: RECEIPT RULE
@@ -398,7 +399,7 @@ export async function createPayment(params: {
     throw new Error('RECEIPT RULE VIOLATION: A payment cannot be saved without an attached receipt file.');
   }
 
-  const paymentNo = await getNextPaymentNumber();
+  const paymentNo = params.paymentNo || await getNextPaymentNumber();
   const exchangeRate = params.exchangeRate || getCurrentRate('SAR-PKR');
   const amountPKR = Math.round(params.amountSAR * exchangeRate * 100) / 100;
   const now = new Date().toISOString();
@@ -827,7 +828,62 @@ export async function voidPayment(
     console.warn('Could not delete payment from Firestore:', err);
   }
 
+  bust('payments:all'); // drop stale cache — fixes deleted payments still showing in lists
   return paymentNo;
+}
+
+/**
+ * Edit a payment (Owner/Staff): void-and-repost with the SAME paymentNo.
+ * The old payment + its ledger legs are hard-deleted (invoice balance restored
+ * inside voidPayment); a corrected payment is reposted with the same number,
+ * keeping the original receipt and invoice link.
+ * Editable: date, from/to accounts, amount, particulars, exchange rate.
+ */
+export async function editPayment(
+  paymentId: string,
+  updates: { date: string; fromAccountId: string; toAccountId: string; amountSAR: number; particulars: string; exchangeRate: number },
+  editedBy: string
+): Promise<PaymentDoc> {
+  const current = await fetchPayments();
+  const orig = current.find((p) => p.id === paymentId);
+  if (!orig) {
+    throw new Error('Payment not found');
+  }
+  if (!updates.date) {
+    throw new Error('Date is required');
+  }
+  if (!(updates.amountSAR > 0)) {
+    throw new Error('Amount must be greater than zero');
+  }
+  if (!updates.fromAccountId || !updates.toAccountId) {
+    throw new Error('Both from and to accounts are required');
+  }
+  if (updates.fromAccountId === updates.toAccountId) {
+    throw new Error('From and to accounts cannot be the same');
+  }
+
+  // 1) Remove the old payment + its ledger legs (invoice balance restored)
+  await voidPayment(paymentId, 'Edited — corrected payment reposted', editedBy);
+
+  // 2) Repost corrected payment with the SAME payment number
+  return createPayment({
+    date: updates.date,
+    entryType: orig.entryType,
+    fromAccountId: updates.fromAccountId,
+    toAccountId: updates.toAccountId,
+    bankAccountId: orig.bankAccountId,
+    amountSAR: updates.amountSAR,
+    exchangeRate: updates.exchangeRate,
+    enteredCurrency: 'SAR',
+    enteredAmount: updates.amountSAR,
+    againstInvoiceNo: orig.againstInvoiceNo,
+    particulars: updates.particulars,
+    receiptFile: orig.receiptFile,
+    receiptFileName: orig.receiptFileName,
+    receiptFileType: orig.receiptFileType,
+    createdBy: editedBy,
+    paymentNo: orig.paymentNo,
+  });
 }
 
 export async function processReceiptFile(file: File): Promise<{

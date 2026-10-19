@@ -15,7 +15,9 @@ import {
   X,
   DollarSign,
   AlertTriangle,
-  Compass
+  Compass,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -24,6 +26,7 @@ import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { DataTable, Column } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { AirportSelect, AirlineSelect } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -31,7 +34,7 @@ import { useCan } from '../hooks/useCan';
 import { useDeepOpen } from '../hooks/useDeepOpen';
 import { TicketDoc, TicketPassenger, TicketSector } from '../types/ticket';
 import { AirlineDoc } from '../types/master';
-import { fetchTickets, createTicket, refundTicket, getTicketSectors, getTicketRouteLabel } from '../services/ticketService';
+import { fetchTickets, createTicket, refundTicket, updateTicket, deleteTicket, getTicketSectors, getTicketRouteLabel } from '../services/ticketService';
 import { getCurrentRate, useCurrentRate } from '../services/exchangeRateService';
 
 // Convert any supported currency amount to SAR using settings rates
@@ -63,6 +66,29 @@ export const TicketsPage: React.FC = () => {
   const { success, error: showError } = useToast();
   const canCreate = useCan('Tickets', 'create');
   const isOwner = role === 'owner';
+  // Edit + Delete are owner/staff only — agents never see the buttons.
+  const canEditDelete = role === 'owner' || role === 'staff';
+  const canDelete = role === 'owner'; // Delete is Owner-only
+
+  // Edit Ticket modal state (prefilled with the record's current values)
+  const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
+  const [editSaving, setEditSaving] = useState<boolean>(false);
+  const [editPNR, setEditPNR] = useState('');
+  const [editPassengerName, setEditPassengerName] = useState('');
+  const [editTicketNo, setEditTicketNo] = useState('');
+  const [editFlightNo, setEditFlightNo] = useState('');
+  const [editFlightDate, setEditFlightDate] = useState('');
+  const [editDepTime, setEditDepTime] = useState('');
+  const [editArrTime, setEditArrTime] = useState('');
+  const [editSupplier, setEditSupplier] = useState('');
+  const [editBuyerName, setEditBuyerName] = useState('');
+  const [editCostPKR, setEditCostPKR] = useState('');
+  const [editSalePKR, setEditSalePKR] = useState('');
+  const [editNote, setEditNote] = useState('');
+
+  // Delete confirmation state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false);
+  const [deleting, setDeleting] = useState<boolean>(false);
 
   const [activeTab, setActiveTab] = useState<'tickets' | 'manifest'>('tickets');
   const [tickets, setTickets] = useState<TicketDoc[]>([]);
@@ -166,6 +192,83 @@ export const TicketsPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  const openEditTicket = (t: TicketDoc) => {
+    setEditPNR(t.pnr || '');
+    setEditPassengerName(t.passengers?.[0]?.name || '');
+    setEditTicketNo(t.passengers?.[0]?.ticketNo || '');
+    setEditFlightNo(t.flightNo || '');
+    setEditFlightDate(t.flightDate || '');
+    setEditDepTime(t.departureTime || '');
+    setEditArrTime(t.arrivalTime || '');
+    setEditSupplier(t.supplierName || '');
+    setEditBuyerName(t.buyerName || '');
+    setEditCostPKR(t.purchaseCostPKR != null ? String(t.purchaseCostPKR) : '');
+    setEditSalePKR(t.salePricePKR != null ? String(t.salePricePKR) : '');
+    setEditNote(t.note || '');
+    setSelectedTicket(t);
+    setDetailModalOpen(false);
+    setEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userProfile || !selectedTicket) return;
+    if (!editPNR.trim()) { showError('PNR is required.'); return; }
+    const cost = parseFloat(editCostPKR);
+    const sale = parseFloat(editSalePKR);
+    if (isNaN(cost) || isNaN(sale) || cost < 0 || sale < 0) {
+      showError('Please enter valid purchase and sale prices.');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const pax0 = selectedTicket.passengers?.[0] || { name: '', passportNumber: '', ageType: 'Adult', ticketNo: '' };
+      const updated = await updateTicket(userProfile, selectedTicket.id, {
+        pnr: editPNR.trim().toUpperCase(),
+        passengers: [{ ...pax0, name: editPassengerName.trim(), ticketNo: editTicketNo.trim() }],
+        flightNo: editFlightNo.trim().toUpperCase(),
+        flightDate: editFlightDate,
+        departureTime: editDepTime,
+        arrivalTime: editArrTime,
+        supplierName: editSupplier.trim(),
+        buyerName: editBuyerName.trim(),
+        purchaseCostPKR: Math.round(cost * 100) / 100,
+        salePricePKR: Math.round(sale * 100) / 100,
+        note: editNote.trim() || undefined,
+      });
+      setSelectedTicket(updated);
+      success(`Ticket PNR ${updated.pnr} updated successfully.`);
+      setEditModalOpen(false);
+      await loadData();
+    } catch (err: any) {
+      showError(err?.message || 'Failed to update ticket.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDeleteClick = (t: TicketDoc) => {
+    setSelectedTicket(t);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!userProfile || !selectedTicket) return;
+    setDeleting(true);
+    try {
+      await deleteTicket(userProfile, selectedTicket.id);
+      success(`Ticket PNR ${selectedTicket.pnr} deleted successfully.`);
+      setDeleteConfirmOpen(false);
+      setDetailModalOpen(false);
+      setSelectedTicket(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err?.message || 'Failed to delete ticket.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // Auto-detect airline from e-ticket number's 3-digit stock code
   const detectAirlineFromTicketNo = (ticketNo: string) => {
@@ -395,9 +498,29 @@ export const TicketsPage: React.FC = () => {
       header: 'Actions',
       align: 'right',
       render: (row) => (
-        <Button variant="outline" size="sm" onClick={() => { setSelectedTicket(row); setDetailModalOpen(true); }} rightIcon={<ChevronRight className="w-3.5 h-3.5" />}>
-          E-Ticket
-        </Button>
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="outline" size="sm" onClick={() => { setSelectedTicket(row); setDetailModalOpen(true); }} rightIcon={<ChevronRight className="w-3.5 h-3.5" />}>
+            E-Ticket
+          </Button>
+          {canEditDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); openEditTicket(row); }}
+              className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-slate-100 rounded-lg transition"
+              title="Edit Ticket"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); handleDeleteClick(row); }}
+              className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-slate-100 rounded-lg transition"
+              title="Delete Ticket"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       ),
     },
   ];
@@ -886,11 +1009,23 @@ export const TicketsPage: React.FC = () => {
           subtitle={`Issued: ${selectedTicket.createdAt.split('T')[0]} • Status: ${selectedTicket.status}`}
           footer={
             <div className="flex items-center justify-between w-full">
-              {isOwner && selectedTicket.status !== 'Refunded' && (
-                <Button variant="danger" size="sm" onClick={async () => { await refundTicket(userProfile!, selectedTicket.id, { reason: 'Full refund', refundDate: new Date().toISOString().split('T')[0], refundStatus: 'Approved' }); success('Ticket refunded.'); setDetailModalOpen(false); await loadData(); }}>
-                  Process Refund
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {isOwner && selectedTicket.status !== 'Refunded' && (
+                  <Button variant="danger" size="sm" onClick={async () => { await refundTicket(userProfile!, selectedTicket.id, { reason: 'Full refund', refundDate: new Date().toISOString().split('T')[0], refundStatus: 'Approved' }); success('Ticket refunded.'); setDetailModalOpen(false); await loadData(); }}>
+                    Process Refund
+                  </Button>
+                )}
+                {canEditDelete && (
+                  <Button variant="outline" size="sm" onClick={() => openEditTicket(selectedTicket)}>
+                    <Pencil className="w-4 h-4 mr-1" /> Edit
+                  </Button>
+                )}
+                {canDelete && (
+                  <Button variant="outline" size="sm" onClick={() => handleDeleteClick(selectedTicket)}>
+                    <Trash2 className="w-4 h-4 mr-1 text-rose-600" /> Delete
+                  </Button>
+                )}
+              </div>
               <Button variant="primary" onClick={() => window.print()} rightIcon={<Printer className="w-3.5 h-3.5" />}>
                 Print E-Ticket
               </Button>
@@ -986,6 +1121,64 @@ export const TicketsPage: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      {/* Edit Ticket Modal — prefilled with the record's current values */}
+      <Modal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title={selectedTicket ? `Edit Ticket — PNR ${selectedTicket.pnr}` : 'Edit Ticket'}
+        subtitle="Update booking details. Margin is recalculated automatically."
+        footer={
+          <div className="flex items-center justify-end gap-3">
+            <Button variant="ghost" onClick={() => setEditModalOpen(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleSaveEdit} loading={editSaving}>Save Changes</Button>
+          </div>
+        }
+      >
+        <form onSubmit={handleSaveEdit} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Input label="PNR" value={editPNR} onChange={(e) => setEditPNR(e.target.value.toUpperCase())} required />
+            <Input label="Passenger Name" value={editPassengerName} onChange={(e) => setEditPassengerName(e.target.value)} />
+            <Input label="Ticket No" value={editTicketNo} onChange={(e) => setEditTicketNo(e.target.value)} />
+            <Input label="Flight No" value={editFlightNo} onChange={(e) => setEditFlightNo(e.target.value.toUpperCase())} />
+            <Input label="Flight Date" type="date" value={editFlightDate} onChange={(e) => setEditFlightDate(e.target.value)} />
+            <Input label="Supplier" value={editSupplier} onChange={(e) => setEditSupplier(e.target.value)} />
+            <Input label="Departure Time" type="time" value={editDepTime} onChange={(e) => setEditDepTime(e.target.value)} />
+            <Input label="Arrival Time" type="time" value={editArrTime} onChange={(e) => setEditArrTime(e.target.value)} />
+            <Input label="Buyer Name" value={editBuyerName} onChange={(e) => setEditBuyerName(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input label="Purchase Cost (PKR)" type="number" step="0.01" value={editCostPKR} onChange={(e) => setEditCostPKR(e.target.value)} required />
+            <Input label="Sale Price (PKR)" type="number" step="0.01" value={editSalePKR} onChange={(e) => setEditSalePKR(e.target.value)} required />
+          </div>
+          {editCostPKR && editSalePKR && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800 flex items-center justify-between">
+              <span>Updated Margin:</span>
+              <span className="font-mono text-sm">PKR {((parseFloat(editSalePKR) || 0) - (parseFloat(editCostPKR) || 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+            </div>
+          )}
+          <Input label="Note" value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="Optional note" />
+        </form>
+      </Modal>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Ticket"
+        message={
+          <>
+            Are you sure you want to delete ticket <strong className="font-mono">{selectedTicket?.pnr}</strong>
+            {selectedTicket?.passengers?.[0]?.name ? ` (${selectedTicket.passengers[0].name})` : ''}?
+            This will permanently delete this record. This data cannot be recovered.
+          </>
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   );
 };

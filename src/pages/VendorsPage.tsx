@@ -12,7 +12,8 @@ import {
   Sliders, 
   Check, 
   ShieldAlert,
-  Wrench
+  Wrench,
+  Trash2
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -20,6 +21,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { CurrencyAmount } from '../components/ui/CurrencyAmount';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -32,7 +34,8 @@ import {
   updateVendor, 
   toggleVendorStatus, 
   generateNextVendorCode,
-  backfillMissingVendorLedgerAccounts
+  backfillMissingVendorLedgerAccounts,
+  deleteOrDeactivateVendor
 } from '../services/masterService';
 import { fetchLedgerAccounts, createAgentBasic, fetchAgents } from '../services/agentService';
 import { AgentDoc } from '../types/agent';
@@ -282,6 +285,33 @@ const loadData = async () => {
     }
   };
 
+  // Delete Vendor (confirm first)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false);
+  const [vendorToDelete, setVendorToDelete] = useState<VendorDoc | null>(null);
+  const [deleting, setDeleting] = useState<boolean>(false);
+
+  const handleDeleteClick = (v: VendorDoc) => {
+    setVendorToDelete(v);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!userProfile || !vendorToDelete) return;
+    setDeleting(true);
+    try {
+      const msg = await deleteOrDeactivateVendor(userProfile, vendorToDelete.id);
+      info(msg);
+      setDeleteConfirmOpen(false);
+      setVendorToDelete(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err?.message || 'Failed to delete vendor.');
+      setDeleteConfirmOpen(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const openLedger = (v: VendorDoc) => {
     const l = ledgers.find((item) => item.linkedAgentId === v.id);
     setSelectedLedger(l || {
@@ -418,6 +448,16 @@ const loadData = async () => {
                             onClick={() => openEditVendor(v)}
                           >
                             Edit
+                          </Button>
+                        )}
+                        {role === 'owner' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            leftIcon={<Trash2 className="w-3.5 h-3.5 text-rose-500" />}
+                            onClick={() => handleDeleteClick(v)}
+                          >
+                            Delete
                           </Button>
                         )}
                         {role === 'owner' && (
@@ -718,6 +758,25 @@ const loadData = async () => {
           </div>
         )}
       </Modal>
+
+      {/* DELETE VENDOR CONFIRMATION */}
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Vendor"
+        message={
+          <>
+            Are you sure you want to delete vendor <strong>{vendorToDelete?.vendorCode}</strong> ({vendorToDelete?.name})?
+            If this vendor is referenced (linked hotels or a non-zero ledger balance), it will be deactivated instead of deleted.
+            <br /><br />
+            This will permanently delete this record. This data cannot be recovered.
+          </>
+        }
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   );
 };

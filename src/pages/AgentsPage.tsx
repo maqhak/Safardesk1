@@ -23,7 +23,8 @@ import {
   ArrowUpRight,
   Clock,
   Sparkles,
-  Wrench
+  Wrench,
+  Trash2
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card, CardHeader } from '../components/ui/Card';
@@ -61,7 +62,8 @@ import {
   getAgentBalance,
   generateNextAgentCode,
   repairMissingAgentLedgers,
-  getAgentIdentityIds
+  getAgentIdentityIds,
+  deleteAgent
 } from '../services/agentService';
 import { createVendor } from '../services/masterService';
 import { TENANT } from '../config';
@@ -134,6 +136,11 @@ export const AgentsPage: React.FC = () => {
   const [resetModalOpen, setResetModalOpen] = useState<boolean>(false);
   const [tempPassword, setTempPassword] = useState<string>('');
   const [tempCopied, setTempCopied] = useState<boolean>(false);
+
+  // "Delete Agent" confirm state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false);
+  const [agentToDelete, setAgentToDelete] = useState<AgentDoc | null>(null);
+  const [deleting, setDeleting] = useState<boolean>(false);
 
   // "View Ledger" Modal state
   const [ledgerModalOpen, setLedgerModalOpen] = useState<boolean>(false);
@@ -219,7 +226,7 @@ export const AgentsPage: React.FC = () => {
           linkedAgentId: agent.id,
         } as any);
         vendorCode = vendor.vendorCode;
-        await updateAgent(agent.id, { alsoVendor: true, linkedVendorId: vendor.id } as any);
+        await updateAgent(userProfile, agent.id, { alsoVendor: true, linkedVendorId: vendor.id } as any);
       }
 
       success(`Agent "${companyName}" created.${alsoVendor ? ` Linked vendor ${vendorCode} created (shared account).` : ''} Login can be set up later from the agent row.`);
@@ -318,6 +325,29 @@ Please keep these credentials safe and change password after first login.`;
       await loadData();
     } catch (err: any) {
       showError(err?.message || 'Failed to update agent status.');
+    }
+  };
+
+  // Delete agent (permanent — blocked when the ledger has history)
+  const handleDeleteClick = (agent: AgentDoc) => {
+    setAgentToDelete(agent);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!userProfile || !agentToDelete) return;
+    setDeleting(true);
+    try {
+      await deleteAgent(userProfile, agentToDelete.id);
+      success(`Agent ${agentToDelete.agentCode} deleted permanently.`);
+      setDeleteConfirmOpen(false);
+      setAgentToDelete(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err?.message || 'Failed to delete agent.');
+      setDeleteConfirmOpen(false);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -739,6 +769,17 @@ Please keep these credentials safe and change password after first login.`;
                                   className={agent.isActive ? 'hover:text-rose-600 hover:border-rose-300' : ''}
                                 >
                                   {agent.isActive ? 'Deactivate' : 'Activate'}
+                                </Button>
+
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  leftIcon={<Trash2 className="w-3.5 h-3.5 text-rose-500" />}
+                                  onClick={() => handleDeleteClick(agent)}
+                                  title="Delete Agent Permanently"
+                                  className="hover:text-rose-600 hover:border-rose-300"
+                                >
+                                  Delete
                                 </Button>
                               </>
                             )}
@@ -1193,6 +1234,25 @@ Please keep these credentials safe and change password after first login.`;
           </div>
         )}
       </Modal>
+
+      {/* 6. DELETE AGENT CONFIRMATION */}
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleConfirmDelete}
+        loading={deleting}
+        title={`Delete Agent — ${agentToDelete?.agentCode}`}
+        message={
+          <p>
+            Are you sure you want to delete agent <strong>{agentToDelete?.companyName}</strong> ({agentToDelete?.agentCode})?
+            This will also remove its ledger account and login access.
+            This will permanently delete this record. This data cannot be recovered.
+          </p>
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+      />
     </div>
   );
 };

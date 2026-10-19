@@ -15,6 +15,7 @@ import {
   AlertCircle, 
   ShieldAlert, 
   Ban, 
+  Pencil,
   History, 
   ExternalLink, 
   Trash2, 
@@ -33,6 +34,8 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
+import { Input } from '../components/ui/Input';
+import { DeleteConfirmModal } from '../components/accounting/DeleteConfirmModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
@@ -50,6 +53,8 @@ import {
   fetchJournalVouchers, 
   createJournalVoucher, 
   voidJournalVoucher, 
+  editJournalVoucher,
+  deleteJournalVoucher,
   getNextJVNumber 
 } from '../services/journalVoucherService';
 import { fetchLedgerAccounts, fetchLedgerEntries } from '../services/accountingService';
@@ -61,6 +66,7 @@ export const JournalVouchersPage: React.FC = () => {
   const { success, error: showError, info } = useToast();
 
   const isOwner = role === 'owner';
+  const isAgent = role === 'agent';
   const canCreate = useCan('Accounts', 'create') || isOwner;
 
   // Data states
@@ -92,6 +98,20 @@ export const JournalVouchersPage: React.FC = () => {
   const [jvToVoid, setJvToVoid] = useState<JournalVoucherDoc | null>(null);
   const [voidReason, setVoidReason] = useState<string>('');
   const [voiding, setVoiding] = useState<boolean>(false);
+
+  // Delete modal (Owner/Staff) — hard delete with unrecoverable-data warning
+  const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
+  const [jvToDelete, setJvToDelete] = useState<JournalVoucherDoc | null>(null);
+  const [deleting, setDeleting] = useState<boolean>(false);
+
+  // Edit modal (Owner/Staff) — prefilled; void-and-repost with same JV number
+  const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
+  const [jvToEdit, setJvToEdit] = useState<JournalVoucherDoc | null>(null);
+  const [editDate, setEditDate] = useState<string>('');
+  const [editDetails, setEditDetails] = useState<string>('');
+  const [editRate, setEditRate] = useState<number>(0);
+  const [editLines, setEditLines] = useState<Array<{ id: string; accountId: string; accountTitle: string; accountCode: string; debitSAR: number; creditSAR: number }>>([]);
+  const [editing, setEditing] = useState<boolean>(false);
 
   // Audio player state
   const [activeAudioUrl, setActiveAudioUrl] = useState<string | null>(null);
@@ -371,6 +391,98 @@ export const JournalVouchersPage: React.FC = () => {
     }
   };
 
+  // Hard-delete JV + its ledger legs (Owner/Staff)
+  const handleConfirmDelete = async () => {
+    if (!jvToDelete) return;
+
+    setDeleting(true);
+    try {
+      const deletedNo = await deleteJournalVoucher(jvToDelete.id);
+      success(`Journal Voucher #${deletedNo} permanently deleted from the system.`);
+      setDeleteModalOpen(false);
+      setJvToDelete(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err.message || 'Failed to delete Journal Voucher.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Open Edit modal prefilled with the JV's current values
+  const openEditModal = (jv: JournalVoucherDoc) => {
+    setJvToEdit(jv);
+    setEditDate(jv.date || '');
+    setEditDetails(jv.detailsBox || '');
+    setEditRate(jv.exchangeRate || 0);
+    setEditLines(
+      (jv.lines || []).map((l, i) => ({
+        id: l.id || `line-${i}`,
+        accountId: l.accountId,
+        accountTitle: l.accountTitle,
+        accountCode: l.accountCode,
+        debitSAR: l.debitSAR || 0,
+        creditSAR: l.creditSAR || 0,
+      }))
+    );
+    setEditModalOpen(true);
+  };
+
+  const handleEditLineChange = (lineId: string, field: 'debitSAR' | 'creditSAR', val: number) => {
+    setEditLines((prev) =>
+      prev.map((l) =>
+        l.id === lineId
+          ? {
+              ...l,
+              debitSAR: field === 'debitSAR' ? val : val > 0 ? 0 : l.debitSAR,
+              creditSAR: field === 'creditSAR' ? val : val > 0 ? 0 : l.creditSAR,
+            }
+          : l
+      )
+    );
+  };
+
+  const editTotalDebit = editLines.reduce((s, l) => s + (l.debitSAR || 0), 0);
+  const editTotalCredit = editLines.reduce((s, l) => s + (l.creditSAR || 0), 0);
+  const editBalanced = Math.abs(editTotalDebit - editTotalCredit) < 0.01 && editTotalDebit > 0;
+
+  const handleConfirmEdit = async () => {
+    if (!jvToEdit) return;
+    if (!editBalanced) {
+      showError('Total Debit must equal Total Credit before saving.');
+      return;
+    }
+
+    setEditing(true);
+    try {
+      const updated = await editJournalVoucher(
+        jvToEdit.id,
+        {
+          date: editDate,
+          detailsBox: editDetails,
+          lines: editLines.map((l) => ({
+            id: l.id,
+            accountId: l.accountId,
+            accountTitle: l.accountTitle,
+            accountCode: l.accountCode,
+            debitSAR: l.debitSAR || 0,
+            creditSAR: l.creditSAR || 0,
+          })),
+          exchangeRate: editRate,
+        },
+        userProfile?.name || 'Owner'
+      );
+      success(`Journal Voucher #${updated.jvNo} updated — corrected voucher reposted.`);
+      setEditModalOpen(false);
+      setJvToEdit(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err.message || 'Failed to update Journal Voucher.');
+    } finally {
+      setEditing(false);
+    }
+  };
+
   // Play audio voice note inline
   const handleToggleAudio = (url: string) => {
     if (activeAudioUrl === url && isPlaying) {
@@ -584,7 +696,7 @@ export const JournalVouchersPage: React.FC = () => {
                 <th className="py-3 px-3 text-center">Proof / Voice Note</th>
                 <th className="py-3 px-3 text-center">AI Audit</th>
                 <th className="py-3 px-3 text-center">Audit Trail</th>
-                {isOwner && <th className="py-3 px-3 text-center">Action</th>}
+                {!isAgent && <th className="py-3 px-3 text-center">Action</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white">
@@ -753,22 +865,47 @@ export const JournalVouchersPage: React.FC = () => {
                         </button>
                       </td>
 
-                      {/* Action (Owner Void) */}
-                      {isOwner && (
+                      {/* Action (Owner/Staff — void stays Owner only) */}
+                      {!isAgent && (
                         <td className="py-2.5 px-3 text-center whitespace-nowrap">
                           {!isVoid && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setJvToVoid(jv);
-                                setVoidReason('');
-                                setVoidModalOpen(true);
-                              }}
-                              className="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition cursor-pointer"
-                              title="Void Journal Voucher & Reverse Ledger Entries"
-                            >
-                              <Ban className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(jv)}
+                                className="text-slate-400 hover:text-sky-600 p-1 rounded hover:bg-sky-50 transition cursor-pointer"
+                                title="Edit Journal Voucher"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              {isOwner && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setJvToDelete(jv);
+                                    setDeleteModalOpen(true);
+                                  }}
+                                  className="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition cursor-pointer"
+                                  title="Delete Journal Voucher Permanently"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {isOwner && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setJvToVoid(jv);
+                                    setVoidReason('');
+                                    setVoidModalOpen(true);
+                                  }}
+                                  className="text-slate-400 hover:text-amber-600 p-1 rounded hover:bg-amber-50 transition cursor-pointer"
+                                  title="Void Journal Voucher & Reverse Ledger Entries"
+                                >
+                                  <Ban className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           )}
                         </td>
                       )}
@@ -872,6 +1009,113 @@ export const JournalVouchersPage: React.FC = () => {
               required
               className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
             />
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Modal (Owner/Staff) */}
+      <DeleteConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title={`Delete Journal Voucher #${jvToDelete?.jvNo}`}
+        recordLabel={jvToDelete ? `${jvToDelete.jvNo} • ${jvToDelete.tag} • ${jvToDelete.date} • SAR ${(jvToDelete.totalDebitSAR || 0).toLocaleString()}` : undefined}
+        deleting={deleting}
+        onConfirm={handleConfirmDelete}
+      />
+
+      {/* Edit Modal (Owner/Staff) — prefilled; save reposts with the same JV number */}
+      <Modal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title={`Edit Journal Voucher #${jvToEdit?.jvNo}`}
+        subtitle="The old version is voided (audit trail kept) and a corrected voucher is reposted with the same JV number. Debit must equal Credit."
+        size="lg"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setEditModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" loading={editing} disabled={!editBalanced} onClick={handleConfirmEdit}>
+              Save Changes
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-3 gap-3">
+            <Input
+              label="Date *"
+              type="date"
+              value={editDate}
+              onChange={(e) => setEditDate(e.target.value)}
+            />
+            <Input
+              label="Exchange Rate (SAR→PKR) *"
+              type="number"
+              min="0"
+              step="0.01"
+              value={editRate || ''}
+              onChange={(e) => setEditRate(parseFloat(e.target.value) || 0)}
+            />
+            <div className="text-xs">
+              <span className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Balance</span>
+              <div className={`p-2.5 rounded-lg border font-mono font-bold text-center ${editBalanced ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+                {editBalanced ? 'Balanced' : `Δ ${Math.abs(editTotalDebit - editTotalCredit).toFixed(2)}`}
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Details Box (verbatim in ledger particulars)</label>
+            <textarea
+              value={editDetails}
+              onChange={(e) => setEditDetails(e.target.value)}
+              rows={2}
+              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none"
+            />
+          </div>
+          <div>
+            <span className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Lines (amounts editable — accounts fixed)</span>
+            <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 text-slate-600 uppercase font-bold text-[10px]">
+                  <tr>
+                    <th className="p-2">Account</th>
+                    <th className="p-2 text-right">Debit (SAR)</th>
+                    <th className="p-2 text-right">Credit (SAR)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {editLines.map((l) => (
+                    <tr key={l.id}>
+                      <td className="p-2">
+                        <span className="font-mono text-slate-500 mr-1">[{l.accountCode}]</span>
+                        <span className="font-semibold">{l.accountTitle}</span>
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={l.debitSAR || ''}
+                          onChange={(e) => handleEditLineChange(l.id, 'debitSAR', parseFloat(e.target.value) || 0)}
+                          className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-right"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={l.creditSAR || ''}
+                          onChange={(e) => handleEditLineChange(l.id, 'creditSAR', parseFloat(e.target.value) || 0)}
+                          className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-right"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex justify-end gap-4 mt-1 text-[11px] font-mono font-bold">
+              <span>Total Dr: SAR {editTotalDebit.toLocaleString()}</span>
+              <span>Total Cr: SAR {editTotalCredit.toLocaleString()}</span>
+            </div>
           </div>
         </div>
       </Modal>

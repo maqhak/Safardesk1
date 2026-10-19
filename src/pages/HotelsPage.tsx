@@ -22,6 +22,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
@@ -200,14 +201,30 @@ export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lo
     }
   };
 
-  const handleDeleteOrDeactivate = async (h: HotelDoc) => {
-    if (!userProfile) return;
+  // Delete / deactivate — always behind a confirmation dialog
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false);
+  const [hotelToDelete, setHotelToDelete] = useState<HotelDoc | null>(null);
+  const [deleting, setDeleting] = useState<boolean>(false);
+
+  const handleDeleteClick = (h: HotelDoc) => {
+    setHotelToDelete(h);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!userProfile || !hotelToDelete) return;
+    setDeleting(true);
     try {
-      const msg = await deleteOrDeactivateHotel(userProfile, h.id);
+      const msg = await deleteOrDeactivateHotel(userProfile, hotelToDelete.id);
       info(msg);
+      setDeleteConfirmOpen(false);
+      setHotelToDelete(null);
       await loadData();
     } catch (err: any) {
       showError(err.message || 'Failed to delete/deactivate hotel.');
+      setDeleteConfirmOpen(false);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -424,14 +441,16 @@ export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lo
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteOrDeactivate(h)}
-                            className="p-1 text-slate-500 hover:text-rose-600 rounded transition cursor-pointer"
-                            title={h.usedFromCount > 0 ? 'Deactivate Hotel' : 'Delete Hotel'}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {isOwner && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteClick(h)}
+                              className="p-1 text-slate-500 hover:text-rose-600 rounded transition cursor-pointer"
+                              title={h.usedFromCount > 0 ? 'Deactivate Hotel' : 'Delete Hotel'}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -609,6 +628,25 @@ export const HotelsPage: React.FC<{ lockedCity?: 'Makkah' | 'Madinah' }> = ({ lo
           </div>
         </form>
       </Modal>
+
+      {/* DELETE / DEACTIVATE HOTEL CONFIRMATION */}
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title={(hotelToDelete?.usedFromCount || 0) > 0 ? 'Deactivate Hotel' : 'Delete Hotel'}
+        message={
+          <>
+            Are you sure you want to delete hotel <strong>{hotelToDelete?.name}</strong> ({hotelToDelete?.city})?
+            {(hotelToDelete?.usedFromCount || 0) > 0
+              ? ` This hotel is referenced in ${hotelToDelete?.usedFromCount} vouchers — it cannot be deleted and will be safely deactivated instead.`
+              : ' This will permanently delete this record. This data cannot be recovered.'}
+          </>
+        }
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   );
 };

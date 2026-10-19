@@ -9,7 +9,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { fetchLedgerAccounts } from '../services/accountingService';
 import { createManualInvoice, fetchInvoiceIncomeAccounts } from '../services/invoiceService';
-import { getCurrentRate } from '../services/exchangeRateService';
+import { getCurrentRate, getSellRate } from '../services/exchangeRateService';
 import { LedgerAccountDoc } from '../types/accounting';
 import { ManualInvoiceLine } from '../types/invoice';
 
@@ -41,7 +41,7 @@ export const InvoiceCreatePage: React.FC = () => {
   const [partyId, setPartyId] = useState('');
   const [incomeAccountId, setIncomeAccountId] = useState('');
   const [currency, setCurrency] = useState<'SAR' | 'PKR'>('SAR');
-  const [rate, setRate] = useState(() => getCurrentRate('SAR-PKR') || 0);
+  const [rate, setRate] = useState(() => getSellRate() || 0); // Dual ROE: revenue uses Selling ROE
   const [lines, setLines] = useState<ManualInvoiceLine[]>([blankLine()]);
   const [discount, setDiscount] = useState(0);
   const [notes, setNotes] = useState('');

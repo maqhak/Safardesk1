@@ -13,6 +13,8 @@ import {
   ShieldAlert, 
   CheckCircle2, 
   Ban,
+  Pencil,
+  Trash2,
   Scale,
   CreditCard,
   Building2,
@@ -31,6 +33,8 @@ import { useCan } from '../hooks/useCan';
 import { 
   fetchLedgerAccounts, 
   fetchLedgerEntries, 
+  deleteLedgerEntry,
+  editLedgerEntry,
   exportDayBookToCSV 
 } from '../services/accountingService';
 import { 
@@ -41,6 +45,8 @@ import {
 } from '../types/accounting';
 import { VoucherQuickModal } from '../components/accounting/VoucherQuickModal';
 import { ReceiptViewerModal } from '../components/accounting/ReceiptViewerModal';
+import { DeleteConfirmModal } from '../components/accounting/DeleteConfirmModal';
+import { LedgerEntryEditModal } from '../components/accounting/LedgerEntryEditModal';
 import { Link, useNavigate } from 'react-router-dom';
 
 export const DayBookPage: React.FC = () => {
@@ -72,6 +78,16 @@ export const DayBookPage: React.FC = () => {
   const [proofUrl, setProofUrl] = useState<string | null>(null);
   const [proofNo, setProofNo] = useState<string>('');
 
+  // Delete Modal (Owner/Staff) — hard delete with unrecoverable-data warning
+  const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
+  const [entryToDelete, setEntryToDelete] = useState<LedgerEntryDoc | null>(null);
+  const [deleting, setDeleting] = useState<boolean>(false);
+
+  // Edit Modal (Owner/Staff) — prefilled; void-and-repost with same transNo
+  const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
+  const [entryToEdit, setEntryToEdit] = useState<LedgerEntryDoc | null>(null);
+  const [editing, setEditing] = useState<boolean>(false);
+
   // Load ledger entries & accounts
   const loadData = async () => {
     setLoading(true);
@@ -92,6 +108,42 @@ export const DayBookPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Hard-delete a ledger entry (Owner/Staff)
+  const handleConfirmDelete = async () => {
+    if (!entryToDelete) return;
+
+    setDeleting(true);
+    try {
+      await deleteLedgerEntry(entryToDelete.id);
+      success(`Entry #${entryToDelete.entryNo} permanently deleted from the system.`);
+      setDeleteModalOpen(false);
+      setEntryToDelete(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err.message || 'Failed to delete ledger entry.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Edit a ledger entry (Owner/Staff) — void-and-repost with same transNo
+  const handleConfirmEdit = async (values: { date: string; particulars: string; amountSAR: number; rate: number }) => {
+    if (!entryToEdit) return;
+
+    setEditing(true);
+    try {
+      const updated = await editLedgerEntry(entryToEdit.id, values, userProfile?.name || 'Owner');
+      success(`Entry #${updated.entryNo} updated — corrected entry reposted under ${updated.transNo}.`);
+      setEditModalOpen(false);
+      setEntryToEdit(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err.message || 'Failed to update ledger entry.');
+    } finally {
+      setEditing(false);
+    }
+  };
 
   // Quick period presets
   const applyPeriodPreset = (preset: 'today' | 'this_week' | 'this_month' | 'last_month' | 'all') => {
@@ -470,18 +522,19 @@ export const DayBookPage: React.FC = () => {
                 <th className="py-3 px-3 text-right">Debit ({currency})</th>
                 <th className="py-3 px-3 text-right">Credit ({currency})</th>
                 <th className="py-3 px-3 text-center">Proof</th>
+                {!isAgent && <th className="py-3 px-3 text-center">Action</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="py-12 text-center text-slate-500">
+                  <td colSpan={12} className="py-12 text-center text-slate-500">
                     Loading Day Book transactions...
                   </td>
                 </tr>
               ) : filteredEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-10 text-center text-slate-500">
+                  <td colSpan={12} className="py-10 text-center text-slate-500">
                     No transactions match the selected filters.
                   </td>
                 </tr>
@@ -616,6 +669,40 @@ export const DayBookPage: React.FC = () => {
                           <span className="text-slate-300 text-[10px]">—</span>
                         )}
                       </td>
+
+                      {/* Action (Owner/Staff only) */}
+                      {!isAgent && (
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          {!isVoid && (
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEntryToEdit(e);
+                                  setEditModalOpen(true);
+                                }}
+                                className="text-slate-400 hover:text-sky-600 p-1 rounded hover:bg-sky-50 transition cursor-pointer"
+                                title="Edit Entry"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              {isOwner && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEntryToDelete(e);
+                                    setDeleteModalOpen(true);
+                                  }}
+                                  className="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition cursor-pointer"
+                                  title="Delete Entry Permanently"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })
@@ -633,7 +720,7 @@ export const DayBookPage: React.FC = () => {
                 <td className="py-3 px-3 text-right">
                   {totalCredit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
-                <td></td>
+                <td colSpan={2}></td>
               </tr>
             </tfoot>
           </table>
@@ -657,6 +744,25 @@ export const DayBookPage: React.FC = () => {
         paymentNo={proofNo}
         webViewLink={proofUrl?.startsWith('https://drive.google.com') ? proofUrl : null}
         userRole={role}
+      />
+
+      {/* Delete Entry Modal (Owner/Staff) */}
+      <DeleteConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title={`Delete Ledger Entry #${entryToDelete?.entryNo}`}
+        recordLabel={entryToDelete ? `${entryToDelete.entryNo} • ${entryToDelete.transNo} • ${entryToDelete.date} • ${entryToDelete.particulars}` : undefined}
+        deleting={deleting}
+        onConfirm={handleConfirmDelete}
+      />
+
+      {/* Edit Entry Modal (Owner/Staff) */}
+      <LedgerEntryEditModal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        entry={entryToEdit}
+        saving={editing}
+        onSave={handleConfirmEdit}
       />
     </div>
   );

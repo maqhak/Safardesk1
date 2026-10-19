@@ -5,8 +5,10 @@ import {
   getDocs, 
   setDoc, 
   updateDoc, 
+  deleteDoc, 
   query, 
-  where 
+  where, 
+  limit 
 } from 'firebase/firestore';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut as secondarySignOut } from 'firebase/auth';
@@ -845,4 +847,101 @@ export async function repairMissingAgentLedgers(actor: UserProfile): Promise<str
   });
 
   return created;
+}
+
+/**
+ * Permanently delete an agent (Owner only).
+ * SAFETY — never orphans a money trail: if the agent's ledger account carries a
+ * non-zero balance OR has any posted ledger entries, deletion is BLOCKED and the
+ * Owner is told to Deactivate instead (the existing deactivate pattern).
+ * On success removes: the agent doc, its linked ledger account doc(s), and the
+ * agent's login user doc (Firestore + localStorage caches). The Firebase Auth
+ * account itself cannot be removed client-side; removing the users doc blocks
+ * all access because AuthContext resolves roles from it.
+ */
+export async function deleteAgent(actor: UserProfile, agentId: string): Promise<void> {
+  if (actor.role !== 'owner') {
+    throw new Error('Unauthorized: Only the agency Owner can delete agent records.');
+  }
+
+  const agents = await fetchAgents();
+  const agent = agents.find((a) => a.id === agentId);
+  if (!agent) {
+    throw new Error('Agent record not found.');
+  }
+
+  const ledgers = await fetchLedgerAccounts();
+  const linkedLedgers = ledgers.filter(
+    (l: any) => l.linkedAgentId === agentId || l.linkedId === agentId || l.id === `ledger-${agentId}`
+  );
+
+  // Block deletion when the ledger carries money history — deactivate instead.
+  if (!isConfigPlaceholder) {
+    for (const ledger of linkedLedgers) {
+      if (Number((ledger as any).currentBalanceSAR) !== 0) {
+        throw new Error(
+          `Cannot delete ${agent.agentCode}: its ledger carries a non-zero balance. Deactivate the agent instead.`
+        );
+      }
+      const entriesSnap = await getDocs(
+        query(collection(db, 'ledger_entries'), where('accountId', '==', ledger.id), limit(1))
+      );
+      if (!entriesSnap.empty) {
+        throw new Error(
+          `Cannot delete ${agent.agentCode}: its ledger has posted entries. Deactivate the agent instead.`
+        );
+      }
+    }
+  }
+
+  try {
+    if (!isConfigPlaceholder) {
+      const ops: Promise<void>[] = [deleteDoc(doc(db, AGENTS_COLLECTION, agentId))];
+      for (const ledger of linkedLedgers) {
+        ops.push(deleteDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledger.id)));
+      }
+      if (agent.userId) {
+        ops.push(deleteDoc(doc(db, USERS_COLLECTION, agent.userId)));
+      }
+      await Promise.all(ops);
+    }
+  } catch (err) {
+    throw new Error(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Update local caches so the list refreshes even offline
+  try {
+    localStorage.setItem(
+      LOCAL_STORAGE_AGENTS_KEY,
+      JSON.stringify(agents.filter((a) => a.id !== agentId))
+    );
+    const linkedIds = new Set(linkedLedgers.map((l) => l.id));
+    localStorage.setItem(
+      LOCAL_STORAGE_LEDGERS_KEY,
+      JSON.stringify(ledgers.filter((l) => !linkedIds.has(l.id)))
+    );
+    if (agent.userId) {
+      const storedUsers = localStorage.getItem('safardesk_users_directory');
+      if (storedUsers) {
+        const users = JSON.parse(storedUsers).filter((u: any) => u.uid !== agent.userId);
+        localStorage.setItem('safardesk_users_directory', JSON.stringify(users));
+      }
+    }
+  } catch {
+    // ignore cache errors
+  }
+
+  await logAuditEvent({
+    action: 'DELETE_AGENT',
+    userId: actor.uid,
+    userName: actor.name || 'Owner',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: agent.userId,
+    targetUserName: agent.companyName,
+    details: {
+      agentCode: agent.agentCode,
+      deletedLedgerIds: linkedLedgers.map((l) => l.id),
+    },
+  });
 }

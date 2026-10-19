@@ -15,7 +15,9 @@ import {
   Merge,
   ExternalLink,
   ShieldAlert,
-  ChevronRight
+  ChevronRight,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -23,13 +25,14 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { DataTable, Column } from '../components/ui/DataTable';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { CustomerDoc } from '../types/customer';
 import { AgentsPage } from './AgentsPage';
-import { fetchCustomers, createCustomer, mergeCustomers } from '../services/customerService';
+import { fetchCustomers, createCustomer, mergeCustomers, updateCustomer, deleteCustomer } from '../services/customerService';
 import { fetchVisas } from '../services/visaService';
 import { fetchVouchers } from '../services/voucherService';
 import { fetchLedgerAccounts, fetchLedgerEntries } from '../services/accountingService';
@@ -47,6 +50,7 @@ export const CustomersPage: React.FC = () => {
   const canView = useCan('Visas', 'view');
   const canCreate = useCan('Visas', 'create');
   const isOwner = role === 'owner';
+  const canManage = role === 'owner' || role === 'staff';
 
   const [customers, setCustomers] = useState<CustomerDoc[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -86,6 +90,27 @@ export const CustomersPage: React.FC = () => {
   const [survivorId, setSurvivorId] = useState<string>('');
   const [duplicateId, setDuplicateId] = useState<string>('');
   const [merging, setMerging] = useState<boolean>(false);
+
+  // Edit Customer Modal state
+  const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
+  const [customerToEdit, setCustomerToEdit] = useState<CustomerDoc | null>(null);
+  const [editing, setEditing] = useState<boolean>(false);
+  const [editFullName, setEditFullName] = useState<string>('');
+  const [editPassportNumber, setEditPassportNumber] = useState<string>('');
+  const [editNationality, setEditNationality] = useState<string>('Pakistani');
+  const [editGender, setEditGender] = useState<'Male' | 'Female' | 'Other'>('Male');
+  const [editDateOfBirth, setEditDateOfBirth] = useState<string>('');
+  const [editMobile, setEditMobile] = useState<string>('');
+  const [editEmail, setEditEmail] = useState<string>('');
+  const [editCity, setEditCity] = useState<string>('');
+  const [editAddress, setEditAddress] = useState<string>('');
+  const [editCnic, setEditCnic] = useState<string>('');
+  const [editNotes, setEditNotes] = useState<string>('');
+
+  // Delete Customer confirm state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false);
+  const [customerToDelete, setCustomerToDelete] = useState<CustomerDoc | null>(null);
+  const [deleting, setDeleting] = useState<boolean>(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -234,6 +259,83 @@ export const CustomersPage: React.FC = () => {
     }
   };
 
+  // Open Edit Customer Modal (prefilled)
+  const openEditCustomer = (c: CustomerDoc) => {
+    setCustomerToEdit(c);
+    setEditFullName(c.fullName || '');
+    setEditPassportNumber(c.passportNumber || '');
+    setEditNationality(c.nationality || 'Pakistani');
+    setEditGender(c.gender || 'Male');
+    setEditDateOfBirth(c.dateOfBirth || '');
+    setEditMobile(c.mobile || '');
+    setEditEmail(c.email || '');
+    setEditCity(c.city || '');
+    setEditAddress(c.address || '');
+    setEditCnic(c.cnic || '');
+    setEditNotes(c.notes || '');
+    setEditModalOpen(true);
+  };
+
+  // Save Edit Customer
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userProfile || !customerToEdit) return;
+
+    if (!editFullName.trim() || !editPassportNumber.trim() || !editMobile.trim() || !editCity.trim()) {
+      showError('Full name, passport number, mobile, and city are required.');
+      return;
+    }
+
+    setEditing(true);
+    try {
+      await updateCustomer(userProfile, customerToEdit.id, {
+        fullName: editFullName.trim(),
+        passportNumber: editPassportNumber.trim().toUpperCase(),
+        nationality: editNationality,
+        gender: editGender,
+        dateOfBirth: editDateOfBirth,
+        mobile: editMobile.trim(),
+        email: editEmail.trim(),
+        city: editCity.trim(),
+        address: editAddress.trim(),
+        cnic: editCnic.trim(),
+        notes: editNotes.trim(),
+      });
+
+      success(`Customer "${editFullName}" updated successfully.`);
+      setEditModalOpen(false);
+      setCustomerToEdit(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err?.message || 'Failed to update customer.');
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  // Delete customer (permanent — blocked when the ledger has history)
+  const handleDeleteClick = (c: CustomerDoc) => {
+    setCustomerToDelete(c);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!userProfile || !customerToDelete) return;
+    setDeleting(true);
+    try {
+      await deleteCustomer(userProfile, customerToDelete.id);
+      success(`Customer "${customerToDelete.fullName}" deleted permanently.`);
+      setDeleteConfirmOpen(false);
+      setCustomerToDelete(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err?.message || 'Failed to delete customer.');
+      setDeleteConfirmOpen(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const filteredCustomers = customers.filter((c) =>
     c.fullName.toLowerCase().includes(search.toLowerCase()) ||
     c.passportNumber.toLowerCase().includes(search.toLowerCase()) ||
@@ -289,6 +391,29 @@ export const CustomersPage: React.FC = () => {
           >
             View Profile & Timeline
           </Button>
+          {canManage && (
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Pencil className="w-3.5 h-3.5 text-slate-500" />}
+              onClick={() => openEditCustomer(row)}
+              title="Edit Customer Details"
+            >
+              Edit
+            </Button>
+          )}
+          {isOwner && (
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Trash2 className="w-3.5 h-3.5 text-rose-500" />}
+              onClick={() => handleDeleteClick(row)}
+              title="Delete Customer Permanently"
+              className="hover:text-rose-600 hover:border-rose-300"
+            >
+              Delete
+            </Button>
+          )}
         </div>
       ),
     },
@@ -619,6 +744,136 @@ export const CustomersPage: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      {/* Edit Customer Modal */}
+      <Modal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title="Edit Customer"
+        subtitle={`Update profile for ${customerToEdit?.fullName}`}
+        size="lg"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setEditModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" loading={editing} onClick={handleSaveEdit}>
+              Save Changes
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleSaveEdit} className="space-y-4 py-2 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Full Name (As in Passport) *"
+              value={editFullName}
+              onChange={(e) => setEditFullName(e.target.value)}
+              required
+            />
+            <Input
+              label="Passport Number *"
+              value={editPassportNumber}
+              onChange={(e) => setEditPassportNumber(e.target.value.toUpperCase())}
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Nationality</label>
+              <input
+                type="text"
+                value={editNationality}
+                onChange={(e) => setEditNationality(e.target.value)}
+                className="w-full p-2.5 text-xs bg-white border border-slate-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Gender</label>
+              <select
+                value={editGender}
+                onChange={(e) => setEditGender(e.target.value as any)}
+                className="w-full p-2.5 text-xs bg-white border border-slate-300 rounded-lg"
+              >
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <Input
+              label="Date of Birth"
+              type="date"
+              value={editDateOfBirth}
+              onChange={(e) => setEditDateOfBirth(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Mobile Number *"
+              value={editMobile}
+              onChange={(e) => setEditMobile(e.target.value)}
+              required
+            />
+            <Input
+              label="Email Address"
+              type="email"
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="City *"
+              value={editCity}
+              onChange={(e) => setEditCity(e.target.value)}
+              required
+            />
+            <Input
+              label="CNIC / National ID"
+              value={editCnic}
+              onChange={(e) => setEditCnic(e.target.value)}
+            />
+          </div>
+
+          <Input
+            label="Street Address"
+            value={editAddress}
+            onChange={(e) => setEditAddress(e.target.value)}
+          />
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Notes & Special Requirements</label>
+            <textarea
+              rows={3}
+              value={editNotes}
+              onChange={(e) => setEditNotes(e.target.value)}
+              className="w-full p-3 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20"
+            />
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete Customer Confirmation */}
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleConfirmDelete}
+        loading={deleting}
+        title={`Delete Customer — ${customerToDelete?.fullName}`}
+        message={
+          <p>
+            Are you sure you want to delete customer <strong>{customerToDelete?.fullName}</strong> (Passport: {customerToDelete?.passportNumber})?
+            This will also remove their linked ledger account.
+            This will permanently delete this record. This data cannot be recovered.
+          </p>
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+      />
     </div>
   );
 };

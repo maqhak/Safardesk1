@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plane, Search, Plus, RotateCcw, Users, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { Plane, Search, Plus, RotateCcw, Users, CheckCircle2, Clock, XCircle, Pencil, Trash2 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -8,22 +8,49 @@ import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { DataTable, Column } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { TicketDoc } from '../types/ticket';
-import { fetchTickets, getTicketRouteLabel } from '../services/ticketService';
+import { fetchTickets, getTicketRouteLabel, updateTicket, deleteTicket } from '../services/ticketService';
 
 const fmtPKR = (n: number | undefined | null) =>
   `PKR ${Number(n ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
 export const TicketListPage: React.FC = () => {
   const navigate = useNavigate();
-  const { error: showError } = useToast();
+  const { userProfile, role } = useAuth();
+  const { success, error: showError } = useToast();
   const [tickets, setTickets] = useState<TicketDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [selected, setSelected] = useState<TicketDoc | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+
+  // Edit + Delete are owner/staff only — agents never see the buttons.
+  const canEditDelete = role === 'owner' || role === 'staff';
+  const canDelete = role === 'owner'; // Delete is Owner-only
+
+  // Edit modal state (prefilled with the record's current values)
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editPNR, setEditPNR] = useState('');
+  const [editPassengerName, setEditPassengerName] = useState('');
+  const [editTicketNo, setEditTicketNo] = useState('');
+  const [editFlightNo, setEditFlightNo] = useState('');
+  const [editFlightDate, setEditFlightDate] = useState('');
+  const [editDepTime, setEditDepTime] = useState('');
+  const [editArrTime, setEditArrTime] = useState('');
+  const [editSupplier, setEditSupplier] = useState('');
+  const [editBuyerName, setEditBuyerName] = useState('');
+  const [editCostPKR, setEditCostPKR] = useState('');
+  const [editSalePKR, setEditSalePKR] = useState('');
+  const [editNote, setEditNote] = useState('');
+
+  // Delete confirmation state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -37,6 +64,83 @@ export const TicketListPage: React.FC = () => {
   };
 
   useEffect(() => { load(); }, []);
+
+  const openEditTicket = (t: TicketDoc) => {
+    setEditPNR(t.pnr || '');
+    setEditPassengerName(t.passengers?.[0]?.name || '');
+    setEditTicketNo(t.passengers?.[0]?.ticketNo || '');
+    setEditFlightNo(t.flightNo || '');
+    setEditFlightDate(t.flightDate || '');
+    setEditDepTime(t.departureTime || '');
+    setEditArrTime(t.arrivalTime || '');
+    setEditSupplier(t.supplierName || '');
+    setEditBuyerName(t.buyerName || '');
+    setEditCostPKR(t.purchaseCostPKR != null ? String(t.purchaseCostPKR) : '');
+    setEditSalePKR(t.salePricePKR != null ? String(t.salePricePKR) : '');
+    setEditNote(t.note || '');
+    setSelected(t);
+    setDetailOpen(false);
+    setEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userProfile || !selected) return;
+    if (!editPNR.trim()) { showError('PNR is required.'); return; }
+    const cost = parseFloat(editCostPKR);
+    const sale = parseFloat(editSalePKR);
+    if (isNaN(cost) || isNaN(sale) || cost < 0 || sale < 0) {
+      showError('Please enter valid purchase and sale prices.');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const pax0 = selected.passengers?.[0] || { name: '', passportNumber: '', ageType: 'Adult', ticketNo: '' };
+      const updated = await updateTicket(userProfile, selected.id, {
+        pnr: editPNR.trim().toUpperCase(),
+        passengers: [{ ...pax0, name: editPassengerName.trim(), ticketNo: editTicketNo.trim() }],
+        flightNo: editFlightNo.trim().toUpperCase(),
+        flightDate: editFlightDate,
+        departureTime: editDepTime,
+        arrivalTime: editArrTime,
+        supplierName: editSupplier.trim(),
+        buyerName: editBuyerName.trim(),
+        purchaseCostPKR: Math.round(cost * 100) / 100,
+        salePricePKR: Math.round(sale * 100) / 100,
+        note: editNote.trim() || undefined,
+      });
+      setSelected(updated);
+      success(`Ticket PNR ${updated.pnr} updated successfully.`);
+      setEditModalOpen(false);
+      await load();
+    } catch (err: any) {
+      showError(err?.message || 'Failed to update ticket.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDeleteClick = (t: TicketDoc) => {
+    setSelected(t);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!userProfile || !selected) return;
+    setDeleting(true);
+    try {
+      await deleteTicket(userProfile, selected.id);
+      success(`Ticket PNR ${selected.pnr} deleted successfully.`);
+      setDeleteConfirmOpen(false);
+      setDetailOpen(false);
+      setSelected(null);
+      await load();
+    } catch (err: any) {
+      showError(err?.message || 'Failed to delete ticket.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const stats = useMemo(() => {
     const issued = tickets.filter((t) => t.status === 'Issued').length;
@@ -143,9 +247,31 @@ export const TicketListPage: React.FC = () => {
       header: 'Actions',
       align: 'right',
       render: (row) => (
-        <Button variant="outline" size="sm" onClick={() => { setSelected(row); setDetailOpen(true); }}>
-          View
-        </Button>
+        <div className="flex items-center justify-end gap-1">
+          <Button variant="outline" size="sm" onClick={() => { setSelected(row); setDetailOpen(true); }}>
+            View
+          </Button>
+          {canEditDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); openEditTicket(row); }}
+              className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-slate-100 rounded-lg transition"
+              title="Edit Ticket"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )}
+          {canDelete && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDeleteClick(row); }}
+                className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-slate-100 rounded-lg transition"
+                title="Delete Ticket"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </>
+          )}
+        </div>
       ),
     },
   ];
@@ -239,11 +365,23 @@ export const TicketListPage: React.FC = () => {
           size="lg"
           footer={
             <div className="flex items-center justify-between w-full">
-              {selected.status !== 'Refunded' && selected.status !== 'Cancelled' && (
-                <Button variant="danger" size="sm" onClick={() => navigate('/tickets/refund')}>
-                  <RotateCcw className="w-4 h-4 mr-1" /> Refund Ticket
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {selected.status !== 'Refunded' && selected.status !== 'Cancelled' && (
+                  <Button variant="danger" size="sm" onClick={() => navigate('/tickets/refund')}>
+                    <RotateCcw className="w-4 h-4 mr-1" /> Refund Ticket
+                  </Button>
+                )}
+                {canEditDelete && (
+                  <Button variant="outline" size="sm" onClick={() => openEditTicket(selected)}>
+                    <Pencil className="w-4 h-4 mr-1" /> Edit
+                  </Button>
+                )}
+                {canDelete && (
+                  <Button variant="outline" size="sm" onClick={() => handleDeleteClick(selected)}>
+                    <Trash2 className="w-4 h-4 mr-1 text-rose-600" /> Delete
+                  </Button>
+                )}
+              </div>
               <Button variant="primary" size="sm" onClick={() => setDetailOpen(false)}>Close</Button>
             </div>
           }
@@ -297,6 +435,65 @@ export const TicketListPage: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      {/* Edit Ticket Modal — prefilled with the record's current values */}
+      <Modal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title={selected ? `Edit Ticket — PNR ${selected.pnr}` : 'Edit Ticket'}
+        subtitle="Update booking details. Margin is recalculated automatically."
+        size="lg"
+        footer={
+          <div className="flex items-center justify-end gap-3">
+            <Button variant="ghost" onClick={() => setEditModalOpen(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleSaveEdit} loading={editSaving}>Save Changes</Button>
+          </div>
+        }
+      >
+        <form onSubmit={handleSaveEdit} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Input label="PNR" value={editPNR} onChange={(e) => setEditPNR(e.target.value.toUpperCase())} required />
+            <Input label="Passenger Name" value={editPassengerName} onChange={(e) => setEditPassengerName(e.target.value)} />
+            <Input label="Ticket No" value={editTicketNo} onChange={(e) => setEditTicketNo(e.target.value)} />
+            <Input label="Flight No" value={editFlightNo} onChange={(e) => setEditFlightNo(e.target.value.toUpperCase())} />
+            <Input label="Flight Date" type="date" value={editFlightDate} onChange={(e) => setEditFlightDate(e.target.value)} />
+            <Input label="Supplier" value={editSupplier} onChange={(e) => setEditSupplier(e.target.value)} />
+            <Input label="Departure Time" type="time" value={editDepTime} onChange={(e) => setEditDepTime(e.target.value)} />
+            <Input label="Arrival Time" type="time" value={editArrTime} onChange={(e) => setEditArrTime(e.target.value)} />
+            <Input label="Buyer Name" value={editBuyerName} onChange={(e) => setEditBuyerName(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input label="Purchase Cost (PKR)" type="number" step="0.01" value={editCostPKR} onChange={(e) => setEditCostPKR(e.target.value)} required />
+            <Input label="Sale Price (PKR)" type="number" step="0.01" value={editSalePKR} onChange={(e) => setEditSalePKR(e.target.value)} required />
+          </div>
+          {editCostPKR && editSalePKR && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800 flex items-center justify-between">
+              <span>Updated Margin:</span>
+              <span className="font-mono text-sm">PKR {((parseFloat(editSalePKR) || 0) - (parseFloat(editCostPKR) || 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+            </div>
+          )}
+          <Input label="Note" value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="Optional note" />
+        </form>
+      </Modal>
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Ticket"
+        message={
+          <>
+            Are you sure you want to delete ticket <strong className="font-mono">{selected?.pnr}</strong>
+            {selected?.passengers?.[0]?.name ? ` (${selected.passengers[0].name})` : ''}?
+            This will permanently delete this record. This data cannot be recovered.
+          </>
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   );
 };

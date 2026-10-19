@@ -12,7 +12,7 @@ import { createTicket } from '../services/ticketService';
 import { fetchCustomers } from '../services/customerService';
 import { fetchAgents } from '../services/agentService';
 import { fetchVendors, fetchAirlines } from '../services/masterService';
-import { getCurrentRate } from '../services/exchangeRateService';
+import { getCurrentRate, getBuyRate, getSellRate } from '../services/exchangeRateService';
 import { AirlineDoc } from '../types/master';
 import { TicketSector } from '../types/ticket';
 
@@ -81,6 +81,8 @@ export const TicketSalePage: React.FC = () => {
   const [commissionAmt, setCommissionAmt] = useState('');
   const [netCost, setNetCost] = useState('');
   const [netSale, setNetSale] = useState('');
+  const [buyROE, setBuyROE] = useState(() => String(getBuyRate()));
+  const [sellROE, setSellROE] = useState(() => String(getSellRate()));
   const [charges, setCharges] = useState('');
   const [custWhPct, setCustWhPct] = useState('');
   const [discountPct, setDiscountPct] = useState('');
@@ -151,7 +153,9 @@ export const TicketSalePage: React.FC = () => {
 
     setSaving(true);
     try {
-      const rate = getCurrentRate('SAR-PKR');
+      const buyRate = parseFloat(buyROE) > 0 ? parseFloat(buyROE) : getBuyRate();
+      const sellRate = parseFloat(sellROE) > 0 ? parseFloat(sellROE) : getSellRate();
+      const rate = sellRate;
       // Resolve the Shirka display name (shirkaId may be a vendor id or a nested shirka id)
       let shirkaName = '';
       if (shirkaId) {
@@ -188,6 +192,8 @@ export const TicketSalePage: React.FC = () => {
         buyerName,
         status: 'Issued',
         exchangeRateSARPKR: rate,
+        buyROE: buyRate,
+        sellROE: sellRate,
         purchaseCostPKR: (parseFloat(netCost) || 0),
         salePricePKR: (parseFloat(netSale) || 0) + (parseFloat(charges) || 0),
         basicFareSAR: (parseFloat(basicFare) || 0),
@@ -400,6 +406,8 @@ export const TicketSalePage: React.FC = () => {
           <div><label className={labelCls}>Commission</label><Input type="number" value={commissionAmt} onChange={e => setCommissionAmt(e.target.value)} placeholder="0" disabled={!customCommission} /></div>
           <div><label className={labelCls}>Net Cost</label><Input type="number" value={netCost} onChange={e => setNetCost(e.target.value)} placeholder="0" /></div>
           <div><label className={labelCls}>Net Sale</label><Input type="number" value={netSale} onChange={e => setNetSale(e.target.value)} placeholder="0" /></div>
+          <div><label className={labelCls} title="Buying ROE — applied on cost">Buy ROE</label><Input type="number" step="0.01" value={buyROE} onChange={e => setBuyROE(e.target.value)} placeholder={String(getBuyRate())} /></div>
+          <div><label className={labelCls} title="Selling ROE — applied on revenue">Sell ROE</label><Input type="number" step="0.01" value={sellROE} onChange={e => setSellROE(e.target.value)} placeholder={String(getSellRate())} /></div>
           <div><label className={labelCls}>Profit / Loss</label><div className={`p-2 border rounded-lg text-sm font-mono font-bold ${calc.profitLoss >= 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>{fmt(calc.profitLoss)}</div></div>
           <div><label className={labelCls}>Charges</label><Input type="number" value={charges} onChange={e => setCharges(e.target.value)} placeholder="0" /></div>
           <div><label className={labelCls}>Customer WH %</label><Input type="number" value={custWhPct} onChange={e => setCustWhPct(e.target.value)} placeholder="0" /></div>

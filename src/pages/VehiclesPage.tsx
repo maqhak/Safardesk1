@@ -237,14 +237,16 @@ export const VehiclesPage: React.FC = () => {
                           >
                             {v.isActive ? <XCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
                           </button>
-                          <button
-                            onClick={() => handleDeleteClick(v)}
-                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-slate-100 rounded-lg transition"
-                            title="Delete Vehicle"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         </>
+                      )}
+                      {userProfile?.role === 'owner' && (
+                        <button
+                          onClick={() => handleDeleteClick(v)}
+                          className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-slate-100 rounded-lg transition"
+                          title="Delete Vehicle"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       )}
                     </td>
                   </tr>
@@ -328,8 +330,8 @@ export const VehiclesPage: React.FC = () => {
         onClose={() => setDeleteConfirmOpen(false)}
         onConfirm={handleConfirmDelete}
         title="Delete Vehicle Type"
-        message={`Are you sure you want to delete vehicle type "${vehicleToDelete?.vehicleType}"? If this vehicle is referenced in vouchers, deletion will be blocked and deactivation will be recommended.`}
-        confirmLabel="Delete Vehicle"
+        message={`Are you sure you want to delete vehicle type "${vehicleToDelete?.vehicleType}"? This will permanently delete this record. This data cannot be recovered. If this vehicle is referenced in vouchers, deletion will be blocked and deactivation will be recommended.`}
+        confirmLabel="Delete"
         variant="danger"
       />
     </div>

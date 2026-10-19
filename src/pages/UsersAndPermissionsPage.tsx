@@ -19,7 +19,8 @@ import {
   Info, 
   Building,
   UserX,
-  UserCheck
+  UserCheck,
+  Trash2
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card, CardHeader } from '../components/ui/Card';
@@ -51,7 +52,8 @@ import {
   updateStaffPermissions, 
   toggleUserActiveStatus, 
   resetUserPasswordByOwner,
-  generateTemporaryPassword
+  generateTemporaryPassword,
+  deleteUser
 } from '../services/userService';
 import { formatDate } from '../utils/formatters';
 
@@ -94,6 +96,10 @@ export const UsersAndPermissionsPage: React.FC = () => {
   // Suspend confirmation modal
   const [suspendModalOpen, setSuspendModalOpen] = useState<boolean>(false);
   const [suspendLoading, setSuspendLoading] = useState<boolean>(false);
+
+  // Delete user confirmation modal
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false);
+  const [deleteLoading, setDeleteLoading] = useState<boolean>(false);
 
   // Load all users
   const loadUsers = async () => {
@@ -273,6 +279,30 @@ export const UsersAndPermissionsPage: React.FC = () => {
       showError(err?.message || 'Could not update account status.');
     } finally {
       setSuspendLoading(false);
+    }
+  };
+
+  // Open delete confirmation (staff rows only — owners and agent logins are excluded)
+  const handleDeleteClick = (user: UserDoc) => {
+    setTargetUser(user);
+    setDeleteConfirmOpen(true);
+  };
+
+  // Permanently delete the user account
+  const handleConfirmDelete = async () => {
+    if (!userProfile || !targetUser) return;
+    setDeleteLoading(true);
+    try {
+      await deleteUser(userProfile, targetUser.uid);
+      success(`Account for ${targetUser.name} deleted permanently.`);
+      setDeleteConfirmOpen(false);
+      setTargetUser(null);
+      await loadUsers();
+    } catch (err: any) {
+      showError(err?.message || 'Could not delete account.');
+      setDeleteConfirmOpen(false);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -539,6 +569,19 @@ export const UsersAndPermissionsPage: React.FC = () => {
                             className={u.isActive ? 'hover:text-rose-600 hover:border-rose-300' : ''}
                           >
                             {u.isActive ? 'Suspend' : 'Reactivate'}
+                          </Button>
+                        )}
+
+                        {isStaff && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            leftIcon={<Trash2 className="w-3.5 h-3.5 text-rose-500" />}
+                            onClick={() => handleDeleteClick(u)}
+                            title="Delete Staff Account Permanently"
+                            className="hover:text-rose-600 hover:border-rose-300"
+                          >
+                            Delete
                           </Button>
                         )}
                       </div>
@@ -831,6 +874,27 @@ export const UsersAndPermissionsPage: React.FC = () => {
           }
           confirmLabel={targetUser.isActive ? 'Suspend Account' : 'Reactivate'}
           variant={targetUser.isActive ? 'danger' : 'primary'}
+        />
+      )}
+
+      {/* DELETE STAFF ACCOUNT CONFIRM DIALOG */}
+      {targetUser && (
+        <ConfirmDialog
+          isOpen={deleteConfirmOpen}
+          onClose={() => setDeleteConfirmOpen(false)}
+          onConfirm={handleConfirmDelete}
+          loading={deleteLoading}
+          title={`Delete Account — ${targetUser.name}`}
+          message={
+            <p>
+              Are you sure you want to delete the staff account <strong>{targetUser.name}</strong> ({targetUser.email})?
+              Their login access and permission record will be removed.
+              This will permanently delete this record. This data cannot be recovered.
+            </p>
+          }
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          variant="danger"
         />
       )}
     </div>

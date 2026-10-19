@@ -364,6 +364,79 @@ export async function toggleVendorStatus(actor: UserProfile, vendorId: string): 
   });
 }
 
+/**
+ * Requirement 6 (vendors): deleting a vendor that is referenced anywhere is
+ * blocked — the vendor is deactivated instead. The vendor's ledger account is
+ * NEVER deleted: historical ledger entries point at it, so it must survive.
+ */
+export async function deleteOrDeactivateVendor(actor: UserProfile, vendorId: string): Promise<string> {
+  if (actor.role !== 'owner') {
+    throw new Error('Only the Owner can delete a vendor.');
+  }
+  const vendors = await fetchVendors();
+  const v = vendors.find((item) => item.id === vendorId);
+  if (!v) throw new Error('Vendor not found.');
+
+  // Reference check 1: hotels linked to this vendor
+  const hotels = await fetchHotels();
+  const linkedHotels = hotels.filter((h) => h.vendorId === vendorId);
+
+  // Reference check 2: the linked ledger account carries a non-zero balance.
+  // Stranding a payable/receivable is worse than keeping the vendor row.
+  let ledgerBalance = 0;
+  try {
+    if (!isConfigPlaceholder) {
+      const snap = await getDocs(collection(db, LEDGER_ACCOUNTS_COLLECTION));
+      const acc: any = snap.docs
+        .map((d) => d.data())
+        .find((a: any) => a.linkedAgentId === vendorId || a.linkedId === vendorId);
+      if (acc) ledgerBalance = Number(acc.currentBalanceSAR || 0);
+    }
+  } catch (err) {
+    console.warn('Vendor ledger balance check failed:', err);
+  }
+
+  const reasons: string[] = [];
+  if (linkedHotels.length > 0) {
+    reasons.push(`${linkedHotels.length} hotel${linkedHotels.length > 1 ? 's' : ''} linked`);
+  }
+  if (ledgerBalance !== 0) {
+    reasons.push(`ledger balance SAR ${ledgerBalance}`);
+  }
+
+  if (reasons.length > 0) {
+    // Deactivate only (never toggle — an already-inactive vendor must stay inactive)
+    if (v.isActive) {
+      await toggleVendorStatus(actor, vendorId);
+    }
+    return `Vendor "${v.name}" cannot be deleted (${reasons.join('; ')}). It has been safely deactivated instead.`;
+  }
+
+  try {
+    if (!isConfigPlaceholder) {
+      await deleteDoc(doc(db, VENDORS_COLLECTION, vendorId));
+    }
+  } catch (err) {
+    console.warn('Delete vendor failed:', err);
+  }
+
+  const remaining = vendors.filter((item) => item.id !== vendorId);
+  localStorage.setItem(LOCAL_STORAGE_VENDORS_KEY, JSON.stringify(remaining));
+
+  await logAuditEvent({
+    action: 'DELETE_VENDOR',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: vendorId,
+    targetUserName: v.name,
+    details: {},
+  });
+
+  return `Vendor "${v.name}" deleted successfully.`;
+}
+
 // --- HOTELS SERVICE ---
 
 export async function fetchHotels(): Promise<HotelDoc[]> {
@@ -857,6 +930,41 @@ export async function toggleAirlineStatus(actor: UserProfile, airlineId: string)
     targetUserId: airlineId,
     targetUserName: a.name,
     details: { newState },
+  });
+}
+
+/**
+ * Airlines carry no ledger accounts and no usage counters — hard delete,
+ * from Firestore and local cache, with an audit entry.
+ */
+export async function deleteAirline(actor: UserProfile, airlineId: string): Promise<void> {
+  if (actor.role !== 'owner') {
+    throw new Error('Only the Owner can delete an airline.');
+  }
+  const existing = await fetchAirlines();
+  const a = existing.find((item) => item.id === airlineId);
+  if (!a) throw new Error('Airline not found.');
+
+  try {
+    if (!isConfigPlaceholder) {
+      await deleteDoc(doc(db, AIRLINES_COLLECTION, airlineId));
+    }
+  } catch (err) {
+    console.warn('Delete airline failed:', err);
+  }
+
+  const updatedList = existing.filter((item) => item.id !== airlineId);
+  localStorage.setItem(LOCAL_STORAGE_AIRLINES_KEY, JSON.stringify(updatedList));
+
+  await logAuditEvent({
+    action: 'DELETE_AIRLINE',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: airlineId,
+    targetUserName: a.name,
+    details: { iataCode: a.iataCode },
   });
 }
 

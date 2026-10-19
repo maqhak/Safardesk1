@@ -7,7 +7,7 @@ import { Modal } from '../components/ui/Modal';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
-import { useCurrentRate } from '../services/exchangeRateService';
+import { useCurrentRate, getBuyRate, getSellRate } from '../services/exchangeRateService';
 import { LedgerAccountDoc, LedgerEntryDoc } from '../types/accounting';
 import {
   fetchLedgerAccounts,
@@ -93,6 +93,8 @@ export const ItemServicePage: React.FC = () => {
   const [itemSellingPKR, setItemSellingPKR] = useState<number>(0);
   const [itemCurrency, setItemCurrency] = useState<'SAR' | 'PKR' | 'USD'>('PKR');
   const [itemRate, setItemRate] = useState<number>(0);
+  const [itemBuyROE, setItemBuyROE] = useState<number>(0); // Dual ROE: cost side
+  const [itemSellROE, setItemSellROE] = useState<number>(0); // Dual ROE: revenue side
   const [itemDescription, setItemDescription] = useState<string>('');
 
   // Edit mode — null = create new; transNo = editing that entry (har cheez editable)
@@ -264,14 +266,17 @@ export const ItemServicePage: React.FC = () => {
       showError('Enter a Buying price or a Selling price.');
       return;
     }
-    const rate = itemRate || masterRate;
-    if (!rate || rate <= 0) {
-      showError('Please enter a valid exchange rate (1 SAR = ? PKR).');
+    const buyROE = itemBuyROE || getBuyRate() || masterRate;
+    const sellROE = itemSellROE || getSellRate() || masterRate;
+    const rate = sellROE;
+    if (!buyROE || buyROE <= 0 || !sellROE || sellROE <= 0) {
+      showError('Please enter valid exchange rates (Buy ROE and Sell ROE).');
       return;
     }
     // Entered currency -> SAR derived for ledger (same as Tickets)
-    const buyingSAR = itemCurrency === 'PKR' ? Math.round((itemBuyingPKR / rate) * 100) / 100 : Math.round(itemBuyingPKR * 100) / 100;
-    const sellingSAR = itemCurrency === 'PKR' ? Math.round((itemSellingPKR / rate) * 100) / 100 : Math.round(itemSellingPKR * 100) / 100;
+    // Dual ROE: buying uses Buy ROE, selling uses Sell ROE.
+    const buyingSAR = itemCurrency === 'PKR' ? Math.round((itemBuyingPKR / buyROE) * 100) / 100 : Math.round(itemBuyingPKR * 100) / 100;
+    const sellingSAR = itemCurrency === 'PKR' ? Math.round((itemSellingPKR / sellROE) * 100) / 100 : Math.round(itemSellingPKR * 100) / 100;
 
     setSaving(true);
     try {
@@ -293,6 +298,8 @@ export const ItemServicePage: React.FC = () => {
         buyingSAR,
         sellingSAR,
         rate,
+        buyROE,
+        sellROE,
         createdBy: userProfile?.name || 'Operator',
       });
       const marginEntered = Math.round((itemSellingPKR - itemBuyingPKR) * 100) / 100;
@@ -311,22 +318,23 @@ export const ItemServicePage: React.FC = () => {
     }
   };
 
-  const handleVoid = async (row: ItemServiceRow) => {
+  const handleDelete = async (row: ItemServiceRow) => {
     if (!isOwner) {
-      showError('Only the Owner can void entries.');
+      showError('Only the Owner can delete entries.');
       return;
     }
-    const reason = window.prompt(`Void entry ${row.transNo}? Enter reason:`);
+    // Delete here is a VOID (audit trail preserved) — never a hard delete.
+    const reason = window.prompt(`Delete entry ${row.transNo} (void — audit trail kept)? Enter reason:`);
     if (!reason) return;
     try {
       const group = entries.filter((e) => e.transNo === row.transNo && !e.isVoid);
       for (const e of group) {
         await voidLedgerEntry(e.id, reason, userProfile?.name || 'Owner');
       }
-      success(`Entry ${row.transNo} voided.`);
+      success(`Entry ${row.transNo} deleted (voided — audit trail kept).`);
       await loadData();
     } catch {
-      showError('Failed to void entry.');
+      showError('Failed to delete entry.');
     }
   };
 
@@ -667,10 +675,10 @@ export const ItemServicePage: React.FC = () => {
                                 <Pencil className="w-3 h-3" /> Edit
                               </button>
                               <button
-                                onClick={() => handleVoid(r)}
+                                onClick={() => handleDelete(r)}
                                 className="text-[11px] font-semibold text-rose-600 hover:text-rose-800 hover:underline"
                               >
-                                Void
+                                Delete
                               </button>
                             </div>
                           ) : (
@@ -837,12 +845,24 @@ export const ItemServicePage: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Rate (1 SAR = ? PKR)</label>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1" title="Buying ROE — applied on cost">Buy ROE</label>
               <input
                 type="number"
                 step="0.01"
-                value={itemRate || ''}
-                onChange={(e) => setItemRate(parseFloat(e.target.value) || masterRate)}
+                value={itemBuyROE || ''}
+                placeholder={String(getBuyRate())}
+                onChange={(e) => setItemBuyROE(parseFloat(e.target.value) || 0)}
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1" title="Selling ROE — applied on revenue">Sell ROE</label>
+              <input
+                type="number"
+                step="0.01"
+                value={itemSellROE || ''}
+                placeholder={String(getSellRate())}
+                onChange={(e) => setItemSellROE(parseFloat(e.target.value) || 0)}
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
               />
               <div className="text-[10px] text-slate-500 mt-0.5">

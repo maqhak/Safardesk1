@@ -20,6 +20,8 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import { Modal } from '../components/ui/Modal';
+import { DeleteConfirmModal } from '../components/accounting/DeleteConfirmModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
@@ -30,7 +32,7 @@ import { fetchLedgerAccounts } from '../services/accountingService';
 import { createVisaDistributionBatch, fetchVisaInvoices, detectFailedDistributions, repairFailedDistributions, FailedDistributionInfo } from '../services/visaDistributionService';
 import { PACKAGE_TYPES } from '../types/visaDistribution';
 import { fetchAgents } from '../services/agentService';
-import { getCurrentRate } from '../services/exchangeRateService';
+import { getCurrentRate, getBuyRate, getSellRate } from '../services/exchangeRateService';
 import { AgentDoc } from '../types/agent';
 import { VendorDoc } from '../types/master';
 import { LedgerAccountDoc } from '../types/accounting';
@@ -49,6 +51,9 @@ interface GroupSelectionData {
   agentId: string;
   sellingPricePerVisa: number;
   buyingPricePerVisa: number;
+  /** Dual ROE — revenue side (sell), cost side (buy). One-by-one per group. */
+  sellROE?: number;
+  buyROE?: number;
   packageType?: string;
   commissionEnabled?: boolean;
   commissionRecipientName?: string;
@@ -58,6 +63,7 @@ interface GroupSelectionData {
 
 export const VisaDistributionPage: React.FC = () => {
   const { userProfile } = useAuth();
+  const canDelete = userProfile?.role === 'owner'; // Delete: Owner only, never Staff/Agent
   const { profile: company } = useCompany();
   const { success, error: showError, info } = useToast();
   const useNavigateInstance = useNavigate();
@@ -228,7 +234,7 @@ export const VisaDistributionPage: React.FC = () => {
     // Functional setState — avoids stale-closure wipes (e.g. packageType change
     // being overwritten by a delayed agentId re-trigger reading the old map).
     setGroupSelections((prev) => {
-      const current = prev.get(groupCode) || { agentId: '', sellingPricePerVisa: 0, buyingPricePerVisa: 0, commissionEnabled: false };
+      const current = prev.get(groupCode) || { agentId: '', sellingPricePerVisa: 0, buyingPricePerVisa: 0, sellROE: getSellRate(), buyROE: getBuyRate(), commissionEnabled: false };
       const next: GroupSelectionData = { ...current, [field]: value };
       const lookupPrice = (pkg: string, agentId: string): number => {
         const groupLast = lastSellByGroup.get(pkg + '|' + groupCode) || lastSellByGroup.get(groupCode);
@@ -283,6 +289,8 @@ export const VisaDistributionPage: React.FC = () => {
                 agentId: cur?.agentId || '',
                 sellingPricePerVisa: cur?.sellingPricePerVisa || 0,
                 buyingPricePerVisa: price,
+                sellROE: cur?.sellROE || getSellRate(),
+                buyROE: cur?.buyROE || getBuyRate(),
                 commissionEnabled: cur?.commissionEnabled || false,
               });
               changed = true;
@@ -356,6 +364,8 @@ export const VisaDistributionPage: React.FC = () => {
       visaIds: string[];
       visaCount: number;
       exchangeRateSARPKR: number;
+      buyROE?: number;
+      sellROE?: number;
       packageType?: string;
       commission?: { enabled: boolean; recipientName: string; contactNumber: string; amountSAR: number };
     }> = [];
@@ -373,6 +383,8 @@ export const VisaDistributionPage: React.FC = () => {
             agentId: sel.agentId,
             sellingPricePerVisa: sel.sellingPricePerVisa,
             buyingPricePerVisa: sel.buyingPricePerVisa || 0,
+            buyROE: sel.buyROE || getBuyRate(),
+            sellROE: sel.sellROE || getSellRate(),
             packageType: sel.packageType || undefined,
             visaIds: includedVisas.map(v => v.id),
             visaCount: includedVisas.length,
@@ -447,6 +459,9 @@ export const VisaDistributionPage: React.FC = () => {
         groupName: string;
         visaIds: string[];
         exchangeRateSARPKR: number;
+        buyROE?: number;
+        sellROE?: number;
+        packageType?: string;
         commission?: { enabled: boolean; recipientName: string; contactNumber: string; amountSAR: number };
       }>();
 
@@ -460,6 +475,8 @@ export const VisaDistributionPage: React.FC = () => {
           visaIds: g.visaIds,
           packageType: (g as any).packageType || undefined,
           exchangeRateSARPKR: g.exchangeRateSARPKR,
+          buyROE: (g as any).buyROE || getBuyRate(),
+          sellROE: (g as any).sellROE || getSellRate(),
           commission: g.commission,
         });
       });
@@ -504,6 +521,7 @@ export const VisaDistributionPage: React.FC = () => {
   const [clearing, setClearing] = useState<boolean>(false);
   // Groups selected for clearing (Fix: clear should only delete SELECTED groups, not everything)
   const [clearSelectedGroups, setClearSelectedGroups] = useState<Set<string>>(new Set());
+  const [clearConfirmOpen, setClearConfirmOpen] = useState<boolean>(false);
 
   const toggleClearGroup = (groupCode: string) => {
     setClearSelectedGroups((prev) => {
@@ -514,28 +532,35 @@ export const VisaDistributionPage: React.FC = () => {
     });
   };
 
-  const handleClearUndistributed = async () => {
+  const handleClearUndistributed = () => {
     if (clearSelectedGroups.size === 0) {
-      info('Pehle woh group(s) select karo jinhe clear karna hai (har group ke saamne checkbox).');
+      info('First select the group(s) you want to clear (checkbox next to each group).');
       return;
     }
+    const ids = undistributedVisas
+      .filter((v) => clearSelectedGroups.has(v.groupCode))
+      .map((v) => v.id);
+    if (ids.length === 0) {
+      info('Selected group(s) have no undistributed visas.');
+      return;
+    }
+    setClearConfirmOpen(true);
+  };
+
+  const confirmClearUndistributed = async () => {
     const idsToClear = undistributedVisas
       .filter((v) => clearSelectedGroups.has(v.groupCode))
       .map((v) => v.id);
     if (idsToClear.length === 0) {
-      info('Selected group(s) me koi undistributed visa nahi.');
+      setClearConfirmOpen(false);
       return;
     }
-    const confirmed = window.confirm(
-      `Are you sure you want to permanently delete ${idsToClear.length} visa(s) from ${clearSelectedGroups.size} selected group(s)? This cannot be undone.`
-    );
-    if (!confirmed) return;
-
     setClearing(true);
     try {
       await deleteVisasBatch(idsToClear);
       success(`${idsToClear.length} visa(s) cleared from ${clearSelectedGroups.size} group(s).`);
       setClearSelectedGroups(new Set());
+      setClearConfirmOpen(false);
       await loadData();
     } catch (err: any) {
       showError(err.message || 'Failed to clear selected visas.');
@@ -556,15 +581,19 @@ export const VisaDistributionPage: React.FC = () => {
         ]}
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClearUndistributed}
-              disabled={clearing || clearSelectedGroups.size === 0}
-              className="text-red-600 border-red-200 hover:bg-red-50"
-              title="Sirf selected group(s) clear honge"
-            >
-              <Trash2 className="w-4 h-4 mr-1" />
+            {canDelete && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearUndistributed}
+                disabled={clearing || clearSelectedGroups.size === 0}
+                className="text-red-600 border-red-200 hover:bg-red-50"
+                title="Only the selected group(s) will be cleared"
+              >
+                <Trash2 className="w-4 h-4 mr-1" />
+                {clearing ? 'Clearing...' : `Clear Selected (${clearSelectedGroups.size})`}
+              </Button>
+            )}
 
       {/* Failed distribution repair banner */}
       {failedDistribs.length > 0 && (
@@ -590,8 +619,6 @@ export const VisaDistributionPage: React.FC = () => {
           </Button>
         </div>
       )}
-              {clearing ? 'Clearing...' : `Clear Selected (${clearSelectedGroups.size})`}
-            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -687,7 +714,7 @@ export const VisaDistributionPage: React.FC = () => {
         ) : (
           <div className="space-y-4">
             {groupedVisas.map((group) => {
-              const selection = groupSelections.get(group.groupCode) || { agentId: '', sellingPricePerVisa: 0, buyingPricePerVisa: 0, commissionEnabled: false };
+              const selection = groupSelections.get(group.groupCode) || { agentId: '', sellingPricePerVisa: 0, buyingPricePerVisa: 0, sellROE: getSellRate(), buyROE: getBuyRate(), commissionEnabled: false };
               const isExpanded = expandedGroups.has(group.groupCode);
               // Pilgrims actually included in this batch (unchecked ones stay for later)
               const includedCount = group.visas.filter((v) => !excludedVisaIds.has(v.id)).length;
@@ -776,6 +803,34 @@ export const VisaDistributionPage: React.FC = () => {
                           value={selection.sellingPricePerVisa || ''}
                           onChange={(e) => handleGroupSelectionChange(group.groupCode, 'sellingPricePerVisa', parseFloat(e.target.value) || 0)}
                           placeholder="SAR 0.00"
+                          className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-emerald-700 text-right"
+                        />
+                      </div>
+
+                      <div className="w-full sm:w-24">
+                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5" title="Buying ROE — applied on cost (PKR = buying SAR x this rate)">Buy ROE</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={selection.buyROE || ''}
+                          onChange={(e) => handleGroupSelectionChange(group.groupCode, 'buyROE', parseFloat(e.target.value) || 0)}
+                          placeholder={String(getBuyRate())}
+                          title="Buying ROE — applied on cost (PKR = buying SAR x this rate)"
+                          className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-rose-700 text-right"
+                        />
+                      </div>
+
+                      <div className="w-full sm:w-24">
+                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5" title="Selling ROE — applied on revenue (PKR = selling SAR x this rate)">Sell ROE</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={selection.sellROE || ''}
+                          onChange={(e) => handleGroupSelectionChange(group.groupCode, 'sellROE', parseFloat(e.target.value) || 0)}
+                          placeholder={String(getSellRate())}
+                          title="Selling ROE — applied on revenue (PKR = selling SAR x this rate)"
                           className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-emerald-700 text-right"
                         />
                       </div>
@@ -994,6 +1049,16 @@ export const VisaDistributionPage: React.FC = () => {
           </Button>
         </div>
       </Card>
+
+      {/* Clear (delete) undistributed visas — Owner/Staff only */}
+      <DeleteConfirmModal
+        isOpen={clearConfirmOpen}
+        onClose={() => !clearing && setClearConfirmOpen(false)}
+        title="Clear Selected Visa Groups"
+        recordLabel={`${undistributedVisas.filter((v) => clearSelectedGroups.has(v.groupCode)).length} visa(s) from ${clearSelectedGroups.size} group(s) will be permanently deleted.`}
+        deleting={clearing}
+        onConfirm={confirmClearUndistributed}
+      />
     </div>
   );
 };

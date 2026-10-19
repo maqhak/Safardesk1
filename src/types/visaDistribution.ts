@@ -11,6 +11,9 @@ export interface DistributionGroupLine {
   visaIds: string[];
   visaCount: number;
   packageType?: string;
+  /** Dual ROE: cost side uses buyROE, revenue side uses sellROE. */
+  buyROE?: number;
+  sellROE?: number;
 }
 
 export interface VisaDistributionDoc {
@@ -75,6 +78,11 @@ export interface VisaInvoiceDoc {
   buyingTotalSAR: number;
   marginSAR: number;
   exchangeRate: number;
+  /** Dual ROE applied on this VV (cost x buyROE, revenue x sellROE). */
+  buyROE?: number;
+  sellROE?: number;
+  buyingTotalPKR?: number;
+  sellingTotalPKR?: number;
   totalsPKR: number;
   status: 'Unpaid' | 'Partially Paid' | 'Paid';
   paidAmountSAR?: number;

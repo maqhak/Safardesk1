@@ -22,12 +22,13 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
+import { DeleteConfirmModal } from '../components/accounting/DeleteConfirmModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { useDeepOpen } from '../hooks/useDeepOpen';
-import { fetchVisaInvoices, markCommissionPaid, backfillInvoiceShirkaIds, getVVEditData, updateVisaInvoiceRates, voidVisaInvoice, VVEditGroup } from '../services/visaDistributionService';
+import { fetchVisaInvoices, markCommissionPaid, backfillInvoiceShirkaIds, getVVEditData, updateVisaInvoiceRates, voidVisaInvoice, deleteVisaInvoice, VVEditGroup } from '../services/visaDistributionService';
 import { PACKAGE_TYPES } from '../types/visaDistribution';
 import { fetchVendors } from '../services/masterService';
 import { fetchLedgerAccounts } from '../services/accountingService';
@@ -46,6 +47,8 @@ export const VisaInvoicesPage: React.FC = () => {
   const canView = useCan('Visas', 'view') || isOwner;
   // VV edit: owner always; staff only if owner granted Visas edit access
   const canEditVV = useCan('Visas', 'edit');
+  // VV delete: Owner only, never Staff/Agent
+  const canDeleteVV = role === 'owner';
 
   const [loading, setLoading] = useState<boolean>(true);
   const [invoices, setInvoices] = useState<VisaInvoiceDoc[]>([]);
@@ -83,6 +86,8 @@ export const VisaInvoicesPage: React.FC = () => {
   const [editRate, setEditRate] = useState<number>(0);
   const [editSaving, setEditSaving] = useState<boolean>(false);
   const [editLoading, setEditLoading] = useState<boolean>(false);
+  const [deleteTarget, setDeleteTarget] = useState<VisaInvoiceDoc | null>(null);
+  const [deletingVV, setDeletingVV] = useState<boolean>(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -257,6 +262,23 @@ export const VisaInvoicesPage: React.FC = () => {
       showError(err.message || 'Failed to void VV.');
     }
   };
+  const handleDeleteVV = async () => {
+    if (!deleteTarget || !userProfile) return;
+    setDeletingVV(true);
+    try {
+      await deleteVisaInvoice(deleteTarget.id, userProfile);
+      success(`VV ${deleteTarget.invoiceNo} deleted.`);
+      setDeleteTarget(null);
+      setSelectedInvoice(null);
+      setDetailModalOpen(false);
+      await loadData();
+    } catch (e: any) {
+      showError(e.message || 'Failed to delete VV.');
+    } finally {
+      setDeletingVV(false);
+    }
+  };
+
 
   const handleConfirmMarkCommissionPaid = async () => {
     if (!invoiceForCommission || !selectedPaymentAccountId || !userProfile) {
@@ -545,6 +567,15 @@ export const VisaInvoicesPage: React.FC = () => {
                   Void VV
                 </Button>
               )}
+              {canDeleteVV && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => selectedInvoice && setDeleteTarget(selectedInvoice)}
+                >
+                  Delete
+                </Button>
+              )}
               {selectedInvoice?.isVoid && (
                 <Badge variant="danger" size="sm">Voided{selectedInvoice.voidReason ? ` — ${selectedInvoice.voidReason}` : ''}</Badge>
               )}
@@ -732,6 +763,16 @@ export const VisaInvoicesPage: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* Delete VV (Owner/Staff only) */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => !deletingVV && setDeleteTarget(null)}
+        title={`Delete VV ${deleteTarget?.invoiceNo || ''}`}
+        recordLabel={deleteTarget ? `VV ${deleteTarget.invoiceNo} • SAR ${(deleteTarget.sellingTotalSAR || 0).toLocaleString()}${deleteTarget.isVoid ? ' (Voided)' : ''}` : ''}
+        deleting={deletingVV}
+        onConfirm={handleDeleteVV}
+      />
 
       {/* Mark Commission Paid Modal (Owner picks Cash/Bank account) */}
       <Modal

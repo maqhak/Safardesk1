@@ -18,6 +18,8 @@ import {
   AlertTriangle, 
   ExternalLink, 
   Ban, 
+  Pencil,
+  Trash2,
   RotateCcw,
   Sparkles,
   RefreshCw,
@@ -50,6 +52,8 @@ import {
   fetchLedgerEntries, 
   computeLedgerStatement, 
   voidLedgerEntry, 
+  deleteLedgerEntry,
+  editLedgerEntry,
   postBalancedTransaction, 
   exportLedgerToCSV,
   exportLedgerDetailedCSV,
@@ -57,6 +61,8 @@ import {
 } from '../services/accountingService';
 import { VoucherQuickModal } from '../components/accounting/VoucherQuickModal';
 import { ReceiptViewerModal } from '../components/accounting/ReceiptViewerModal';
+import { DeleteConfirmModal } from '../components/accounting/DeleteConfirmModal';
+import { LedgerEntryEditModal } from '../components/accounting/LedgerEntryEditModal';
 
 export const AccountsPage: React.FC = () => {
   const { userProfile, role } = useAuth();
@@ -121,6 +127,16 @@ export const AccountsPage: React.FC = () => {
   const [entryToVoid, setEntryToVoid] = useState<LedgerEntryDoc | null>(null);
   const [voidReason, setVoidReason] = useState<string>('');
   const [voiding, setVoiding] = useState<boolean>(false);
+
+  // Delete Modal (Owner/Staff) — hard delete with unrecoverable-data warning
+  const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
+  const [entryToDelete, setEntryToDelete] = useState<LedgerEntryDoc | null>(null);
+  const [deleting, setDeleting] = useState<boolean>(false);
+
+  // Edit Modal (Owner/Staff) — prefilled; void-and-repost with same transNo
+  const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
+  const [entryToEdit, setEntryToEdit] = useState<LedgerEntryDoc | null>(null);
+  const [editing, setEditing] = useState<boolean>(false);
 
   // New Balanced Transaction Modal
   const [transModalOpen, setTransModalOpen] = useState<boolean>(false);
@@ -267,6 +283,42 @@ export const AccountsPage: React.FC = () => {
       showError('Failed to void ledger entry.');
     } finally {
       setVoiding(false);
+    }
+  };
+
+  // Hard-delete a ledger entry (Owner/Staff)
+  const handleConfirmDelete = async () => {
+    if (!entryToDelete) return;
+
+    setDeleting(true);
+    try {
+      await deleteLedgerEntry(entryToDelete.id);
+      success(`Entry #${entryToDelete.entryNo} permanently deleted from the system.`);
+      setDeleteModalOpen(false);
+      setEntryToDelete(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err.message || 'Failed to delete ledger entry.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Edit a ledger entry (Owner/Staff) — void-and-repost with same transNo
+  const handleConfirmEdit = async (values: { date: string; particulars: string; amountSAR: number; rate: number }) => {
+    if (!entryToEdit) return;
+
+    setEditing(true);
+    try {
+      const updated = await editLedgerEntry(entryToEdit.id, values, userProfile?.name || 'Owner');
+      success(`Entry #${updated.entryNo} updated — corrected entry reposted under ${updated.transNo}.`);
+      setEditModalOpen(false);
+      setEntryToEdit(null);
+      await loadData();
+    } catch (err: any) {
+      showError(err.message || 'Failed to update ledger entry.');
+    } finally {
+      setEditing(false);
     }
   };
 
@@ -714,7 +766,7 @@ export const AccountsPage: React.FC = () => {
                 <th className="py-3 px-3 text-right">Debit ({currency})</th>
                 <th className="py-3 px-3 text-right">Credit ({currency})</th>
                 <th className="py-3 px-3 text-right">Balance ({currency})</th>
-                {isOwner && <th className="py-3 px-3 text-center print:hidden">Action</th>}
+                {!isAgent && <th className="py-3 px-3 text-center print:hidden">Action</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white">
@@ -900,21 +952,49 @@ export const AccountsPage: React.FC = () => {
                           {row.runningBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </td>
-                      {isOwner && (
+                      {!isAgent && (
                         <td className="py-2.5 px-3 text-center print:hidden whitespace-nowrap">
                           {!isVoid && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEntryToVoid(e);
-                                setVoidReason('');
-                                setVoidModalOpen(true);
-                              }}
-                              className="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition cursor-pointer"
-                              title="Void Entry (Owner only)"
-                            >
-                              <Ban className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEntryToEdit(e);
+                                  setEditModalOpen(true);
+                                }}
+                                className="text-slate-400 hover:text-sky-600 p-1 rounded hover:bg-sky-50 transition cursor-pointer"
+                                title="Edit Entry"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              {isOwner && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEntryToDelete(e);
+                                    setDeleteModalOpen(true);
+                                  }}
+                                  className="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition cursor-pointer"
+                                  title="Delete Entry Permanently"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {isOwner && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEntryToVoid(e);
+                                    setVoidReason('');
+                                    setVoidModalOpen(true);
+                                  }}
+                                  className="text-slate-400 hover:text-amber-600 p-1 rounded hover:bg-amber-50 transition cursor-pointer"
+                                  title="Void Entry (Owner only)"
+                                >
+                                  <Ban className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           )}
                         </td>
                       )}
@@ -1019,6 +1099,25 @@ export const AccountsPage: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Delete Entry Modal (Owner/Staff) */}
+      <DeleteConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title={`Delete Ledger Entry #${entryToDelete?.entryNo}`}
+        recordLabel={entryToDelete ? `${entryToDelete.entryNo} • ${entryToDelete.transNo} • ${entryToDelete.date} • ${entryToDelete.particulars}` : undefined}
+        deleting={deleting}
+        onConfirm={handleConfirmDelete}
+      />
+
+      {/* Edit Entry Modal (Owner/Staff) */}
+      <LedgerEntryEditModal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        entry={entryToEdit}
+        saving={editing}
+        onSave={handleConfirmEdit}
+      />
 
       {/* Post Balanced Double-Entry Transaction Modal */}
       <Modal

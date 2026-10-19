@@ -258,3 +258,48 @@ export async function deleteVisasBatch(visaIds: string[]): Promise<void> {
     }
   }
 }
+
+/** Update a visa record (Owner/Staff). Patch is sanitized; audit fields stamped. */
+export async function updateVisa(
+  visaId: string,
+  patch: Partial<VisaDoc>,
+  actor: UserProfile
+): Promise<VisaDoc> {
+  bust('visas:all'); // fresh read after write
+  const visas = await fetchVisas();
+  const visa = visas.find((v) => v.id === visaId);
+  if (!visa) throw new Error('Visa not found.');
+
+  const updated: VisaDoc = {
+    ...visa,
+    ...stripUndefinedDeep(patch),
+    updatedAt: new Date().toISOString(),
+    updatedBy: actor.name || actor.email,
+  } as VisaDoc;
+
+  const next = visas.map((v) => (v.id === visaId ? updated : v));
+  localStorage.setItem(LOCAL_STORAGE_VISAS_KEY, JSON.stringify(next));
+
+  if (!isConfigPlaceholder) {
+    try {
+      await setDoc(doc(db, VISAS_COLLECTION, visaId), stripUndefinedDeep(updated));
+    } catch (err: any) {
+      console.warn('Could not update visa in Firestore:', err);
+      throw new Error(`Saved locally, but Firestore sync failed: ${err?.message || err}.`);
+    }
+  }
+  bust('visas:all');
+
+  await logAuditEvent({
+    action: 'UPDATE_VISA',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: visaId,
+    targetUserName: visa.passportNumber,
+    details: { patch: Object.keys(patch) },
+  });
+
+  return updated;
+}

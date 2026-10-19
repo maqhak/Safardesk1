@@ -6,10 +6,11 @@ import {
   AiVoiceCheckResult 
 } from '../types/journalVoucher';
 import { LedgerAccountDoc, LedgerEntryDoc } from '../types/accounting';
-import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { stripUndefinedDeep } from '../utils/firestoreSanitize';
-import { fetchLedgerAccounts, fetchLedgerEntries, voidLedgerEntry } from './accountingService';
+import { fetchLedgerAccounts, fetchLedgerEntries, voidLedgerEntry, deleteLedgerEntry } from './accountingService';
+import { bust, bustPrefix } from './queryCache';
 import { uploadReceipt } from './driveService';
 import { getCurrentRate } from './exchangeRateService';
 
@@ -307,6 +308,7 @@ export async function createJournalVoucher(params: {
     mimeType?: string;
   } | null;
   createdBy: string;
+  jvNo?: string; // optional — preserves the number when reposting an edited JV
 }): Promise<JournalVoucherDoc> {
   // Validate Lines
   if (!params.lines || params.lines.length < 2) {
@@ -351,7 +353,7 @@ export async function createJournalVoucher(params: {
     throw new Error('DIRECT SETTLEMENT RULE: An attachment (image/PDF receipt OR WhatsApp voice note) is mandatory.');
   }
 
-  const jvNo = await getNextJVNumber();
+  const jvNo = params.jvNo || await getNextJVNumber();
   const now = new Date().toISOString();
 
   // Handle attachment & Drive upload
@@ -564,4 +566,132 @@ export async function voidJournalVoucher(
   }
 
   return updatedJV;
+}
+
+/**
+ * Edit a Journal Voucher (Owner/Staff): void-and-repost with the SAME jvNo.
+ * Editable: date, details box, line amounts (balance still enforced).
+ * The old version's ledger legs are voided; fresh legs post under the same jvNo.
+ * Proof attachment metadata is preserved (no re-upload).
+ */
+export async function editJournalVoucher(
+  jvId: string,
+  updates: { date: string; detailsBox: string; lines: JournalVoucherLine[]; exchangeRate: number },
+  editedBy: string
+): Promise<JournalVoucherDoc> {
+  const currentJVs = await fetchJournalVouchers();
+  const original = currentJVs.find((j) => j.id === jvId);
+  if (!original) {
+    throw new Error('Journal Voucher not found');
+  }
+  if (original.isVoid) {
+    throw new Error('Cannot edit a voided Journal Voucher');
+  }
+  if (!updates.date) {
+    throw new Error('Date is required');
+  }
+  if (!(updates.exchangeRate > 0)) {
+    throw new Error('Exchange rate must be greater than zero');
+  }
+
+  // Validate lines BEFORE voiding (same rules as creation) — never void first
+  if (!updates.lines || updates.lines.length < 2) {
+    throw new Error('A Journal Voucher requires at least two account lines.');
+  }
+  let totalDebitSAR = 0;
+  let totalCreditSAR = 0;
+  for (const line of updates.lines) {
+    if ((line.debitSAR || 0) > 0 && (line.creditSAR || 0) > 0) {
+      throw new Error(`A single line cannot have both Debit and Credit > 0 (Account: ${line.accountTitle}).`);
+    }
+    totalDebitSAR += line.debitSAR || 0;
+    totalCreditSAR += line.creditSAR || 0;
+  }
+  const diff = Math.abs(totalDebitSAR - totalCreditSAR);
+  if (diff > 0.01) {
+    throw new Error(`LIVE BALANCE ERROR: Total Debit must equal Total Credit. Difference is SAR ${diff.toFixed(2)}.`);
+  }
+  if (totalDebitSAR <= 0) {
+    throw new Error('Journal Voucher total must be greater than zero.');
+  }
+
+  const now = new Date().toISOString();
+
+  // 1) Void the old version (linked ledger legs voided too)
+  await voidJournalVoucher(jvId, 'Edited — corrected voucher reposted', editedBy);
+
+  // 2) Repost with the SAME jvNo
+  const reposted = await createJournalVoucher({
+    date: updates.date,
+    tag: original.tag,
+    lines: updates.lines,
+    exchangeRate: updates.exchangeRate,
+    detailsBox: updates.detailsBox,
+    attachment: null,
+    createdBy: editedBy,
+    jvNo: original.jvNo,
+  });
+
+  // 3) Preserve proof + review state, record the edit in the audit trail
+  const patched: JournalVoucherDoc = {
+    ...reposted,
+    attachment: original.attachment ?? null,
+    aiVoiceCheck: original.aiVoiceCheck ?? null,
+    needsOwnerReview: original.needsOwnerReview ?? false,
+    ownerApproved: original.ownerApproved ?? false,
+    auditTrail: [
+      ...reposted.auditTrail,
+      { action: 'edit', by: editedBy, at: now, notes: 'Corrected via edit — previous version voided, same JV number kept.' },
+    ],
+  };
+  const jvs = await fetchJournalVouchers();
+  const updatedJVs = jvs.map((j) => (j.id === patched.id ? patched : j));
+  try { localStorage.setItem(LOCAL_STORAGE_JV_KEY, JSON.stringify(updatedJVs)); } catch { /* ignore */ }
+  try {
+    if (!isConfigPlaceholder) {
+      await setDoc(doc(db, JV_COLLECTION, patched.id), stripUndefinedDeep(patched));
+    }
+  } catch (e) {
+    console.warn('Could not sync edited JV to Firestore:', e);
+  }
+  bust('ledger:entries:all'); bustPrefix('ledger:entries:');
+  return patched;
+}
+
+/**
+ * Hard-delete a Journal Voucher (Owner/Staff): removes the JV doc plus all its
+ * ledger legs from localStorage + Firestore. The UI shows the unrecoverable-data
+ * warning before calling this.
+ */
+export async function deleteJournalVoucher(jvId: string): Promise<string> {
+  const currentJVs = await fetchJournalVouchers();
+  const index = currentJVs.findIndex((j) => j.id === jvId);
+  if (index === -1) {
+    throw new Error('Journal Voucher not found');
+  }
+  const jv = currentJVs[index];
+  const jvNo = jv.jvNo;
+
+  // Hard-delete all linked ledger legs (no trace left)
+  if (jv.createdEntryIds && jv.createdEntryIds.length > 0) {
+    for (const entryId of jv.createdEntryIds) {
+      try {
+        await deleteLedgerEntry(entryId);
+      } catch (e) {
+        console.warn('Could not delete JV ledger leg:', e);
+      }
+    }
+  }
+
+  const remaining = currentJVs.filter((j) => j.id !== jvId);
+  try { localStorage.setItem(LOCAL_STORAGE_JV_KEY, JSON.stringify(remaining)); } catch { /* ignore */ }
+  try {
+    if (!isConfigPlaceholder) {
+      await deleteDoc(doc(db, JV_COLLECTION, jvId));
+    }
+  } catch (e) {
+    console.warn('Could not delete JV from Firestore:', e);
+  }
+  bust('ledger:entries:all'); bustPrefix('ledger:entries:');
+  return jvNo;
 }

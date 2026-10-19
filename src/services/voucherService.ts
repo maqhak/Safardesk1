@@ -16,7 +16,7 @@ import { UserProfile } from '../types/auth';
 import { LedgerAccountDoc, LedgerEntryDoc } from '../types/agent';
 import { logAuditEvent } from './userService';
 import { stripUndefinedDeep } from '../utils/firestoreSanitize';
-import { getCurrentRate } from './exchangeRateService';
+import { getCurrentRate, getBuyRate, getSellRate } from './exchangeRateService';
 import { fetchCompanyProfile } from './companyService';
 import { postBalancedTransaction, fetchLedgerAccounts } from './accountingService';
 import { fetchHotels } from './masterService';
@@ -232,6 +232,8 @@ export async function createVoucher(
   const voucherNo = await nextVoucherNumber();
   const voucherId = `vch-${Date.now()}`;
   const exchangeRate = getCurrentRate('SAR-PKR');
+  const buyROE = (data.totals as any)?.buyROE || getBuyRate();
+  const sellROE = (data.totals as any)?.sellROE || getSellRate();
 
   // Approval workflow: owner vouchers auto-confirm; staff/agent vouchers
   // need owner approval before ledger posting.
@@ -250,6 +252,8 @@ export async function createVoucher(
     totals: {
       ...data.totals,
       exchangeRate,
+      buyROE,
+      sellROE,
       totalPKR: data.totals.totalSAR * exchangeRate,
     },
     createdAt: new Date().toISOString(),
@@ -315,6 +319,9 @@ export async function postVoucherToLedger(actor: UserProfile, voucher: VoucherDo
   }
   const receivableId = (receivable as any).id;
   const rate = voucher.totals.exchangeRate || getCurrentRate('SAR-PKR');
+  // Dual ROE: revenue (agent billing) at sellROE, vendor costs at buyROE.
+  const sellROE = (voucher.totals as any).sellROE || getSellRate();
+  const buyROE = (voucher.totals as any).buyROE || getBuyRate();
   const date = new Date().toISOString().split('T')[0];
 
   // Per hotel charge: Dr Agent/Customer ledger, Cr the hotel's vendor ledger
@@ -334,7 +341,9 @@ export async function postVoucherToLedger(actor: UserProfile, voucher: VoucherDo
       transNo: voucher.voucherNo,
       particulars: `Hotel: ${stay.city} - ${stay.hotelName} (${stay.nights}n, ${stay.bedType} bed)${(stay as any).description ? ` — ${(stay as any).description}` : ''}`,
       voucherNo: voucher.voucherNo,
-      rate,
+      rate: sellROE,
+      debitRate: sellROE,
+      creditRate: buyROE,
       debitAccountId: receivableId,
       creditAccountId: (vendorAcc as any).id,
       amountSAR: amt,
@@ -356,7 +365,9 @@ export async function postVoucherToLedger(actor: UserProfile, voucher: VoucherDo
       transNo: voucher.voucherNo,
       particulars,
       voucherNo: voucher.voucherNo,
-      rate,
+      rate: sellROE,
+      debitRate: sellROE,
+      creditRate: sellROE,
       debitAccountId: receivableId,
       creditAccountId: (transportIncome as any).id,
       amountSAR: amt,
@@ -559,6 +570,48 @@ export async function cancelVoucher(actor: UserProfile, voucherId: string): Prom
 
   await logAuditEvent({
     action: 'CANCEL_VOUCHER',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: voucherId,
+    targetUserName: voucher.voucherNo,
+    details: {},
+  });
+}
+
+/**
+ * Hard-delete a voucher (Owner only).
+ * A Confirmed voucher is posted to the ledger — cancel it first so the
+ * reversal entries are kept, then delete the cancelled record.
+ */
+export async function deleteVoucher(actor: UserProfile, voucherId: string): Promise<void> {
+  bust('vouchers:all'); bustPrefix('vouchers:agent:');
+  if (actor.role !== 'owner') {
+    throw new Error('Only the Owner can delete vouchers.');
+  }
+
+  const vouchers = await fetchVouchers();
+  const voucher = vouchers.find((v) => v.id === voucherId);
+  if (!voucher) throw new Error('Voucher not found.');
+  if (voucher.status === 'Confirmed') {
+    throw new Error('This voucher is Confirmed and posted to the ledger. Cancel it first, then delete.');
+  }
+
+  try {
+    if (!isConfigPlaceholder) {
+      await deleteDoc(doc(db, VOUCHERS_COLLECTION, voucherId));
+    }
+  } catch (err) {
+    console.warn('Firestore delete voucher failed:', err);
+    throw err;
+  }
+
+  const remaining = vouchers.filter((v) => v.id !== voucherId);
+  localStorage.setItem(LOCAL_STORAGE_VOUCHERS_KEY, JSON.stringify(remaining));
+
+  await logAuditEvent({
+    action: 'DELETE_VOUCHER',
     userId: actor.uid,
     userName: actor.name || 'User',
     userEmail: actor.email,

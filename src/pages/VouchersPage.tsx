@@ -30,6 +30,7 @@ import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { DataTable, Column } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
+import { DeleteConfirmModal } from '../components/accounting/DeleteConfirmModal';
 import { AirportSelect, AirlineSelect } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
@@ -41,7 +42,7 @@ import { useDeepOpen } from '../hooks/useDeepOpen';
 import { downloadCSV } from '../utils/csv';
 import { fetchLedgerEntries } from '../services/accountingService';
 import { VoucherDoc, SectorItem, HotelStayItem, VoucherChargeItem, VoucherEditPayload, VoucherEditRequest } from '../types/voucher';
-import { fetchVouchers, createVoucher, cancelVoucher, markCommissionPaid, approveVoucher, disapproveVoucher } from '../services/voucherService';
+import { fetchVouchers, createVoucher, cancelVoucher, markCommissionPaid, approveVoucher, disapproveVoucher, deleteVoucher } from '../services/voucherService';
 import { DEFAULT_PACKAGE_INCLUDES, PACKAGE_INCLUDES_OPTIONS } from '../types/voucher';
 import { fetchVisas } from '../services/visaService';
 import { fetchHotels, fetchVehicles, fetchVendors } from '../services/masterService';
@@ -75,6 +76,7 @@ export const VouchersPage: React.FC = () => {
   const canCreate = useCan('Vouchers', 'create');
   const isOwner = role === 'owner';
   const isAgent = role === 'agent';
+  const canManage = role === 'owner' || role === 'staff'; // Edit/Delete: Owner/Staff only, never Agent
 
   const [vouchers, setVouchers] = useState<VoucherDoc[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -273,6 +275,8 @@ export const VouchersPage: React.FC = () => {
   const [editRequests, setEditRequests] = useState<VoucherEditRequest[]>([]);
   const [reviewModalOpen, setReviewModalOpen] = useState<boolean>(false);
   const [reviewingRequest, setReviewingRequest] = useState<VoucherEditRequest | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<VoucherDoc | null>(null);
+  const [deleting, setDeleting] = useState<boolean>(false);
   const [reviewNote, setReviewNote] = useState<string>('');
   const [voucherPrintTheme, setVoucherPrintTheme] = useState<VoucherPrintTheme>('bw');
   const [selectedVoucher, setSelectedVoucher] = useState<VoucherDoc | null>(null);
@@ -998,13 +1002,22 @@ export const VouchersPage: React.FC = () => {
               </Button>
             </>
           )}
-          {row.status !== 'Cancelled' && !editRequests.some((r) => r.voucherId === row.id && r.status === 'pending') && (
+          {canManage && row.status !== 'Cancelled' && !editRequests.some((r) => r.voucherId === row.id && r.status === 'pending') && (
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate(`/vouchers/edit/${row.id}`)}
             >
               Edit
+            </Button>
+          )}
+          {isOwner && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setDeleteTarget(row)}
+            >
+              Delete
             </Button>
           )}
           {isOwner && row.status !== 'Cancelled' && (
@@ -2231,6 +2244,29 @@ export const VouchersPage: React.FC = () => {
       </Modal>
 
       </div>
+
+      {/* Delete Voucher (Owner/Staff only) */}
+      <DeleteConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => !deleting && setDeleteTarget(null)}
+        title={`Delete Voucher ${deleteTarget?.voucherNo || ''}`}
+        recordLabel={deleteTarget ? `Voucher ${deleteTarget.voucherNo} • ${deleteTarget.passengers?.length || 0} passenger(s)` : ''}
+        deleting={deleting}
+        onConfirm={async () => {
+          if (!deleteTarget || !userProfile) return;
+          setDeleting(true);
+          try {
+            await deleteVoucher(userProfile, deleteTarget.id);
+            success(`Voucher ${deleteTarget.voucherNo} deleted.`);
+            setDeleteTarget(null);
+            await loadData();
+          } catch (e: any) {
+            showError(e.message || 'Failed to delete voucher.');
+          } finally {
+            setDeleting(false);
+          }
+        }}
+      />
 
       {/* Edit Request Review Modal (owner) */}
       {reviewingRequest && (

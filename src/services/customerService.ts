@@ -4,7 +4,10 @@ import {
   getDocs, 
   setDoc, 
   updateDoc, 
-  deleteDoc 
+  deleteDoc, 
+  query, 
+  where, 
+  limit 
 } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { CustomerDoc } from '../types/customer';
@@ -167,7 +170,9 @@ export async function updateCustomer(
     ...existing[index],
     ...updateData,
     updatedAt: new Date().toISOString(),
-  };
+    // updatedBy is an audit field not present on the base type yet
+    updatedBy: actor.uid,
+  } as CustomerDoc;
 
   try {
     if (!isConfigPlaceholder) {
@@ -229,5 +234,79 @@ export async function mergeCustomers(
     targetUserId: survivorId,
     targetUserName: survivor.fullName,
     details: { mergedDuplicateId: duplicateId, duplicateName: duplicate.fullName, duplicatePassport: duplicate.passportNumber },
+  });
+}
+
+/**
+ * Permanently delete a customer (Owner / Staff).
+ * SAFETY — never orphans a money trail: if the customer's ledger account carries a
+ * non-zero balance OR has any posted ledger entries, deletion is BLOCKED.
+ * On success removes the customer doc and its linked customer ledger account
+ * (Firestore + localStorage cache).
+ */
+export async function deleteCustomer(actor: UserProfile, customerId: string): Promise<void> {
+  if (actor.role !== 'owner') {
+    throw new Error('Only the Owner can delete a customer.');
+  }
+
+  const existing = await fetchCustomers();
+  const customer = existing.find((c) => c.id === customerId);
+  if (!customer) {
+    throw new Error('Customer not found.');
+  }
+
+  let linkedLedgerIds: string[] = [];
+  if (!isConfigPlaceholder) {
+    // 1. Find linked customer ledger accounts
+    const accSnap = await getDocs(
+      query(collection(db, LEDGER_ACCOUNTS_COLLECTION), where('linkedAgentId', '==', customerId))
+    );
+    linkedLedgerIds = accSnap.docs.map((d) => d.id);
+
+    // 2. Block deletion when the ledger carries money history
+    for (const accDoc of accSnap.docs) {
+      const acc = accDoc.data() as any;
+      if (Number(acc.currentBalanceSAR) !== 0) {
+        throw new Error(
+          `Cannot delete ${customer.fullName}: the customer ledger carries a non-zero balance.`
+        );
+      }
+      const entriesSnap = await getDocs(
+        query(collection(db, 'ledger_entries'), where('accountId', '==', accDoc.id), limit(1))
+      );
+      if (!entriesSnap.empty) {
+        throw new Error(
+          `Cannot delete ${customer.fullName}: the customer ledger has posted entries.`
+        );
+      }
+    }
+
+    // 3. Delete customer + linked ledgers
+    try {
+      const ops: Promise<void>[] = [deleteDoc(doc(db, CUSTOMERS_COLLECTION, customerId))];
+      for (const ledgerId of linkedLedgerIds) {
+        ops.push(deleteDoc(doc(db, LEDGER_ACCOUNTS_COLLECTION, ledgerId)));
+      }
+      await Promise.all(ops);
+    } catch (err) {
+      throw new Error(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  const filtered = existing.filter((c) => c.id !== customerId);
+  localStorage.setItem(LOCAL_STORAGE_CUSTOMERS_KEY, JSON.stringify(filtered));
+
+  await logAuditEvent({
+    action: 'DELETE_CUSTOMER',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: customerId,
+    targetUserName: customer.fullName,
+    details: {
+      passportNumber: customer.passportNumber,
+      deletedLedgerIds: linkedLedgerIds,
+    },
   });
 }
