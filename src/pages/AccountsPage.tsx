@@ -790,8 +790,8 @@ export const AccountsPage: React.FC = () => {
                         {e.transNo || '—'}
                       </td>
                       <td className="py-2.5 px-3 max-w-[340px]">
-                        <div className="flex items-center gap-1.5 whitespace-nowrap">
-                          <div className="font-medium text-slate-900 leading-snug overflow-hidden text-ellipsis shrink min-w-0" title={e.particulars}>
+                        <div className="flex items-start gap-1.5">
+                          <div className="font-medium text-slate-900 leading-snug break-words min-w-0" title={e.particulars}>
                             {e.particulars}
                           </div>
                           {/* Interactive voucherNo tag - clicking opens voucher modal */}
