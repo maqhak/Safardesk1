@@ -680,8 +680,8 @@ export const JournalVouchersPage: React.FC = () => {
 
                       {/* Amount PKR */}
                       <td className="py-2.5 px-3 text-right font-mono text-slate-600 whitespace-nowrap">
-                        <div>PKR {amountPKR.toLocaleString()}</div>
-                        <div className="text-[10px] text-slate-400">@ {jv.exchangeRate.toFixed(2)}</div>
+                        <div>PKR {(amountPKR ?? 0).toLocaleString()}</div>
+                        <div className="text-[10px] text-slate-400">@ {(jv.exchangeRate ?? 0).toFixed(2)}</div>
                       </td>
 
                       {/* Proof / WhatsApp Voice Note */}

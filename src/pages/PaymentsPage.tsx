@@ -1036,14 +1036,14 @@ export const PaymentsPage: React.FC = () => {
                       {/* Amount SAR */}
                       <td className="py-2.5 px-3 text-right font-mono font-bold whitespace-nowrap">
                         <span className={isReceived ? 'text-emerald-700' : 'text-rose-700'}>
-                          SAR {p.amountSAR.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          SAR {(p.amountSAR ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </span>
                       </td>
 
                       {/* Amount PKR */}
                       <td className="py-2.5 px-3 text-right font-mono text-slate-600 whitespace-nowrap">
-                        <div>PKR {p.amountPKR.toLocaleString(undefined, { minimumFractionDigits: 0 })}</div>
-                        <div className="text-[10px] text-slate-400">@ {p.exchangeRate.toFixed(2)}</div>
+                        <div>PKR {(p.amountPKR ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0 })}</div>
+                        <div className="text-[10px] text-slate-400">@ {(p.exchangeRate ?? 0).toFixed(2)}</div>
                       </td>
 
                       {/* AI Audit Column */}
