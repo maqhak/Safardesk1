@@ -146,7 +146,7 @@ export const VoucherSharedView: React.FC = () => {
               {voucher.sectors.map((s, i) => (
                 <div key={i} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex justify-between">
                   <span className="font-bold text-[var(--theme-primary)]">{s.type} • {s.date}</span>
-                  <span className="text-slate-600">{s.isSelfGari ? 'Self Gari' : s.vehicleType || '—'}</span>
+                  <span className="text-slate-600">{s.isSelfGari ? 'Self' : s.vehicleType || '—'}</span>
                 </div>
               ))}
             </div>

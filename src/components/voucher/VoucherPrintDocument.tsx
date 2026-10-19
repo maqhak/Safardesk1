@@ -180,7 +180,7 @@ export const VoucherPrintDocument: React.FC<{
     let sectorLabel = s.type;
     const ap = `${s.fromAirport?.iata || ''}${s.toAirport?.iata ? ` → ${s.toAirport.iata}` : ''}`;
     if (ap.trim() && ap.trim() !== '→') sectorLabel += ` (${ap.trim()})`;
-    const vehicle = s.isSelfGari ? 'Self Gari' : (s.vehicleType || '—');
+    const vehicle = s.isSelfGari ? 'Self' : (s.vehicleType || '—');
     return {
       sector: sectorLabel,
       date: s.date ? fmtDate(s.date) : '—',

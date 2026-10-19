@@ -588,7 +588,7 @@ export const AgentPortalPage: React.FC = () => {
                         <td className="px-3 py-2 whitespace-nowrap">
                           {s.fromAirport?.iata || ''}{s.fromAirport?.iata || s.toAirport?.iata ? ' → ' : '—'}{s.toAirport?.iata || ''}
                         </td>
-                        <td className="px-3 py-2">{s.isSelfGari ? 'Self Gari' : (s.vehicleType || '—')}</td>
+                        <td className="px-3 py-2">{s.isSelfGari ? 'Self' : (s.vehicleType || '—')}</td>
                       </tr>
                     ))
                   )}
