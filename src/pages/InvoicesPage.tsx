@@ -1,16 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Printer, Ban, Plus, Search } from 'lucide-react';
+import { Eye, Printer, Ban, Plus, Search, Trash2 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { DeleteConfirmModal } from '../components/accounting/DeleteConfirmModal';
 import { Modal } from '../components/ui/Modal';
 import { Badge } from '../components/ui/Badge';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { useCompany } from '../contexts/CompanyContext';
-import { fetchManualInvoices, voidManualInvoice } from '../services/invoiceService';
+import { fetchManualInvoices, voidManualInvoice, deleteManualInvoice } from '../services/invoiceService';
 import { ManualInvoiceDoc } from '../types/invoice';
 import { InvoicePrintDocument } from '../components/invoice/InvoicePrintDocument';
 
@@ -33,6 +34,8 @@ export const InvoicesPage: React.FC = () => {
   const [selected, setSelected] = useState<ManualInvoiceDoc | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [voiding, setVoiding] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -60,6 +63,23 @@ export const InvoicesPage: React.FC = () => {
   }), [filtered]);
 
   const openDetail = (inv: ManualInvoiceDoc) => { setSelected(inv); setDetailOpen(true); };
+
+  const handleDelete = async () => {
+    if (!selected || !canDelete || !userProfile) return;
+    setDeleting(true);
+    try {
+      await deleteManualInvoice(userProfile, selected.id);
+      setInvoices((list) => list.filter((x) => x.id !== selected.id));
+      success(`Invoice ${selected.invoiceNo} deleted permanently.`);
+      setDeleteOpen(false);
+      setDetailOpen(false);
+      setSelected(null);
+    } catch (err: any) {
+      showError(err?.message || 'Could not delete invoice.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const handleVoid = async () => {
     if (!selected || !canDelete) return;
@@ -152,7 +172,7 @@ export const InvoicesPage: React.FC = () => {
       {/* Detail modal: preview + print + void */}
       {selected && (
         <Modal
-          open={detailOpen}
+          isOpen={detailOpen}
           onClose={() => setDetailOpen(false)}
           title={`Invoice ${selected.invoiceNo}`}
           subtitle={`${selected.partyName} • ${selected.date}`}
@@ -161,6 +181,9 @@ export const InvoicesPage: React.FC = () => {
               <div>
                 {!selected.isVoid && canDelete && (
                   <Button variant="outline" loading={voiding} onClick={handleVoid} rightIcon={<Ban className="w-3.5 h-3.5" />}>Void Invoice</Button>
+                )}
+                {canDelete && (
+                  <Button variant="danger" onClick={() => setDeleteOpen(true)} rightIcon={<Trash2 className="w-3.5 h-3.5" />}>Delete</Button>
                 )}
               </div>
               <div className="flex gap-2">
@@ -194,6 +217,17 @@ export const InvoicesPage: React.FC = () => {
             {selected.notes && <p className="text-slate-600"><strong>Notes:</strong> {selected.notes}</p>}
           </div>
         </Modal>
+      )}
+
+      {selected && (
+        <DeleteConfirmModal
+          isOpen={deleteOpen}
+          onClose={() => setDeleteOpen(false)}
+          onConfirm={handleDelete}
+          deleting={deleting}
+          title={`Delete Invoice ${selected.invoiceNo}?`}
+          recordLabel={`${selected.invoiceNo} — ${selected.partyName}`}
+        />
       )}
     </div>
   );

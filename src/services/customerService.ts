@@ -257,14 +257,25 @@ export async function deleteCustomer(actor: UserProfile, customerId: string): Pr
 
   let linkedLedgerIds: string[] = [];
   if (!isConfigPlaceholder) {
-    // 1. Find linked customer ledger accounts
-    const accSnap = await getDocs(
+    // 1. Find linked customer ledger accounts — by linkedAgentId link,
+    //    or by the conventional account ID (ledger-cust-<customerId>),
+    //    since some flows create the account without the link field.
+    const byLink = await getDocs(
       query(collection(db, LEDGER_ACCOUNTS_COLLECTION), where('linkedAgentId', '==', customerId))
     );
-    linkedLedgerIds = accSnap.docs.map((d) => d.id);
+    const byId = await getDocs(
+      query(collection(db, LEDGER_ACCOUNTS_COLLECTION), where('__name__', '==', `ledger-cust-${customerId}`))
+    );
+    const seen = new Set<string>();
+    const allDocs = [...byLink.docs, ...byId.docs].filter((d) => {
+      if (seen.has(d.id)) return false;
+      seen.add(d.id);
+      return true;
+    });
+    linkedLedgerIds = allDocs.map((d) => d.id);
 
     // 2. Block deletion when the ledger carries money history
-    for (const accDoc of accSnap.docs) {
+    for (const accDoc of allDocs) {
       const acc = accDoc.data() as any;
       if (Number(acc.currentBalanceSAR) !== 0) {
         throw new Error(

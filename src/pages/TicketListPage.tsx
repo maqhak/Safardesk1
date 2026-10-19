@@ -346,6 +346,7 @@ export const TicketListPage: React.FC = () => {
         <DataTable
           columns={columns}
           data={filtered}
+          keyExtractor={(row) => row.id}
           emptyTitle={loading ? 'Loading tickets…' : 'No tickets found'}
           emptyDescription={
             loading

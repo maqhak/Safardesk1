@@ -11,6 +11,8 @@ import { db, isConfigPlaceholder } from './firebase';
 import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 import { fetchLedgerAccounts, postBalancedTransaction, voidLedgerEntry, fetchLedgerEntries } from './accountingService';
 import { ManualInvoiceDoc, MANUAL_INVOICE_PREFIX } from '../types/invoice';
+import { UserProfile } from '../types/auth';
+import { logAuditEvent } from './userService';
 
 const INVOICES_COLLECTION = 'manualInvoices';
 const LOCAL_STORAGE_KEY = 'safardesk_manual_invoices';
@@ -152,6 +154,47 @@ export async function voidManualInvoice(
     await setDoc(doc(db, INVOICES_COLLECTION, invoice.id), stripUndefinedDeep(updated));
   }
   return updated;
+}
+
+/**
+ * Hard-delete a manual invoice (Owner only): void its ledger legs first,
+ * then permanently remove the invoice doc from Firestore + localStorage.
+ */
+export async function deleteManualInvoice(
+  actor: UserProfile,
+  invoiceId: string,
+): Promise<void> {
+  if (actor.role !== 'owner') {
+    throw new Error('Only the Owner can delete an invoice.');
+  }
+  const invoices = await fetchManualInvoices();
+  const invoice = invoices.find((i) => i.id === invoiceId);
+  if (!invoice) throw new Error('Invoice not found.');
+
+  // Void all live ledger legs first (books stay balanced)
+  const entries = await fetchLedgerEntries();
+  const legs = entries.filter((e) => e.transNo === invoice.invoiceNo && !e.isVoid);
+  for (const leg of legs) {
+    await voidLedgerEntry(leg.id, `Invoice ${invoice.invoiceNo} deleted`, actor.name || actor.email || 'system');
+  }
+
+  if (!isConfigPlaceholder) {
+    const { deleteDoc: fsDelete } = await import('firebase/firestore');
+    await fsDelete(doc(db, INVOICES_COLLECTION, invoiceId));
+  }
+  const remaining = invoices.filter((i) => i.id !== invoiceId);
+  try { localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(remaining)); } catch { /* ignore */ }
+
+  await logAuditEvent({
+    action: 'DELETE_INVOICE',
+    userId: actor.uid,
+    userName: actor.name || 'User',
+    userEmail: actor.email,
+    userRole: actor.role,
+    targetUserId: invoice.id,
+    targetUserName: invoice.invoiceNo,
+    details: { legsVoided: legs.length },
+  }).catch(() => {});
 }
 
 /** Income-type ledger accounts for the credit-side dropdown. Creates a
