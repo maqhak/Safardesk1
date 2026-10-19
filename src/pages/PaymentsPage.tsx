@@ -668,7 +668,7 @@ export const PaymentsPage: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-bold text-slate-900">{item.paymentNo}</span>
                     <span className="text-slate-400">•</span>
-                    <span className="font-semibold text-rose-700">SAR {item.amountSAR.toLocaleString()}</span>
+                    <span className="font-semibold text-rose-700">{item.enteredCurrency || 'SAR'} {(item.enteredCurrency === 'PKR' ? item.amountPKR : item.amountSAR).toLocaleString()}</span>
                     <span className="text-slate-400">•</span>
                     <span className="text-slate-600">{item.date}</span>
                   </div>
@@ -1044,11 +1044,14 @@ export const PaymentsPage: React.FC = () => {
                         )}
                       </td>
 
-                      {/* Amount SAR */}
+                      {/* Amount (entered currency primary) */}
                       <td className="py-2.5 px-3 text-right font-mono font-bold whitespace-nowrap">
                         <span className={isReceived ? 'text-emerald-700' : 'text-rose-700'}>
-                          SAR {(p.amountSAR ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          {(p.enteredCurrency || 'SAR')} {((p.enteredCurrency === 'PKR' ? p.amountPKR : p.amountSAR) ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </span>
+                        <div className="text-[10px] font-normal text-slate-400">
+                          ≈ {(p.enteredCurrency === 'PKR' ? 'SAR' : 'PKR')} {((p.enteredCurrency === 'PKR' ? p.amountSAR : p.amountPKR) ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </div>
                       </td>
 
                       {/* Amount PKR */}

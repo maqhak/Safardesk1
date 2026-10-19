@@ -953,38 +953,11 @@ export async function voidLedgerEntry(
     console.warn('Could not sync void to Firestore:', err);
   }
 
-  // Post the mirror reversal entry (opposite leg, same account, same amounts).
-  const nextNum = currentEntries.length + 10001;
-  const now = new Date().toISOString();
-  const reversal: LedgerEntryDoc = {
-    ...original,
-    id: `le-${nextNum}`,
-    entryNo: `LE-${nextNum}`,
-    date: now.split('T')[0],
-    particulars: `VOID REVERSAL (${original.entryNo}): ${original.particulars} — ${voidReason}`,
-    debitSAR: original.creditSAR,
-    creditSAR: original.debitSAR,
-    debitPKR: original.creditPKR,
-    creditPKR: original.debitPKR,
-    isVoid: false,
-    voidReason: null,
-    voidedAt: null,
-    voidedBy: null,
-    reversalOf: original.entryNo,
-    createdBy: voidedBy,
-    createdAt: now,
-  };
-  const withReversal = [reversal, ...currentEntries];
-  try { localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(withReversal)); } catch { /* storage full/blocked — Firestore is source of truth */ }
-
-  try {
-    if (!isConfigPlaceholder) {
-      await setDoc(doc(db, ENTRIES_COLLECTION, reversal.id), stripUndefinedDeep(reversal));
-    }
-  } catch (err) {
-    console.warn('Could not sync void reversal to Firestore:', err);
-  }
-
+  // Void = mark isVoid (excluded from all balances/statements). NO reversal entry is
+  // posted: the void flag alone removes the entry from balances, and posting a
+  // live reversal on top would double-correct the books (bug seen 2026-10-19 on
+  // FST PMT-00102: one-sided reversal left a bogus live leg). The struck-through
+  // voided entry itself is the audit trail.
   return updatedEntry;
 }
 
