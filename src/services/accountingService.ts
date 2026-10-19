@@ -21,6 +21,28 @@ const ENTRIES_COLLECTION = 'ledger_entries';
 const LOCAL_STORAGE_ACCOUNTS_KEY = 'safardesk_ledger_accounts_v5';
 const LOCAL_STORAGE_ENTRIES_KEY = 'safardesk_ledger_entries_v5';
 
+/**
+ * Receipt photos as base64 data URLs are huge (MBs) — they must NEVER be
+ * persisted to localStorage (5MB quota) or Firestore (1MB doc limit).
+ * The data URL lives only in memory for the current session; the background
+ * upload replaces it with a Drive link. This strips it before any write.
+ */
+function stripReceiptDataForStorage<T>(entry: T): T {
+  const e = entry as any;
+  if (e && typeof e.driveFileUrl === 'string' && e.driveFileUrl.startsWith('data:')) {
+    return { ...e, driveFileUrl: null };
+  }
+  return entry;
+}
+
+function saveEntriesToStorage(entries: LedgerEntryDoc[]) {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(entries.map(stripReceiptDataForStorage)));
+  } catch {
+    /* storage full/blocked — Firestore is source of truth */
+  }
+}
+
 export const INITIAL_LEDGER_ACCOUNTS: LedgerAccountDoc[] = [
   // --- AGENTS ---
   {
@@ -710,6 +732,13 @@ async function fetchLedgerEntriesRaw(accountId?: string): Promise<LedgerEntryDoc
   if (stored) {
     try {
       localEntries = JSON.parse(stored);
+      // One-time cleanup: strip any base64 receipt data bloating localStorage.
+      if (localEntries.some((e: any) => typeof e?.driveFileUrl === 'string' && e.driveFileUrl.startsWith('data:'))) {
+        saveEntriesToStorage(localEntries);
+        localEntries = localEntries.map((e: any) =>
+          (typeof e?.driveFileUrl === 'string' && e.driveFileUrl.startsWith('data:')) ? { ...e, driveFileUrl: null } : e
+        );
+      }
     } catch {
       localEntries = [];
     }
@@ -847,14 +876,14 @@ export async function postBalancedTransaction(params: {
   }
 
   const updated = [debitEntry, creditEntry, ...extraLegs, ...currentEntries];
-  try { localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(updated)); } catch { /* storage full/blocked — Firestore is source of truth */ }
+  try { saveEntriesToStorage(updated); } catch { /* storage full/blocked — Firestore is source of truth */ }
 
   try {
     if (!isConfigPlaceholder) {
       await Promise.all([
-        setDoc(doc(db, ENTRIES_COLLECTION, debitEntry.id), stripUndefinedDeep(debitEntry)),
-        setDoc(doc(db, ENTRIES_COLLECTION, creditEntry.id), stripUndefinedDeep(creditEntry)),
-        ...extraLegs.map((leg) => setDoc(doc(db, ENTRIES_COLLECTION, leg.id), stripUndefinedDeep(leg))),
+        setDoc(doc(db, ENTRIES_COLLECTION, debitEntry.id), stripUndefinedDeep(stripReceiptDataForStorage(debitEntry))),
+        setDoc(doc(db, ENTRIES_COLLECTION, creditEntry.id), stripUndefinedDeep(stripReceiptDataForStorage(creditEntry))),
+        ...extraLegs.map((leg) => setDoc(doc(db, ENTRIES_COLLECTION, leg.id), stripUndefinedDeep(stripReceiptDataForStorage(leg)))),
       ]);
     }
   } catch (err) {
@@ -1030,11 +1059,11 @@ export async function voidLedgerEntry(
   };
 
   currentEntries[index] = updatedEntry;
-  try { localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(currentEntries)); } catch { /* storage full/blocked — Firestore is source of truth */ }
+  try { saveEntriesToStorage(currentEntries); } catch { /* storage full/blocked — Firestore is source of truth */ }
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, ENTRIES_COLLECTION, entryId), stripUndefinedDeep(updatedEntry));
+      await setDoc(doc(db, ENTRIES_COLLECTION, entryId), stripUndefinedDeep(stripReceiptDataForStorage(updatedEntry)));
     }
   } catch (err) {
     console.warn('Could not sync void to Firestore:', err);
@@ -1057,7 +1086,7 @@ export async function deleteLedgerEntry(entryId: string): Promise<void> {
   bust('ledger:entries:all'); bustPrefix('ledger:entries:');
   const currentEntries = await fetchLedgerEntries();
   const filtered = currentEntries.filter((e) => e.id !== entryId);
-  try { localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(filtered)); } catch { /* ignore */ }
+  try { saveEntriesToStorage(filtered); } catch { /* ignore */ }
   try {
     if (!isConfigPlaceholder) {
       await deleteDoc(doc(db, ENTRIES_COLLECTION, entryId));
@@ -1138,10 +1167,10 @@ export async function editLedgerEntry(
   };
 
   const updated = [corrected, ...fresh];
-  try { localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(updated)); } catch { /* storage full/blocked — Firestore is source of truth */ }
+  try { saveEntriesToStorage(updated); } catch { /* storage full/blocked — Firestore is source of truth */ }
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, ENTRIES_COLLECTION, corrected.id), stripUndefinedDeep(corrected));
+      await setDoc(doc(db, ENTRIES_COLLECTION, corrected.id), stripUndefinedDeep(stripReceiptDataForStorage(corrected)));
     }
   } catch (err) {
     console.warn('Could not sync edited ledger entry to Firestore:', err);

@@ -22,6 +22,28 @@ const LOCAL_STORAGE_PAYMENTS_KEY = 'safardesk_payments_v3';
 const LOCAL_STORAGE_BANKS_KEY = 'safardesk_banks_v3';
 const LOCAL_STORAGE_INVOICES_KEY = 'safardesk_invoices_v3';
 
+/**
+ * Receipt photos as base64 data URLs are huge (MBs) — they must NEVER be
+ * persisted to localStorage (5MB quota) or Firestore (1MB doc limit).
+ * The data URL lives only in memory for the current session; the background
+ * upload replaces it with a Drive link. This strips it before any write.
+ */
+function stripReceiptDataForStorage<T>(item: T): T {
+  const p = item as any;
+  if (p && typeof p.receiptFile === 'string' && p.receiptFile.startsWith('data:')) {
+    return { ...p, receiptFile: null };
+  }
+  return item;
+}
+
+function savePaymentsToStorage(payments: PaymentDoc[]) {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(payments.map(stripReceiptDataForStorage)));
+  } catch {
+    /* storage full/blocked — Firestore is source of truth */
+  }
+}
+
 const SAMPLE_RECEIPT_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" width="400" height="500" viewBox="0 0 400 500" style="background-color:#ffffff;font-family:sans-serif">
   <rect x="10" y="10" width="380" height="480" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
@@ -344,6 +366,13 @@ async function fetchPaymentsRaw(): Promise<PaymentDoc[]> {
   if (stored) {
     try {
       localPayments = JSON.parse(stored);
+      // One-time cleanup: strip any base64 receipt data bloating localStorage.
+      if (localPayments.some((p: any) => typeof p?.receiptFile === 'string' && p.receiptFile.startsWith('data:'))) {
+        savePaymentsToStorage(localPayments);
+        localPayments = localPayments.map((p: any) =>
+          (typeof p?.receiptFile === 'string' && p.receiptFile.startsWith('data:')) ? { ...p, receiptFile: null } : p
+        );
+      }
     } catch {
       localPayments = [];
     }
@@ -423,9 +452,9 @@ export async function createPayment(params: {
       if (i === -1) return;
       const updated = { ...list[i], ...patch };
       list[i] = updated;
-      try { localStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(list)); } catch { /* ignore */ }
+      try { savePaymentsToStorage(list); } catch { /* ignore */ }
       if (!isConfigPlaceholder) {
-        await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), stripUndefinedDeep(updated));
+        await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), stripUndefinedDeep(stripReceiptDataForStorage(updated)));
       }
     } catch (e) {
       console.warn('Background payment patch failed:', e);
@@ -569,7 +598,7 @@ export async function createPayment(params: {
 
   const currentPayments = await fetchPayments();
   const updatedPayments = [newPayment, ...currentPayments];
-  localStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(updatedPayments));
+  savePaymentsToStorage(updatedPayments);
 
   // 5. Update invoice status if paying against invoice
   if (params.againstInvoiceNo) {
@@ -599,7 +628,7 @@ export async function createPayment(params: {
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, PAYMENTS_COLLECTION, newPayment.id), stripUndefinedDeep(newPayment));
+      await setDoc(doc(db, PAYMENTS_COLLECTION, newPayment.id), stripUndefinedDeep(stripReceiptDataForStorage(newPayment)));
     }
   } catch (err) {
     console.warn('Could not write payment to Firestore:', err);
@@ -641,7 +670,7 @@ export async function retryDriveUploadForPayment(paymentId: string): Promise<Pay
       driveError: result.error || 'Retry upload failed.',
     };
     currentPayments[idx] = failedPmt;
-    localStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(currentPayments));
+    savePaymentsToStorage(currentPayments);
     throw new Error(result.error || 'Drive sync retry failed.');
   }
 
@@ -654,11 +683,11 @@ export async function retryDriveUploadForPayment(paymentId: string): Promise<Pay
   };
 
   currentPayments[idx] = updatedPmt;
-  localStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(currentPayments));
+  savePaymentsToStorage(currentPayments);
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), stripUndefinedDeep(updatedPmt));
+      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), stripUndefinedDeep(stripReceiptDataForStorage(updatedPmt)));
     }
   } catch (err) {
     console.warn('Could not update retried payment in Firestore:', err);
@@ -689,11 +718,11 @@ export async function approvePaymentReceipt(paymentId: string, ownerName: string
   };
 
   currentPayments[idx] = updated;
-  localStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(currentPayments));
+  savePaymentsToStorage(currentPayments);
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), stripUndefinedDeep(updated));
+      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), stripUndefinedDeep(stripReceiptDataForStorage(updated)));
     }
   } catch (err) {
     console.warn('Could not update approved payment in Firestore:', err);
@@ -741,11 +770,11 @@ export async function updatePaymentReceipt(
   };
 
   currentPayments[idx] = updated;
-  localStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(currentPayments));
+  savePaymentsToStorage(currentPayments);
 
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), stripUndefinedDeep(updated));
+      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), stripUndefinedDeep(stripReceiptDataForStorage(updated)));
     }
   } catch (err) {
     console.warn('Could not update payment receipt in Firestore:', err);
@@ -818,7 +847,7 @@ export async function voidPayment(
 
   // 3. Hard-delete the payment doc itself
   const remaining = currentPayments.filter((x) => x.id !== paymentId);
-  try { localStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(remaining)); } catch { /* ignore */ }
+  try { savePaymentsToStorage(remaining); } catch { /* ignore */ }
   try {
     if (!isConfigPlaceholder) {
       const { deleteDoc: fsDeleteDoc } = await import('firebase/firestore');
