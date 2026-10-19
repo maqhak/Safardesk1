@@ -556,6 +556,7 @@ export async function updateVisaInvoiceRates(
   params: {
     date: string;
     exchangeRate: number;
+    agentId?: string; // optional agent change — reposts Dr legs to the new agent
     groups: VVEditGroup[];
     editedBy: string;
   }
@@ -606,9 +607,14 @@ export async function updateVisaInvoiceRates(
   const marginSAR = Math.round((sellingTotalSAR - buyingTotalSAR) * 100) / 100;
   const totalsPKR = Math.round(sellingTotalSAR * params.exchangeRate * 100) / 100;
 
+  // Effective agent: the newly selected one, or the invoice's existing agent.
+  const effectiveAgentId = params.agentId && params.agentId !== invoice.agentId ? params.agentId : invoice.agentId;
+  const agentChanged = effectiveAgentId !== invoice.agentId;
+
   const updated: VisaInvoiceDoc = {
     ...invoice,
     date: params.date,
+    agentId: effectiveAgentId,
     lines: newLines,
     sellingTotalSAR,
     buyingTotalSAR,
@@ -643,10 +649,10 @@ export async function updateVisaInvoiceRates(
     try { await saveLedgerAccount(vendorLedgerAccount); } catch { /* best-effort */ }
   }
   // Dual-role: agent linked to a vendor posts Dr to the shared vendor account
-  let agentAccountId = invoice.agentId;
+  let agentAccountId = effectiveAgentId;
   try {
     const { fetchAgents } = await import('./agentService');
-    const ag: any = (await fetchAgents()).find((a: any) => a.id === invoice.agentId);
+    const ag: any = (await fetchAgents()).find((a: any) => a.id === effectiveAgentId);
     if (ag?.linkedVendorId) agentAccountId = `ledger-vnd-${ag.linkedVendorId}`;
   } catch { /* keep agentId */ }
 
@@ -707,6 +713,35 @@ export async function updateVisaInvoiceRates(
   const existingInvoices = await fetchVisaInvoices();
   const allInvoices = [updated, ...existingInvoices.filter((i) => i.id !== invoice.id)];
   try { localStorage.setItem(LOCAL_STORAGE_INVOICES_KEY, JSON.stringify(allInvoices)); } catch { /* ignore */ }
+
+  // If the agent changed, move the linked visa docs to the new agent too.
+  if (agentChanged) {
+    try {
+      const { fetchVisas } = await import('./visaService');
+      const visas = await fetchVisas();
+      const linkedIds = new Set((invoice as any).visaIds || []);
+      // Fallback: match by distributionId + old agent
+      const toMove = visas.filter((v: any) =>
+        linkedIds.has(v.id) || (v.distributionId === invoice.distributionId && v.agentId === invoice.agentId)
+      );
+      for (const v of toMove) {
+        const patch = { agentId: effectiveAgentId, updatedAt: now, updatedBy: params.editedBy };
+        try {
+          if (!isConfigPlaceholder) {
+            const { doc: fsDoc, setDoc: fsSet } = await import('firebase/firestore');
+            const { db: fsDb } = await import('./firebase');
+            await fsSet(fsDoc(fsDb, 'visas', v.id), stripUndefinedDeep({ ...v, ...patch }), { merge: true });
+          }
+        } catch { /* local fallback below */ }
+      }
+      const nextVisas = visas.map((v: any) =>
+        toMove.some((m: any) => m.id === v.id) ? { ...v, agentId: effectiveAgentId, updatedAt: now, updatedBy: params.editedBy } : v
+      );
+      try { localStorage.setItem('safardesk_visas_v1', JSON.stringify(nextVisas)); } catch { /* ignore */ }
+    } catch (err) {
+      console.warn('Could not move visa docs to new agent:', err);
+    }
+  }
   const existingEntries = await fetchLedgerEntries();
   const allEntriesNew = [...newLegs, ...existingEntries];
   try { localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(allEntriesNew)); } catch { /* ignore */ }

@@ -755,7 +755,7 @@ export const ItemServicePage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-bold text-amber-700 mb-1">
-                  Supplier — Party From (jis se li)
+                  Supplier — Party From
                 </label>
                 <select
                   value={itemSupplierId}
@@ -772,7 +772,7 @@ export const ItemServicePage: React.FC = () => {
               </div>
               <div>
                 <label className="block text-[11px] font-bold text-emerald-700 mb-1">
-                  Customer — Party To (jis ko di / charge)
+                  Customer — Party To
                 </label>
                 <select
                   value={itemCustomerId}

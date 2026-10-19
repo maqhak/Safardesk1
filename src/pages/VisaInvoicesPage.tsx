@@ -53,6 +53,7 @@ export const VisaInvoicesPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [invoices, setInvoices] = useState<VisaInvoiceDoc[]>([]);
   const [agents, setAgents] = useState<LedgerAccountDoc[]>([]);
+  const [agentDocs, setAgentDocs] = useState<any[]>([]);
   const [vendors, setVendors] = useState<VendorDoc[]>([]);
   const [ledgerAccounts, setLedgerAccounts] = useState<LedgerAccountDoc[]>([]);
 
@@ -84,6 +85,7 @@ export const VisaInvoicesPage: React.FC = () => {
   const [editGroups, setEditGroups] = useState<VVEditGroup[]>([]);
   const [editDate, setEditDate] = useState<string>('');
   const [editRate, setEditRate] = useState<number>(0);
+  const [editAgentId, setEditAgentId] = useState<string>('');
   const [editSaving, setEditSaving] = useState<boolean>(false);
   const [editLoading, setEditLoading] = useState<boolean>(false);
   const [deleteTarget, setDeleteTarget] = useState<VisaInvoiceDoc | null>(null);
@@ -173,10 +175,13 @@ export const VisaInvoicesPage: React.FC = () => {
     setEditInvoice(inv);
     setEditModalOpen(true);
     try {
+      const { fetchAgents } = await import('../services/agentService');
+      setAgentDocs(await fetchAgents().catch(() => []));
       const { groups } = await getVVEditData(inv.id);
       setEditGroups(groups);
       setEditDate(inv.date);
       setEditRate(inv.exchangeRate || 0);
+      setEditAgentId(inv.agentId || '');
     } catch (err: any) {
       showError(err.message || 'Failed to load VV for editing.');
       setEditModalOpen(false);
@@ -228,6 +233,7 @@ export const VisaInvoicesPage: React.FC = () => {
       const updated = await updateVisaInvoiceRates(editInvoice.id, {
         date: editDate,
         exchangeRate: editRate,
+        agentId: editAgentId || editInvoice.agentId,
         groups: editGroups,
         editedBy: userProfile?.name || 'Owner',
       });
@@ -834,7 +840,7 @@ export const VisaInvoicesPage: React.FC = () => {
           isOpen={editModalOpen}
           onClose={() => { setEditModalOpen(false); setEditInvoice(null); }}
           title={editInvoice ? `Edit VV ${editInvoice.invoiceNo}` : 'Edit VV'}
-          subtitle="Har group ka rate changeable hai — save par purani ledger legs void ho kar nayi legs usi VV number se post hongi."
+          subtitle="Each group's rate is changeable — on save, old ledger legs are voided and fresh legs post under the same VV number."
           size="lg"
           footer={
             <div className="flex items-center justify-end gap-2 w-full">
@@ -851,6 +857,24 @@ export const VisaInvoicesPage: React.FC = () => {
             <div className="py-10 text-center text-xs text-slate-500">Loading VV details…</div>
           ) : (
             <div className="space-y-4 py-2 text-xs">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Agent *</label>
+                <select
+                  value={editAgentId}
+                  onChange={(e) => setEditAgentId(e.target.value)}
+                  className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                >
+                  <option value="">-- Select Agent --</option>
+                  {agentDocs.map((a: any) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name || a.partyName || a.id}
+                    </option>
+                  ))}
+                </select>
+                <div className="text-[10px] text-slate-500 mt-0.5">
+                  Changing the agent moves the receivable to the new agent's ledger.
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">VV Date *</label>
