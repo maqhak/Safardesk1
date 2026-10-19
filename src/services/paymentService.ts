@@ -405,8 +405,7 @@ export async function createPayment(params: {
 
   const isReceived = params.entryType === 'cash-received' || params.entryType === 'bank-received';
 
-  // 1. Run AI Verification on the receipt file (via server-side Gemini)
-  // Fix: hard timeout so a hanging AI/Drive call can NEVER freeze the save button.
+  // Helper: hard timeout so a hanging call never blocks (used by background tasks).
   const withTimeout = <T,>(p: Promise<T>, ms: number, label: string): Promise<T> =>
     Promise.race([
       p,
@@ -415,71 +414,90 @@ export async function createPayment(params: {
       ),
     ]);
 
-  let aiResult: AiVerificationResult = {
-    aiStatus: 'Needs Review',
-    aiExtractedDate: null,
-    aiNotes: 'AI verification pending.',
-    isReadable: true,
-    isAuthenticReceipt: false,
-    dateMatches: false,
+  // Helper: patch a payment doc in localStorage + Firestore (used by background tasks).
+  const patchPaymentDoc = async (paymentId: string, patch: Partial<PaymentDoc>) => {
+    try {
+      const list = await fetchPayments();
+      const i = list.findIndex((x) => x.id === paymentId);
+      if (i === -1) return;
+      const updated = { ...list[i], ...patch };
+      list[i] = updated;
+      try { localStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(list)); } catch { /* ignore */ }
+      if (!isConfigPlaceholder) {
+        await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), stripUndefinedDeep(updated));
+      }
+    } catch (e) {
+      console.warn('Background payment patch failed:', e);
+    }
   };
 
-  try {
-    aiResult = await withTimeout(
-      verifyReceiptWithAI({
-        fileDataUrl: params.receiptFile,
-        expectedDate: params.date,
-        amountSAR: params.amountSAR,
-      }),
-      45000,
-      'AI receipt verification'
-    );
-  } catch (err) {
-    console.warn('AI receipt verification call failed:', err);
-  }
-
-  const needsOwnerReview = aiResult.aiStatus === 'Needs Review';
-
-  // 2. Upload flow to Google Drive:
-  // "Cash/Bank 'Received' payments go to Receipt/Received, 'Sent' payments go to Receipt/Sent"
-  // "RENAME the file to the payment's Manual No. (e.g. 'PAY-000123.pdf')"
-  let driveSyncStatus: PaymentDoc['driveSyncStatus'] = 'pending';
-  let driveFileId: string | null = null;
-  let webViewLink: string | null = null;
-  let driveError: string | null = null;
-
-  try {
-    // Fix #22: Drive first, Firebase Storage fallback — receipt is never lost.
-    // Fix: hard timeout so a hanging upload can NEVER freeze the save button.
-    const receiptUpload = await withTimeout(
-      uploadReceipt({
-        paymentNo,
-        fileDataUrl: params.receiptFile,
-        fileType: params.receiptFileType || 'image',
-        isReceived,
-      }),
-      60000,
-      'Receipt upload'
-    );
-
-    if (receiptUpload.success && receiptUpload.webViewLink) {
-      driveSyncStatus = 'synced';
-      driveFileId = receiptUpload.driveFileId || null;
-      webViewLink = receiptUpload.webViewLink || null;
-      driveError = receiptUpload.provider === 'storage' ? 'Stored in Firebase Storage (Drive unavailable).' : null;
-    } else {
-      driveSyncStatus = 'pending';
-      driveError = receiptUpload.error || 'Receipt upload failed on Drive and Storage.';
+  // Background tasks: AI verification + Drive upload run AFTER the payment is saved,
+  // so the UI never waits for them. They patch the payment doc when done.
+  const runBackgroundTasks = async (paymentId: string) => {
+    // 1. AI verification
+    try {
+      const ai = await withTimeout(
+        verifyReceiptWithAI({
+          fileDataUrl: params.receiptFile,
+          expectedDate: params.date,
+          amountSAR: params.amountSAR,
+        }),
+        45000,
+        'AI receipt verification'
+      );
+      const needsReview = ai.aiStatus === 'Needs Review';
+      await patchPaymentDoc(paymentId, {
+        aiStatus: ai.aiStatus,
+        aiExtractedDate: ai.aiExtractedDate,
+        aiNotes: ai.aiNotes,
+        needsOwnerReview: needsReview,
+        ownerApproved: !needsReview,
+      });
+    } catch (err) {
+      console.warn('Background AI verification failed:', err);
+      await patchPaymentDoc(paymentId, {
+        aiNotes: 'AI verification pending — will retry on next load.',
+      });
     }
-  } catch (err: any) {
-    driveSyncStatus = 'pending';
-    driveError = err.message || 'Receipt upload error';
-  }
 
-  // 3. The app must always open receipts through the stored link, with local fallback
-  const storedReceiptLink = webViewLink || params.receiptFile;
+    // 2. Drive/Storage upload
+    try {
+      const up = await withTimeout(
+        uploadReceipt({
+          paymentNo,
+          fileDataUrl: params.receiptFile,
+          fileType: params.receiptFileType || 'image',
+          isReceived,
+        }),
+        60000,
+        'Receipt upload'
+      );
+      if (up.success && up.webViewLink) {
+        await patchPaymentDoc(paymentId, {
+          driveSyncStatus: 'synced',
+          driveFileId: up.driveFileId || null,
+          webViewLink: up.webViewLink,
+          driveError: up.provider === 'storage' ? 'Stored in Firebase Storage (Drive unavailable).' : null,
+        });
+      } else {
+        await patchPaymentDoc(paymentId, {
+          driveSyncStatus: 'pending',
+          driveError: up.error || 'Receipt upload failed on Drive and Storage.',
+        });
+      }
+    } catch (err: any) {
+      await patchPaymentDoc(paymentId, {
+        driveSyncStatus: 'pending',
+        driveError: err.message || 'Receipt upload error',
+      });
+    }
+  };
 
-  // 4. Post balanced transaction directly to the general ledger
+  // Initial state: AI + upload pending (background will fill these in).
+  const needsOwnerReview = true;
+
+  // Post balanced transaction directly to the general ledger (fast — UI waits only for this).
+  // Receipt opens from the local data URL until the background upload provides a Drive link.
   let debitAccId = params.toAccountId;
   let creditAccId = params.fromAccountId;
 
@@ -494,7 +512,7 @@ export async function createPayment(params: {
     debitAccountId: debitAccId,
     creditAccountId: creditAccId,
     amountSAR: params.amountSAR,
-    driveFileUrl: storedReceiptLink,
+    driveFileUrl: params.receiptFile,
     proofType: 'receipt',
     createdBy: params.createdBy,
   });
@@ -536,14 +554,14 @@ export async function createPayment(params: {
     creditEntryId: creditEntry.id,
     agentId: paymentAgentId,
 
-    driveSyncStatus,
-    driveFileId,
-    webViewLink,
-    driveError,
+    driveSyncStatus: 'pending',
+    driveFileId: null,
+    webViewLink: null,
+    driveError: null,
 
-    aiStatus: aiResult.aiStatus,
-    aiExtractedDate: aiResult.aiExtractedDate,
-    aiNotes: aiResult.aiNotes,
+    aiStatus: 'Needs Review',
+    aiExtractedDate: null,
+    aiNotes: 'AI verification running in background…',
     needsOwnerReview,
     ownerApproved: !needsOwnerReview,
   };
@@ -585,6 +603,12 @@ export async function createPayment(params: {
   } catch (err) {
     console.warn('Could not write payment to Firestore:', err);
   }
+
+  // Fire-and-forget: AI verification + Drive upload run in the background so the
+  // save button never waits for them. They patch the payment doc when done.
+  runBackgroundTasks(newPayment.id).catch((e) =>
+    console.warn('Background payment tasks failed:', e)
+  );
 
   return newPayment;
 }

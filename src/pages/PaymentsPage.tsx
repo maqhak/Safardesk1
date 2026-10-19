@@ -367,11 +367,7 @@ export const PaymentsPage: React.FC = () => {
         createdBy: userProfile?.name || 'Operator',
       });
 
-      if (pmt.needsOwnerReview) {
-        info(`Payment ${pmt.paymentNo} saved and flagged for Owner Review: ${pmt.aiNotes}`);
-      } else {
-        success(`Payment ${pmt.paymentNo} posted with AI verification.`);
-      }
+      success(`Payment ${pmt.paymentNo} saved. AI verification & Drive upload running in background.`);
 
       setCreateModalOpen(false);
       await loadData();
