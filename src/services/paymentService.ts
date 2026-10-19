@@ -406,6 +406,15 @@ export async function createPayment(params: {
   const isReceived = params.entryType === 'cash-received' || params.entryType === 'bank-received';
 
   // 1. Run AI Verification on the receipt file (via server-side Gemini)
+  // Fix: hard timeout so a hanging AI/Drive call can NEVER freeze the save button.
+  const withTimeout = <T,>(p: Promise<T>, ms: number, label: string): Promise<T> =>
+    Promise.race([
+      p,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
+      ),
+    ]);
+
   let aiResult: AiVerificationResult = {
     aiStatus: 'Needs Review',
     aiExtractedDate: null,
@@ -416,11 +425,15 @@ export async function createPayment(params: {
   };
 
   try {
-    aiResult = await verifyReceiptWithAI({
-      fileDataUrl: params.receiptFile,
-      expectedDate: params.date,
-      amountSAR: params.amountSAR,
-    });
+    aiResult = await withTimeout(
+      verifyReceiptWithAI({
+        fileDataUrl: params.receiptFile,
+        expectedDate: params.date,
+        amountSAR: params.amountSAR,
+      }),
+      45000,
+      'AI receipt verification'
+    );
   } catch (err) {
     console.warn('AI receipt verification call failed:', err);
   }
@@ -436,13 +449,18 @@ export async function createPayment(params: {
   let driveError: string | null = null;
 
   try {
-    // Fix #22: Drive first, Firebase Storage fallback — receipt is never lost
-    const receiptUpload = await uploadReceipt({
-      paymentNo,
-      fileDataUrl: params.receiptFile,
-      fileType: params.receiptFileType || 'image',
-      isReceived,
-    });
+    // Fix #22: Drive first, Firebase Storage fallback — receipt is never lost.
+    // Fix: hard timeout so a hanging upload can NEVER freeze the save button.
+    const receiptUpload = await withTimeout(
+      uploadReceipt({
+        paymentNo,
+        fileDataUrl: params.receiptFile,
+        fileType: params.receiptFileType || 'image',
+        isReceived,
+      }),
+      60000,
+      'Receipt upload'
+    );
 
     if (receiptUpload.success && receiptUpload.webViewLink) {
       driveSyncStatus = 'synced';
