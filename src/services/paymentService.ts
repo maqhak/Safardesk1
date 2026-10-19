@@ -8,7 +8,7 @@ import {
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 import { db, isConfigPlaceholder } from './firebase';
-import { postBalancedTransaction, voidLedgerEntry, fetchLedgerEntries, fetchLedgerAccounts } from './accountingService';
+import { postBalancedTransaction, voidLedgerEntry, deleteLedgerEntry, fetchLedgerEntries, fetchLedgerAccounts } from './accountingService';
 import { TENANT } from '../config';
 import { uploadReceipt, verifyReceiptWithAI } from './driveService';
 import { getCurrentRate } from './exchangeRateService';
@@ -756,11 +756,16 @@ export async function updatePaymentReceipt(
 /**
  * Void a payment (Owner only). Reverses/voids ledger entries and marks payment as voided.
  */
+/**
+ * Delete a payment (Owner only). HARD DELETE — the payment doc and its two ledger
+ * entries are removed from the system completely (localStorage + Firestore).
+ * No struck-through trace remains. Invoice balances are restored if linked.
+ */
 export async function voidPayment(
   paymentId: string,
-  voidReason: string,
-  voidedBy: string
-): Promise<PaymentDoc> {
+  _voidReason: string,
+  _voidedBy: string
+): Promise<string> {
   bust('payments:all'); // fresh read after write
   const currentPayments = await fetchPayments();
   const index = currentPayments.findIndex((p) => p.id === paymentId);
@@ -769,23 +774,25 @@ export async function voidPayment(
   }
 
   const pmt = currentPayments[index];
-  const now = new Date().toISOString();
+  const paymentNo = pmt.paymentNo;
 
+  // 1. Hard-delete both ledger legs (no trace left)
   if (pmt.debitEntryId) {
     try {
-      await voidLedgerEntry(pmt.debitEntryId, `Payment ${pmt.paymentNo} voided: ${voidReason}`, voidedBy);
+      await deleteLedgerEntry(pmt.debitEntryId);
     } catch (e) {
-      console.warn('Could not void debit entry:', e);
+      console.warn('Could not delete debit entry:', e);
     }
   }
   if (pmt.creditEntryId) {
     try {
-      await voidLedgerEntry(pmt.creditEntryId, `Payment ${pmt.paymentNo} voided: ${voidReason}`, voidedBy);
+      await deleteLedgerEntry(pmt.creditEntryId);
     } catch (e) {
-      console.warn('Could not void credit entry:', e);
+      console.warn('Could not delete credit entry:', e);
     }
   }
 
+  // 2. Restore invoice balance if this payment was against an invoice
   if (pmt.againstInvoiceNo) {
     try {
       const invoices = await fetchInvoices();
@@ -808,27 +815,19 @@ export async function voidPayment(
     }
   }
 
-  const updated: PaymentDoc = {
-    ...pmt,
-    isVoid: true,
-    voidReason,
-    voidedAt: now,
-    voidedBy,
-    needsOwnerReview: false,
-  };
-
-  currentPayments[index] = updated;
-  localStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(currentPayments));
-
+  // 3. Hard-delete the payment doc itself
+  const remaining = currentPayments.filter((x) => x.id !== paymentId);
+  try { localStorage.setItem(LOCAL_STORAGE_PAYMENTS_KEY, JSON.stringify(remaining)); } catch { /* ignore */ }
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), stripUndefinedDeep(updated));
+      const { deleteDoc: fsDeleteDoc } = await import('firebase/firestore');
+      await fsDeleteDoc(doc(db, PAYMENTS_COLLECTION, paymentId));
     }
   } catch (err) {
-    console.warn('Could not update voided payment in Firestore:', err);
+    console.warn('Could not delete payment from Firestore:', err);
   }
 
-  return updated;
+  return paymentNo;
 }
 
 export async function processReceiptFile(file: File): Promise<{

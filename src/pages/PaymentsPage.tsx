@@ -493,21 +493,17 @@ export const PaymentsPage: React.FC = () => {
 
   const handleConfirmVoid = async () => {
     if (!paymentToVoid) return;
-    if (!voidReason.trim()) {
-      showError('Please provide an audit void reason.');
-      return;
-    }
 
     setVoiding(true);
     try {
-      await voidPayment(paymentToVoid.id, voidReason, userProfile?.name || 'Owner');
-      success(`Payment #${paymentToVoid.paymentNo} voided and reversed in ledger.`);
+      const deletedNo = await voidPayment(paymentToVoid.id, '', userProfile?.name || 'Owner');
+      success(`Payment #${deletedNo} permanently deleted from the system.`);
       setVoidModalOpen(false);
       setPaymentToVoid(null);
       setVoidReason('');
       await loadData();
     } catch {
-      showError('Failed to void payment.');
+      showError('Failed to delete payment.');
     } finally {
       setVoiding(false);
     }
@@ -1152,7 +1148,7 @@ export const PaymentsPage: React.FC = () => {
                                 setVoidModalOpen(true);
                               }}
                               className="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition cursor-pointer"
-                              title="Void Payment & Reverse Ledger"
+                              title="Delete Payment Permanently"
                             >
                               <Ban className="w-3.5 h-3.5" />
                             </button>
@@ -1193,12 +1189,12 @@ export const PaymentsPage: React.FC = () => {
         agentOwnAccountId={userProfile?.agentId || 'acc-agt-001'}
       />
 
-      {/* Void Payment Modal (Owner Only) */}
+      {/* Delete Payment Modal (Owner Only) */}
       <Modal
         isOpen={voidModalOpen}
         onClose={() => setVoidModalOpen(false)}
-        title={`Void Payment #${paymentToVoid?.paymentNo}`}
-        subtitle="Voiding posts an automatic ledger reversal and updates invoice balances while keeping full audit history."
+        title={`Delete Payment #${paymentToVoid?.paymentNo}`}
+        subtitle="This will permanently remove the payment and its ledger entries from the system. No trace will remain."
         footer={
           <>
             <Button variant="outline" size="sm" onClick={() => setVoidModalOpen(false)}>
@@ -1210,7 +1206,7 @@ export const PaymentsPage: React.FC = () => {
               loading={voiding}
               onClick={handleConfirmVoid}
             >
-              Confirm Void & Reversal
+              Delete Permanently
             </Button>
           </>
         }
@@ -1220,23 +1216,12 @@ export const PaymentsPage: React.FC = () => {
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
               <div><strong>Payment No:</strong> {paymentToVoid.paymentNo} ({paymentToVoid.entryType})</div>
               <div><strong>Date:</strong> {paymentToVoid.date}</div>
-              <div><strong>Amount:</strong> SAR {paymentToVoid.amountSAR.toLocaleString()}</div>
+              <div><strong>Amount:</strong> {paymentToVoid.enteredCurrency || 'SAR'} {(paymentToVoid.enteredCurrency === 'PKR' ? paymentToVoid.amountPKR : paymentToVoid.amountSAR).toLocaleString()}</div>
               <div><strong>Particulars:</strong> {paymentToVoid.particulars}</div>
             </div>
           )}
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Audit Void Reason (Required) *
-            </label>
-            <textarea
-              value={voidReason}
-              onChange={(e) => setVoidReason(e.target.value)}
-              placeholder="Specify the reason for voiding this payment (e.g. incorrect bank account, bounced wire, double entry)..."
-              rows={3}
-              required
-              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
-            />
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 font-semibold">
+            ⚠ This payment and its ledger entries will be permanently deleted from the system. This cannot be undone.
           </div>
         </div>
       </Modal>

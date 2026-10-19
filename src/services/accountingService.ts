@@ -6,7 +6,7 @@ import {
   AccountBalanceRow,
   BalancesSummaryData
 } from '../types/accounting';
-import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from './firebase';
 import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 import { aoaToCSV, downloadCSVText } from '../utils/csv';
@@ -959,6 +959,24 @@ export async function voidLedgerEntry(
   // FST PMT-00102: one-sided reversal left a bogus live leg). The struck-through
   // voided entry itself is the audit trail.
   return updatedEntry;
+}
+
+/**
+ * Hard-delete a ledger entry (Owner only). Removes it from localStorage + Firestore
+ * completely — used when a payment is deleted so no trace remains.
+ */
+export async function deleteLedgerEntry(entryId: string): Promise<void> {
+  bust('ledger:entries:all'); bustPrefix('ledger:entries:');
+  const currentEntries = await fetchLedgerEntries();
+  const filtered = currentEntries.filter((e) => e.id !== entryId);
+  try { localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(filtered)); } catch { /* ignore */ }
+  try {
+    if (!isConfigPlaceholder) {
+      await deleteDoc(doc(db, ENTRIES_COLLECTION, entryId));
+    }
+  } catch (err) {
+    console.warn('Could not delete ledger entry from Firestore:', err);
+  }
 }
 
 /**
