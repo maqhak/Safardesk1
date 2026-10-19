@@ -70,6 +70,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
     children: [
       { name: 'Ledgers', path: '/accounts', module: 'Accounts' },
       { name: 'Invoices', path: '/accounts/invoices', module: 'Accounts' },
+      { name: 'Transport Invoices', path: '/accounts/transport-invoices', module: 'Accounts' },
       { name: 'Item/Service', path: '/accounts/item-service', module: 'Accounts' },
       { name: 'Balances Summary', path: '/accounts/balances', module: 'Accounts' },
       { name: 'Payments', path: '/accounts/payments', module: 'Accounts' },

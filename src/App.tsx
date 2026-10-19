@@ -32,6 +32,7 @@ const DayBookPage = lazy(() => import('./pages/DayBookPage').then(m => ({ defaul
 const JournalVouchersPage = lazy(() => import('./pages/JournalVouchersPage').then(m => ({ default: m.JournalVouchersPage })));
 const ItemServicePage = lazy(() => import('./pages/ItemServicePage').then(m => ({ default: m.ItemServicePage })));
 const InvoicesPage = lazy(() => import('./pages/InvoicesPage').then(m => ({ default: m.InvoicesPage })));
+const TransportInvoicePage = lazy(() => import('./pages/TransportInvoicePage').then(m => ({ default: m.TransportInvoicePage })));
 const InvoiceCreatePage = lazy(() => import('./pages/InvoiceCreatePage').then(m => ({ default: m.InvoiceCreatePage })));
 const MastersPage = lazy(() => import('./pages/MastersPage').then(m => ({ default: m.MastersPage })));
 const VendorsPage = lazy(() => import('./pages/VendorsPage').then(m => ({ default: m.VendorsPage })));
@@ -260,6 +261,14 @@ export default function App() {
                   element={
                     <ProtectedRoute requiredModule="Accounts">
                       <InvoicesPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/accounts/transport-invoices"
+                  element={
+                    <ProtectedRoute requiredModule="Accounts">
+                      <TransportInvoicePage />
                     </ProtectedRoute>
                   }
                 />

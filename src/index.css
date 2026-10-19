@@ -69,7 +69,21 @@
   .ledger-print-compact tbody td:nth-child(4) {
     white-space: normal !important;
     word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+    max-width: none !important;
   }
+  /* Particulars column gets the lion's share — full name + passport must print, even on 2 lines */
+  .ledger-print-compact table { table-layout: fixed !important; }
+  .ledger-print-compact thead th:nth-child(4),
+  .ledger-print-compact tbody td:nth-child(4) { width: 38% !important; }
+  .ledger-print-compact thead th:nth-child(1),
+  .ledger-print-compact tbody td:nth-child(1) { width: 9% !important; }
+  .ledger-print-compact thead th:nth-child(2),
+  .ledger-print-compact tbody td:nth-child(2) { width: 8% !important; }
+  .ledger-print-compact thead th:nth-child(3),
+  .ledger-print-compact tbody td:nth-child(3) { width: 11% !important; }
+  .ledger-print-compact thead th:nth-child(5),
+  .ledger-print-compact tbody td:nth-child(5) { width: 10% !important; }
   .ledger-print-compact .badge, .ledger-print-compact [class*="Badge"] { font-size: 7px !important; }
 }
 
