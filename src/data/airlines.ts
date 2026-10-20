@@ -61,5 +61,24 @@ export const INITIAL_AIRLINES: AirlineDoc[] = [
   { id: 'al-sq', iataCode: 'SQ', name: 'Singapore Airlines', country: 'Singapore', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
   { id: 'al-mh', iataCode: 'MH', name: 'Malaysia Airlines', country: 'Malaysia', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
   { id: 'al-tg', iataCode: 'TG', name: 'Thai Airways', country: 'Thailand', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
-  { id: 'al-ga', iataCode: 'GA', name: 'Garuda Indonesia', country: 'Indonesia', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' }
+  { id: 'al-ga', iataCode: 'GA', name: 'Garuda Indonesia', country: 'Indonesia', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+
+  // --- More carriers serving Saudi Arabia (added 2026-10-20, owner's order) ---
+  { id: 'al-ne', iataCode: 'NE', name: 'Nesma Airlines', country: 'Saudi Arabia', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-qp', iataCode: 'QP', name: 'Akasa Air', country: 'India', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-d7', iataCode: 'D7', name: 'AirAsia X', country: 'Malaysia', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-jt', iataCode: 'JT', name: 'Lion Air', country: 'Indonesia', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-cx', iataCode: 'CX', name: 'Cathay Pacific', country: 'Hong Kong', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-ca', iataCode: 'CA', name: 'Air China', country: 'China', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-hy', iataCode: 'HY', name: 'Uzbekistan Airways', country: 'Uzbekistan', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-kc', iataCode: 'KC', name: 'Air Astana', country: 'Kazakhstan', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-dv', iataCode: 'DV', name: 'SCAT Airlines', country: 'Kazakhstan', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-j2', iataCode: 'J2', name: 'Azerbaijan Airlines', country: 'Azerbaijan', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-sz', iataCode: 'SZ', name: 'Somon Air', country: 'Tajikistan', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-rq', iataCode: 'RQ', name: 'Kam Air', country: 'Afghanistan', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-fg', iataCode: 'FG', name: 'Ariana Afghan Airlines', country: 'Afghanistan', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-q2', iataCode: 'Q2', name: 'Maldivian', country: 'Maldives', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-w5', iataCode: 'W5', name: 'Mahan Air', country: 'Iran', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-iy', iataCode: 'IY', name: 'Yemenia', country: 'Yemen', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' },
+  { id: 'al-w6', iataCode: 'W6', name: 'Wizz Air', country: 'Hungary', isActive: true, createdAt: '2026-01-01T00:00:00Z', createdBy: 'system' }
 ];
