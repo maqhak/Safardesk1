@@ -1364,6 +1364,8 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
           </p>
         </div>
       </Modal>
+      </>
+      )}
 
       {/* Record Payment Modal with Hard Receipt Validation */}
       <Modal
@@ -1882,8 +1884,6 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
           </div>
         </div>
       </Modal>
-      </>
-      )}
     </div>
   );
 };
