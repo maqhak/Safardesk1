@@ -492,6 +492,37 @@ export const VoucherCreatePage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [depLeg.arrDate]);
 
+  // ---- Transport leg dates AUTO-LINK to the journey (owner's rule):
+  // Arrival leg = flight arrival date; Departure leg = return flight
+  // departure date; Makkah to Madina = Makkah hotel check-out (the stay
+  // right before the Madina stay); Madina to Makkah = Madina hotel
+  // check-out (the stay right before the next Makkah stay). Re-runs when
+  // any source changes or when a leg's sector is picked. ----
+  const transportSectorSig = transportRows.map((r) => r.sector).join('|');
+  useEffect(() => {
+    const beforeCity = (city: string, nextCity: string) => {
+      const i = hotelRows.findIndex((r, idx) => r.sector === city && hotelRows[idx + 1]?.sector === nextCity);
+      if (i >= 0) return hotelRows[i].checkOut;
+      return hotelRows.find((r) => r.sector === city)?.checkOut || '';
+    };
+    const derived: Record<string, string> = {
+      Arrival: depLeg.arrDate || hotelRows[0]?.checkIn || '',
+      Departure: retLeg.depDate || hotelRows[hotelRows.length - 1]?.checkOut || '',
+      'Makkah to Madina': beforeCity('MAK', 'MED'),
+      'Madina to Makkah': beforeCity('MED', 'MAK'),
+    };
+    setTransportRows((rows) => {
+      let changed = false;
+      const next = rows.map((r) => {
+        const d = derived[r.sector];
+        if (d && r.date !== d) { changed = true; return { ...r, date: d }; }
+        return r;
+      });
+      return changed ? next : rows;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [depLeg.arrDate, retLeg.depDate, hotelRows, transportSectorSig]);
+
   // ---- Hotel grid editors — rows are CHAINED: each row's check-in is
   // exactly the previous row's check-out. Editing any row re-chains all
   // rows after it. ----
@@ -1451,7 +1482,7 @@ export const VoucherCreatePage: React.FC = () => {
                     <thead>
                       <tr className="text-left text-slate-500">
                         <th className="p-1.5 font-bold">Sector</th>
-                        <th className="p-1.5 font-bold">Date</th>
+                        <th className="p-1.5 font-bold w-[190px]">Date</th>
                         <th className="p-1.5 font-bold">Vehicle</th>
                         {!isAgent && <th className="p-1.5 font-bold">Rate (SAR)</th>}
                         <th className="p-1.5 font-bold text-center">Self Gari</th>
@@ -1468,7 +1499,7 @@ export const VoucherCreatePage: React.FC = () => {
                             </select>
                           </td>
                           <td className="p-1.5">
-                            <input type="date" value={row.date} onChange={(e) => updateTransportRow(row.id, { date: e.target.value })} className={`${inputCls} font-mono !p-1.5`} />
+                            <input type="date" value={row.date} onChange={(e) => updateTransportRow(row.id, { date: e.target.value })} className={`${inputCls} font-mono !p-1.5 min-w-[11rem]`} />
                           </td>
                           <td className="p-1.5">
                             <select value={row.vehicle} onChange={(e) => updateTransportRow(row.id, { vehicle: e.target.value })} className={`${inputCls} !p-1.5`}>
@@ -1499,7 +1530,7 @@ export const VoucherCreatePage: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
-                <div className="text-[11px] text-slate-500 mt-1">Double-click 🗑 to remove a leg. Total transport: SAR {transportSAR.toLocaleString()}</div>
+                <div className="text-[11px] text-slate-500 mt-1">Dates auto-fill from the flights and hotel check-outs (Arrival = flight arrival, Departure = return flight, Makkah to Madina = Makkah check-out, Madina to Makkah = Madina check-out). Double-click 🗑 to remove a leg. Total transport: SAR {transportSAR.toLocaleString()}</div>
               </div>
             </Card>
 
