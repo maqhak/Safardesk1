@@ -566,6 +566,7 @@ export async function updateVisaInvoiceRates(
     buyROE?: number; // Dual ROE: cost side (vendor payable legs)
     sellROE?: number; // Dual ROE: revenue side (agent receivable legs)
     agentId?: string; // optional agent change — reposts Dr legs to the new agent
+    vendorId?: string; // optional vendor change — reposts the Cr leg to the new vendor
     groups: VVEditGroup[];
     editedBy: string;
   }
@@ -625,10 +626,17 @@ export async function updateVisaInvoiceRates(
   const effectiveAgentId = params.agentId && params.agentId !== invoice.agentId ? params.agentId : invoice.agentId;
   const agentChanged = effectiveAgentId !== invoice.agentId;
 
+  // Effective vendor: same pattern. A vendor change also clears the
+  // Sub-Vendor (shirka) stamp — it belongs to the OLD vendor.
+  const effectiveVendorId = params.vendorId && params.vendorId !== invoice.vendorId ? params.vendorId : invoice.vendorId;
+  const vendorChanged = effectiveVendorId !== invoice.vendorId;
+
   const updated: VisaInvoiceDoc = {
     ...invoice,
     date: params.date,
     agentId: effectiveAgentId,
+    vendorId: effectiveVendorId,
+    shirkaId: vendorChanged ? undefined : invoice.shirkaId,
     lines: newLines,
     sellingTotalSAR,
     buyingTotalSAR,
@@ -655,13 +663,13 @@ export async function updateVisaInvoiceRates(
     try { await saveLedgerAccount(marginAccount); } catch { /* entries still carry correct accountId */ }
   }
   let vendorLedgerAccount = ledgerAccounts.find(
-    (a) => a.id === `ledger-vnd-${invoice.vendorId}` ||
-      (((a as any).linkedAgentId === invoice.vendorId || (a as any).linkedId === invoice.vendorId) && a.accountType === 'vendor')
+    (a) => a.id === `ledger-vnd-${effectiveVendorId}` ||
+      (((a as any).linkedAgentId === effectiveVendorId || (a as any).linkedId === effectiveVendorId) && a.accountType === 'vendor')
   );
   if (!vendorLedgerAccount) {
     vendorLedgerAccount = {
-      id: `ledger-vnd-${invoice.vendorId}`, accountCode: '', accountType: 'vendor',
-      title: 'Vendor', linkedId: invoice.vendorId, isSystem: false, isActive: true,
+      id: `ledger-vnd-${effectiveVendorId}`, accountCode: '', accountType: 'vendor',
+      title: 'Vendor', linkedId: effectiveVendorId, isSystem: false, isActive: true,
       openingBalanceSAR: 0, openingBalancePKR: 0, createdAt: now, createdBy: params.editedBy,
     };
     try { await saveLedgerAccount(vendorLedgerAccount); } catch { /* best-effort */ }
@@ -733,8 +741,10 @@ export async function updateVisaInvoiceRates(
   const allInvoices = [updated, ...existingInvoices.filter((i) => i.id !== invoice.id)];
   try { localStorage.setItem(LOCAL_STORAGE_INVOICES_KEY, JSON.stringify(allInvoices)); } catch { /* ignore */ }
 
-  // If the agent changed, move the linked visa docs to the new agent too.
-  if (agentChanged) {
+  // If the agent or vendor changed, move the linked visa docs too (and the
+  // distribution doc's vendor stamp). A vendor change clears the visas'
+  // Sub-Vendor stamp — it belonged to the old vendor.
+  if (agentChanged || vendorChanged) {
     try {
       const { fetchVisas } = await import('./visaService');
       const visas = await fetchVisas();
@@ -743,22 +753,41 @@ export async function updateVisaInvoiceRates(
       const toMove = visas.filter((v: any) =>
         linkedIds.has(v.id) || (v.distributionId === invoice.distributionId && v.agentId === invoice.agentId)
       );
+      const visaPatch: any = { updatedAt: now, updatedBy: params.editedBy };
+      if (agentChanged) visaPatch.agentId = effectiveAgentId;
+      if (vendorChanged) { visaPatch.vendorId = effectiveVendorId; visaPatch.shirkaId = null; }
       for (const v of toMove) {
-        const patch = { agentId: effectiveAgentId, updatedAt: now, updatedBy: params.editedBy };
         try {
           if (!isConfigPlaceholder) {
             const { doc: fsDoc, setDoc: fsSet } = await import('firebase/firestore');
             const { db: fsDb } = await import('./firebase');
-            await fsSet(fsDoc(fsDb, 'visas', v.id), stripUndefinedDeep({ ...v, ...patch }), { merge: true });
+            await fsSet(fsDoc(fsDb, 'visas', v.id), stripUndefinedDeep({ ...v, ...visaPatch }), { merge: true });
           }
         } catch { /* local fallback below */ }
       }
       const nextVisas = visas.map((v: any) =>
-        toMove.some((m: any) => m.id === v.id) ? { ...v, agentId: effectiveAgentId, updatedAt: now, updatedBy: params.editedBy } : v
+        toMove.some((m: any) => m.id === v.id) ? { ...v, ...visaPatch } : v
       );
       try { localStorage.setItem('safardesk_visas_v1', JSON.stringify(nextVisas)); } catch { /* ignore */ }
+
+      if (vendorChanged && invoice.distributionId) {
+        try {
+          const distribs = await fetchVisaDistributions();
+          const d = distribs.find((x) => x.id === invoice.distributionId);
+          if (d) {
+            const patched = { ...d, vendorId: effectiveVendorId, shirkaId: undefined };
+            const nextDistribs = distribs.map((x) => (x.id === d.id ? patched : x));
+            try { localStorage.setItem(LOCAL_STORAGE_DISTRIB_KEY, JSON.stringify(nextDistribs)); } catch { /* ignore */ }
+            if (!isConfigPlaceholder) {
+              await setDoc(doc(db, DISTRIB_COLLECTION, d.id), { vendorId: effectiveVendorId, shirkaId: null }, { merge: true });
+            }
+          }
+        } catch (err) {
+          console.warn('Could not move distribution vendor stamp:', err);
+        }
+      }
     } catch (err) {
-      console.warn('Could not move visa docs to new agent:', err);
+      console.warn('Could not move visa docs to new agent/vendor:', err);
     }
   }
   const existingEntries = await fetchLedgerEntries();

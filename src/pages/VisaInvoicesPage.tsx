@@ -91,6 +91,7 @@ export const VisaInvoicesPage: React.FC = () => {
   const [editBuyROE, setEditBuyROE] = useState<number>(0);
   const [editSellROE, setEditSellROE] = useState<number>(0);
   const [editAgentId, setEditAgentId] = useState<string>('');
+  const [editVendorId, setEditVendorId] = useState<string>('');
   const [editSaving, setEditSaving] = useState<boolean>(false);
   const [editLoading, setEditLoading] = useState<boolean>(false);
   const [deleteTarget, setDeleteTarget] = useState<VisaInvoiceDoc | null>(null);
@@ -221,6 +222,7 @@ export const VisaInvoicesPage: React.FC = () => {
       setEditSellROE((inv as any).sellROE > 1 ? (inv as any).sellROE : (inv.exchangeRate > 1 ? inv.exchangeRate : getSellRate()));
       setEditBuyROE((inv as any).buyROE > 1 ? (inv as any).buyROE : getBuyRate());
       setEditAgentId(inv.agentId || '');
+      setEditVendorId(inv.vendorId || '');
     } catch (err: any) {
       showError(err.message || 'Failed to load VV for editing.');
       setEditModalOpen(false);
@@ -275,6 +277,7 @@ export const VisaInvoicesPage: React.FC = () => {
         buyROE: editBuyROE,
         sellROE: editSellROE,
         agentId: editAgentId || editInvoice.agentId,
+        vendorId: editVendorId || editInvoice.vendorId,
         groups: editGroups,
         editedBy: userProfile?.name || 'Owner',
       });
@@ -930,6 +933,22 @@ export const VisaInvoicesPage: React.FC = () => {
                 </select>
                 <div className="text-[10px] text-slate-500 mt-0.5">
                   Changing the agent moves the receivable to the new agent's ledger.
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Sub-Vendor *</label>
+                <select
+                  value={editVendorId}
+                  onChange={(e) => setEditVendorId(e.target.value)}
+                  className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+                >
+                  <option value="">-- Select Sub-Vendor --</option>
+                  {vendors.map((v) => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+                <div className="text-[10px] text-slate-500 mt-0.5">
+                  Changing the Sub-Vendor moves the payable to the new vendor's ledger and clears the old Sub-Vendor stamp on the visas.
                 </div>
               </div>
               <div>
