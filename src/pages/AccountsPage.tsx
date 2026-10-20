@@ -825,14 +825,14 @@ export const AccountsPage: React.FC = () => {
                     Loading ledger statement...
                   </td>
                 </tr>
-              ) : !statement || statement.rows.length === 0 ? (
+              ) : !statement || statement.rows.filter((r) => !r.entry.isVoid).length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-8 text-center text-slate-500">
                     No transactions found for {selectedAccount?.title} in the selected period.
                   </td>
                 </tr>
               ) : (
-                statement.rows.map((row, idx) => {
+                statement.rows.filter((row) => !row.entry.isVoid).map((row, idx) => {
                   const e = row.entry;
                   const isVoid = e.isVoid;
                   const debit = currency === 'SAR' ? e.debitSAR : currency === 'PKR' ? e.debitPKR : (e.debitSAR || 0) / (usdSarRate || 3.75);

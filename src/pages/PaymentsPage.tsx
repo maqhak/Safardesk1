@@ -590,6 +590,9 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
   // Filtered payments list
   const filteredPayments = useMemo(() => {
     return payments.filter((p) => {
+      // Void payments never display — delete is a hard delete now, and legacy
+      // void docs must not linger as struck-through rows (owner rule 2026-10-20).
+      if (p.isVoid) return false;
       if (entryTab === 'cash' && !p.entryType?.startsWith('cash-')) return false;
       if (entryTab === 'bank' && !p.entryType?.startsWith('bank-')) return false;
       if (typeFilter !== 'all' && p.entryType !== typeFilter) {

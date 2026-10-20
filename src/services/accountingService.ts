@@ -1293,8 +1293,8 @@ export function exportLedgerToCSV(
   // Previous Balance Row
   lines.push(`"—","Opening","—","Previous Balance (B/F)","—","—",0.00,0.00,${statement.previousBalance.toFixed(2)},"Active"`);
 
-  // Data rows
-  statement.rows.forEach((r) => {
+  // Data rows — void entries are excluded entirely (owner rule: deleted = gone)
+  statement.rows.filter((r) => !r.entry.isVoid).forEach((r) => {
     const e = r.entry;
     const debit = c === 'SAR' ? e.debitSAR : e.debitPKR;
     const credit = c === 'SAR' ? e.creditSAR : e.creditPKR;
@@ -1346,7 +1346,7 @@ function statementTableRows(statement: LedgerStatementSummary): Array<Array<stri
   if (showRate) opening.push('');
   opening.push(0, 0, Number(statement.previousBalance.toFixed(2)));
   rows.push(opening);
-  statement.rows.forEach((r, i) => {
+  statement.rows.filter((r) => !r.entry.isVoid).forEach((r, i) => {
     const e = r.entry;
     const s = toSampleLedgerRow(e.particulars, e.invoiceRef, e.transNo, (e as any).voucherNo);
     const debit = c === 'SAR' ? e.debitSAR : e.debitPKR;

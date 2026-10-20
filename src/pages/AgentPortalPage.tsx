@@ -389,7 +389,7 @@ export const AgentPortalPage: React.FC = () => {
                   </td>
                 </tr>
 
-                {statement?.rows.map((row, idx) => {
+                {statement?.rows.filter((row) => !row.entry.isVoid).map((row, idx) => {
                   const e = row.entry;
                   const isVoid = e.isVoid;
                   const debit = currency === 'SAR' ? e.debitSAR : e.debitPKR;
