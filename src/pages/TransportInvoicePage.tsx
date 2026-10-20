@@ -456,6 +456,51 @@ export const TransportInvoicePage: React.FC = () => {
           recordLabel={`${selected.invoiceNo} — ${selected.customerName}`}
         />
       )}
+      {payOpen && selected && (
+        <Modal
+          isOpen={payOpen}
+          onClose={() => setPayOpen(false)}
+          title={`Record Payment — ${selected.invoiceNo}`}
+        >
+          <div className="space-y-4">
+            <div className="bg-slate-50 rounded-xl p-3 text-sm">
+              <div className="flex justify-between"><span className="text-slate-500">Invoice Total</span><span className="font-mono font-bold">SAR {(selected.amountSAR || 0).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Already Paid</span><span className="font-mono">SAR {(selected.paidAmount || 0).toFixed(2)}</span></div>
+              <div className="flex justify-between border-t border-slate-200 mt-1 pt-1"><span className="font-semibold">Balance Due</span><span className="font-mono font-bold text-[var(--theme-primary)]">SAR {((selected.amountSAR || 0) - (selected.paidAmount || 0)).toFixed(2)}</span></div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Date *</label>
+              <input type="date" value={pDate} onChange={(e) => setPDate(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Amount (SAR) *</label>
+              <input type="number" min="0" step="0.01" value={pAmount || ''} onChange={(e) => setPAmount(Number(e.target.value))} className="w-full p-2 border border-slate-300 rounded-lg text-sm font-mono" placeholder="0.00" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Cash / Bank Account *</label>
+              <select value={pAccountId} onChange={(e) => setPAccountId(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg text-sm">
+                <option value="">— Select account —</option>
+                {cashBankAccounts.map((a: any) => (
+                  <option key={a.id} value={a.id}>[{a.accountCode}] {a.title}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Rate (SAR → PKR)</label>
+              <input type="number" min="0" step="0.01" value={pRate || ''} onChange={(e) => setPRate(Number(e.target.value))} className="w-full p-2 border border-slate-300 rounded-lg text-sm font-mono" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Notes</label>
+              <textarea value={pNotes} onChange={(e) => setPNotes(e.target.value)} rows={2} className="w-full p-2 border border-slate-300 rounded-lg text-sm" placeholder="Optional payment notes…" />
+            </div>
+            <p className="text-[11px] text-slate-500">Posts to ledger: Dr Cash/Bank, Cr Customer — linked to {selected.invoiceNo}.</p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" onClick={() => setPayOpen(false)}>Cancel</Button>
+              <Button variant="primary" onClick={handleRecordPayment} disabled={paying}>{paying ? 'Recording…' : 'Record Payment'}</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };
