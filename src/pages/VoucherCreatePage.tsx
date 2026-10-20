@@ -500,14 +500,20 @@ export const VoucherCreatePage: React.FC = () => {
   // any source changes or when a leg's sector is picked. ----
   const transportSectorSig = transportRows.map((r) => r.sector).join('|');
   useEffect(() => {
+    // Only REAL sources may drive a leg date. A blank flight leg defaults
+    // to TODAY's date and must never overwrite a saved date when editing
+    // a voucher without flight info; hotel rows count only once a city
+    // sector is chosen on them.
+    const legReal = (l: FlightLeg) => !!(l.airline || l.flightNo || l.from || l.to);
+    const realRows = hotelRows.filter((r) => r.sector);
     const beforeCity = (city: string, nextCity: string) => {
-      const i = hotelRows.findIndex((r, idx) => r.sector === city && hotelRows[idx + 1]?.sector === nextCity);
-      if (i >= 0) return hotelRows[i].checkOut;
-      return hotelRows.find((r) => r.sector === city)?.checkOut || '';
+      const i = realRows.findIndex((r, idx) => r.sector === city && realRows[idx + 1]?.sector === nextCity);
+      if (i >= 0) return realRows[i].checkOut;
+      return realRows.find((r) => r.sector === city)?.checkOut || '';
     };
     const derived: Record<string, string> = {
-      Arrival: depLeg.arrDate || hotelRows[0]?.checkIn || '',
-      Departure: retLeg.depDate || hotelRows[hotelRows.length - 1]?.checkOut || '',
+      Arrival: legReal(depLeg) ? depLeg.arrDate : (realRows[0]?.checkIn || ''),
+      Departure: legReal(retLeg) ? retLeg.depDate : (realRows[realRows.length - 1]?.checkOut || ''),
       'Makkah to Madina': beforeCity('MAK', 'MED'),
       'Madina to Makkah': beforeCity('MED', 'MAK'),
     };
