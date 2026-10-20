@@ -43,6 +43,10 @@ export const TRANSPORT_SECTORS = [
   'Makkah to Madina',
   'Madina to Makkah',
   'Roundtrip',
+  'Makkah Ziyarat',
+  'Madina Ziyarat',
+  'Badr Ziyarat',
+  'Taif Ziyarat',
   'Ziyarat',
   'Other',
 ];
