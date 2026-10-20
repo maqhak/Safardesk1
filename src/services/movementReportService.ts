@@ -138,7 +138,65 @@ export async function fetchMovementRecords(): Promise<MovementRecord[]> {
       });
     });
 
-    return [...dynamicRows, ...baseList];
+    // Hotel-checkout link: derive movement rows from hotel stays for vouchers
+    // whose passengers are not already covered by a transport-sector row.
+    const hotelRows: MovementRecord[] = [];
+    vouchers.forEach((v) => {
+      const stays = [...(v.hotelStays || [])]
+        .filter((s) => s.checkInDate || s.checkOutDate)
+        .sort((a, b) => (a.checkInDate || '').localeCompare(b.checkInDate || ''));
+      if (!stays.length) return;
+      const adults = v.passengers.filter((p) => p.ageType === 'Adult').length;
+      const children = v.passengers.filter((p) => p.ageType === 'Child').length;
+      const infants = v.passengers.filter((p) => p.ageType === 'Infant').length;
+      const paid = adults + children;
+      const total = paid + infants;
+      const subVendorName = (v as any).shirkaName || '';
+      const isCity = (s: any, city: string) => (s.city || '').toLowerCase().startsWith(city);
+      const pushRow = (reportType: MovementReportType, date: string, hotelName: string) => {
+        if (!date) return;
+        const exists = dynamicRows.some(
+          (r) => r.voucherNo === v.voucherNo && r.reportType === reportType && r.date === date
+        ) || hotelRows.some(
+          (r) => r.voucherNo === v.voucherNo && r.reportType === reportType && r.date === date
+        );
+        if (exists) return;
+        hotelRows.push({
+          id: `hotel-${v.id}-${reportType}-${date}`,
+          reportType,
+          date,
+          time: '10:00',
+          groupNo: 'GRP-VCH-' + v.voucherNo.replace('UV-', ''),
+          shirka: subVendorName,
+          agent: v.createdByName || 'Direct B2C',
+          from: reportType === 'Makkah to Madina' ? 'Makkah' : reportType === 'Madina to Makkah' ? 'Madinah' : 'JED',
+          to: reportType === 'Makkah to Madina' ? 'Madinah' : reportType === 'Madina to Makkah' ? 'Makkah' : 'ISB',
+          sector: reportType,
+          flightOrBusNo: '',
+          voucherNo: v.voucherNo,
+          paidPax: paid,
+          infantPax: infants,
+          woBusPax: 0,
+          totalPax: total,
+          returnFlightNo: '',
+          returnDateTime: '',
+          transportBy: 'Hotel Checkout',
+          hotelName,
+        });
+      };
+      // Arrival = first check-in
+      pushRow('Arrival to Kingdom', stays[0].checkInDate, stays[0].hotelName);
+      stays.forEach((s, idx) => {
+        const hasAfter = idx < stays.length - 1;
+        if (isCity(s, 'makk') && hasAfter) pushRow('Makkah to Madina', s.checkOutDate, s.hotelName);
+        else if (isCity(s, 'madi') && hasAfter) pushRow('Madina to Makkah', s.checkOutDate, s.hotelName);
+      });
+      // Departure = last checkout
+      const last = stays[stays.length - 1];
+      pushRow('Departure from Kingdom', last.checkOutDate, last.hotelName);
+    });
+
+    return [...dynamicRows, ...hotelRows, ...baseList];
   } catch (err) {
     console.warn('Could not merge dynamic vouchers into movement report:', err);
     return baseList;

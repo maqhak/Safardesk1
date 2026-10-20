@@ -572,6 +572,23 @@ export const VoucherCreatePage: React.FC = () => {
     });
 
   // ---- Transport rows (sector-wise) ----
+  /** Hotel-checkout link: suggested transport date for a sector, from hotel rows. */
+  const suggestedTransportDate = (sector: string): string => {
+    const named = hotelRows.filter((r) => r.hotelName.trim() !== '');
+    if (!named.length) return '';
+    const sorted = [...named].sort((a, b) => (a.checkIn || '').localeCompare(b.checkIn || ''));
+    if (sector === 'Arrival' || sector === 'Roundtrip') return sorted[0].checkIn || '';
+    if (sector === 'Departure') return sorted[sorted.length - 1].checkOut || '';
+    if (sector === 'Makkah to Madina') {
+      const mk = named.find((r) => cityFromSector(r.sector) === 'Makkah');
+      return mk?.checkOut || '';
+    }
+    if (sector === 'Madina to Makkah') {
+      const md = named.find((r) => cityFromSector(r.sector) === 'Madinah');
+      return md?.checkOut || '';
+    }
+    return '';
+  };
   const updateTransportRow = (id: string, patch: Partial<TransportRow>) =>
     setTransportRows((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const addTransportRow = () => setTransportRows((rows) => [...rows, blankTransportRow()]);
@@ -1499,7 +1516,7 @@ export const VoucherCreatePage: React.FC = () => {
                       {transportRows.map((row) => (
                         <tr key={row.id} className="border-t border-slate-100">
                           <td className="p-1.5">
-                            <select value={row.sector} onChange={(e) => updateTransportRow(row.id, { sector: e.target.value })} className={`${inputCls} !p-1.5`}>
+                            <select value={row.sector} onChange={(e) => { const s = e.target.value; const d = suggestedTransportDate(s); updateTransportRow(row.id, d ? { sector: s, date: d } : { sector: s }); }} className={`${inputCls} !p-1.5`}>
                               <option value="">-- Sector --</option>
                               {TRANSPORT_SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
                             </select>

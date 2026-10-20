@@ -16,6 +16,8 @@ import {
   deleteTransportInvoice,
   recordTransportInvoicePayment,
 } from '../services/transportInvoiceService';
+import { fetchVouchers } from '../services/voucherService';
+import type { VoucherDoc } from '../types/voucher';
 import { TransportInvoiceDoc, TRANSPORT_SECTORS } from '../types/transportInvoice';
 import { fetchLedgerAccounts } from '../services/accountingService';
 import { fetchVendors } from '../services/masterService';
@@ -50,6 +52,8 @@ export const TransportInvoicePage: React.FC = () => {
   const [pAccountId, setPAccountId] = useState('');
   const [pNotes, setPNotes] = useState('');
   const [cashBankAccounts, setCashBankAccounts] = useState<any[]>([]);
+  const [vouchers, setVouchers] = useState<VoucherDoc[]>([]);
+  const [fVoucherId, setFVoucherId] = useState('');
 
   // New-invoice form
   const [formOpen, setFormOpen] = useState(false);
@@ -78,6 +82,7 @@ export const TransportInvoicePage: React.FC = () => {
         fetchVehicles().catch(() => []),
         Promise.resolve().then(() => { try { return getSellRate(); } catch { return 76.5; } }),
       ]);
+      fetchVouchers().then(setVouchers).catch(() => {});
       setInvoices(invs);
       setCustomerAccounts(
         (accs as any[]).filter((a) => ['customer', 'agent', 'client'].includes(a.accountType) && a.isActive !== false)
@@ -163,6 +168,36 @@ export const TransportInvoicePage: React.FC = () => {
       showError(err?.message || 'Could not void invoice.');
     } finally {
       setVoiding(false);
+    }
+  };
+
+  /** Hotel-checkout link: suggest the sector from a voucher's hotel stays + date. */
+  const suggestSectorForVoucher = (v: VoucherDoc, date: string): string => {
+    const stays = [...(v.hotelStays || [])].sort((a, b) => (a.checkInDate || '').localeCompare(b.checkInDate || ''));
+    if (!stays.length) return '';
+    const isCity = (s: any, city: string) => (s.city || '').toLowerCase().startsWith(city);
+    for (const s of stays) {
+      if (s.checkOutDate === date) {
+        const idx = stays.indexOf(s);
+        const hasAfter = idx < stays.length - 1;
+        if (isCity(s, 'makk') && hasAfter) return 'Makkah to Madina';
+        if (isCity(s, 'madi') && hasAfter) return 'Madina to Makkah';
+        return 'Departure';
+      }
+      if (s.checkInDate === date && stays.indexOf(s) === 0) return 'Arrival';
+    }
+    return '';
+  };
+
+  const handleVoucherLink = (voucherId: string) => {
+    setFVoucherId(voucherId);
+    const v = vouchers.find((x) => x.id === voucherId);
+    if (!v) return;
+    setFReferenceNo(v.voucherNo);
+    const suggested = suggestSectorForVoucher(v, fDate);
+    if (suggested) setFSector(suggested);
+    if (v.agentName) {
+      setFDescription((prev) => prev || `Transport for voucher ${v.voucherNo} (${v.agentName})`);
     }
   };
 
@@ -309,6 +344,16 @@ export const TransportInvoicePage: React.FC = () => {
         }
       >
         <div className="space-y-4 py-2 text-xs">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Link Voucher (optional — sector auto-suggested from hotel checkout)</label>
+            <select value={fVoucherId} onChange={(e) => handleVoucherLink(e.target.value)}
+              className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
+              <option value="">— No voucher link —</option>
+              {vouchers.map((v) => (
+                <option key={v.id} value={v.id}>{v.voucherNo} — {v.agentName || 'Agent'} ({v.passengers?.length || 0} pax)</option>
+              ))}
+            </select>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-semibold text-slate-600 mb-1">Date *</label>
