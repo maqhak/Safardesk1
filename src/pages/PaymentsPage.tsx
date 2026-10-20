@@ -93,8 +93,8 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
   // Deep link: ?q=<term> presets the search filter (from profile timelines)
   usePresetSearch(setSearch);
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  // Entry-type tabs: All Entries | Cash Payments | Bank Transfers
-  const [entryTab, setEntryTab] = useState<'all' | 'cash' | 'bank'>('all');
+  // Entry-type tabs: All Entries | Cash Received | Cash Sent | Bank Received | Bank Sent
+  const [entryTab, setEntryTab] = useState<'all' | 'cash-received' | 'cash-sent' | 'bank-received' | 'bank-sent'>('all');
   const [accountFilter, setAccountFilter] = useState<string>('all');
   const [reviewFilter, setReviewFilter] = useState<string>('all');
   const [startDate, setStartDate] = useState<string>('');
@@ -593,8 +593,7 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
       // Void payments never display — delete is a hard delete now, and legacy
       // void docs must not linger as struck-through rows (owner rule 2026-10-20).
       if (p.isVoid) return false;
-      if (entryTab === 'cash' && !p.entryType?.startsWith('cash-')) return false;
-      if (entryTab === 'bank' && !p.entryType?.startsWith('bank-')) return false;
+      if (entryTab !== 'all' && p.entryType !== entryTab) return false;
       if (typeFilter !== 'all' && p.entryType !== typeFilter) {
         return false;
       }
@@ -626,6 +625,12 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
       }
 
       return true;
+    }).sort((a, b) => {
+      // Newest first — a just-saved entry must be visible at the top immediately.
+      const ca = String((a as any).createdAt || a.date || '');
+      const cb = String((b as any).createdAt || b.date || '');
+      if (ca !== cb) return cb.localeCompare(ca);
+      return String(b.paymentNo || '').localeCompare(String(a.paymentNo || ''), undefined, { numeric: true });
     });
   }, [payments, entryTab, typeFilter, accountFilter, reviewFilter, startDate, endDate, search, accounts]);
 
@@ -870,12 +875,14 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
       <div className="flex items-center gap-2 flex-wrap">
         {([
           { key: 'all', label: 'All Entries' },
-          { key: 'cash', label: 'Cash Payments' },
-          { key: 'bank', label: 'Bank Transfers' },
+          { key: 'cash-received', label: 'Cash Received' },
+          { key: 'cash-sent', label: 'Cash Sent' },
+          { key: 'bank-received', label: 'Bank Received' },
+          { key: 'bank-sent', label: 'Bank Sent' },
         ] as const).map((t) => {
           const count = t.key === 'all'
             ? payments.filter(p => !p.isVoid).length
-            : payments.filter(p => !p.isVoid && p.entryType?.startsWith(t.key === 'cash' ? 'cash-' : 'bank-')).length;
+            : payments.filter(p => !p.isVoid && p.entryType === t.key).length;
           const active = entryTab === t.key;
           return (
             <button

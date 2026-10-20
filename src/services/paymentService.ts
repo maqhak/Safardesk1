@@ -456,6 +456,7 @@ export async function createPayment(params: {
       if (!isConfigPlaceholder) {
         await setDoc(doc(db, PAYMENTS_COLLECTION, paymentId), stripUndefinedDeep(stripReceiptDataForStorage(updated)));
       }
+      bust('payments:all');
     } catch (e) {
       console.warn('Background payment patch failed:', e);
     }
@@ -633,6 +634,11 @@ export async function createPayment(params: {
   } catch (err) {
     console.warn('Could not write payment to Firestore:', err);
   }
+
+  // Bust AFTER the write too: the internal fetchPayments() above re-cached the
+  // pre-save list, which hid the brand-new payment from the page until the 90s
+  // TTL expired (bug reported 2026-10-20: "new entry show nahi ho rhi").
+  bust('payments:all');
 
   // Fire-and-forget: AI verification + Drive upload run in the background so the
   // save button never waits for them. They patch the payment doc when done.
