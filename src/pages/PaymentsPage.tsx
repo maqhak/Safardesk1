@@ -227,9 +227,9 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
       const nextNo = await getNextPaymentNumber();
       setPaymentNo(nextNo);
       setDate(new Date().toISOString().split('T')[0]);
-      setEntryType('cash-received');
+      setEntryType(presetEntryType || 'cash-received');
       setSelectedPayerPayeeId(payerPayeeAccounts[0]?.id || '');
-      setExchangeRate(sellRate);
+      setExchangeRate((presetEntryType || 'cash-received').endsWith('sent') ? buyRate : sellRate);
       setSelectedCashTillId(cashAccounts[0]?.id || '');
       setSelectedBankId(banks[0]?.id || '');
       setEnteredAmount(0);
