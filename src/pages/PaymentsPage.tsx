@@ -94,7 +94,7 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
   usePresetSearch(setSearch);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   // Entry-type tabs: All Entries | Cash Received | Cash Sent | Bank Received | Bank Sent
-  const [entryTab, setEntryTab] = useState<'all' | 'cash-received' | 'cash-sent' | 'bank-received' | 'bank-sent'>('all');
+  const [entryTab, setEntryTab] = useState<'all' | 'cash-received' | 'cash-sent' | 'bank-received' | 'bank-sent'>(presetEntryType ?? 'all');
   const [accountFilter, setAccountFilter] = useState<string>('all');
   const [reviewFilter, setReviewFilter] = useState<string>('all');
   const [startDate, setStartDate] = useState<string>('');
@@ -997,7 +997,6 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
         )}
       </Card>
 
-      {!presetEntryType && (
       <>
       {/* Payments List Table */}
       <Card padding="none" className="border-slate-200 shadow-xs overflow-hidden">
@@ -1375,7 +1374,6 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
         </div>
       </Modal>
       </>
-      )}
 
       {/* Record Payment Modal with Hard Receipt Validation */}
       <Modal
