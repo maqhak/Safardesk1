@@ -31,7 +31,10 @@ export function fetchExchangeRates(): Record<string, number> {
   const stored = localStorage.getItem(LOCAL_STORAGE_RATES_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      // Merge OVER the defaults: a stored object saved by an older build may
+      // be missing pairs (e.g. SAR-PKR-BUY/SELL) — never let a missing key
+      // surface as an undefined/ bogus rate downstream.
+      return { ...DEFAULT_RATES, ...JSON.parse(stored) };
     } catch {
       // fallback
     }

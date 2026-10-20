@@ -174,6 +174,8 @@ export async function createVisaDistributionBatch(params: {
     sellingTotalSAR: number;
     buyingTotalSAR: number;
     exchangeRateSARPKR: number;
+    buyROE?: number;
+    sellROE?: number;
     commission?: { enabled: boolean; recipientName: string; contactNumber: string; amountSAR: number };
   }>();
 
@@ -185,6 +187,11 @@ export async function createVisaDistributionBatch(params: {
       sellingTotalSAR: 0,
       buyingTotalSAR: 0,
       exchangeRateSARPKR: data.exchangeRateSARPKR,
+      // Dual ROE: carry the per-group buy/sell rates into the batch — these
+      // were previously dropped here, so every VV silently fell back to the
+      // single legacy rate (which could be a stale 1 in some browsers).
+      buyROE: (data as any).buyROE,
+      sellROE: (data as any).sellROE,
       commission: data.commission?.enabled ? data.commission : undefined,
     };
 
@@ -555,7 +562,9 @@ export async function updateVisaInvoiceRates(
   invoiceId: string,
   params: {
     date: string;
-    exchangeRate: number;
+    exchangeRate: number; // legacy single rate — used only when buy/sell not given (mirrors sellROE)
+    buyROE?: number; // Dual ROE: cost side (vendor payable legs)
+    sellROE?: number; // Dual ROE: revenue side (agent receivable legs)
     agentId?: string; // optional agent change — reposts Dr legs to the new agent
     groups: VVEditGroup[];
     editedBy: string;
@@ -565,7 +574,10 @@ export async function updateVisaInvoiceRates(
   const invoice = invoices.find((i) => i.id === invoiceId);
   if (!invoice) throw new Error('VV not found');
   if (!params.date) throw new Error('Date is required');
-  if (!(params.exchangeRate > 0)) throw new Error('Exchange rate must be greater than zero');
+  const sellROE = Number(params.sellROE) > 0 ? Number(params.sellROE) : Number(params.exchangeRate) || 0;
+  const buyROE = Number(params.buyROE) > 0 ? Number(params.buyROE) : Number(params.exchangeRate) || 0;
+  if (!(sellROE > 0)) throw new Error('Selling ROE must be greater than zero');
+  if (!(buyROE > 0)) throw new Error('Buying ROE must be greater than zero');
 
   const groupMap = new Map(params.groups.map((g) => [g.groupCode, g]));
   const now = new Date().toISOString();
@@ -605,7 +617,9 @@ export async function updateVisaInvoiceRates(
   sellingTotalSAR = Math.round(sellingTotalSAR * 100) / 100;
   buyingTotalSAR = Math.round(buyingTotalSAR * 100) / 100;
   const marginSAR = Math.round((sellingTotalSAR - buyingTotalSAR) * 100) / 100;
-  const totalsPKR = Math.round(sellingTotalSAR * params.exchangeRate * 100) / 100;
+  const sellingTotalPKR = Math.round(sellingTotalSAR * sellROE * 100) / 100;
+  const buyingTotalPKR = Math.round(buyingTotalSAR * buyROE * 100) / 100;
+  const totalsPKR = sellingTotalPKR;
 
   // Effective agent: the newly selected one, or the invoice's existing agent.
   const effectiveAgentId = params.agentId && params.agentId !== invoice.agentId ? params.agentId : invoice.agentId;
@@ -619,7 +633,11 @@ export async function updateVisaInvoiceRates(
     sellingTotalSAR,
     buyingTotalSAR,
     marginSAR,
-    exchangeRate: params.exchangeRate,
+    exchangeRate: sellROE,
+    buyROE,
+    sellROE,
+    sellingTotalPKR,
+    buyingTotalPKR,
     totalsPKR,
   };
 
@@ -657,15 +675,16 @@ export async function updateVisaInvoiceRates(
   } catch { /* keep agentId */ }
 
   // 4) Post fresh legs under the SAME VV number — mirror of the create flow:
-  //     per-pax Dr agent legs + summary Cr vendor leg + summary Cr margin leg.
-  const rate = params.exchangeRate;
+  //     per-pax Dr agent legs at sellROE + Cr vendor leg at buyROE + Cr margin
+  //     leg whose PKR is the PKR margin (sellingPKR − buyingPKR).
   const currentEntries = await fetchLedgerEntries();
   const baseSeq = currentEntries.length + 30000;
   const newLegs: LedgerEntryDoc[] = [];
   let seq = baseSeq;
   const mkLeg = (
     accountId: string, particulars: string,
-    debitSAR: number, creditSAR: number
+    debitSAR: number, creditSAR: number,
+    legRate: number, pkrOverride?: number
   ): LedgerEntryDoc => {
     seq += 1;
     return {
@@ -677,36 +696,36 @@ export async function updateVisaInvoiceRates(
       transNo: invoice.invoiceNo,
       particulars,
       invoiceRef: invoice.invoiceNo,
-      rate,
+      rate: legRate,
       debitSAR: Math.round(debitSAR * 100) / 100,
       creditSAR: Math.round(creditSAR * 100) / 100,
-      debitPKR: Math.round(debitSAR * rate * 100) / 100,
-      creditPKR: Math.round(creditSAR * rate * 100) / 100,
+      debitPKR: pkrOverride !== undefined && debitSAR > 0 ? pkrOverride : Math.round(debitSAR * legRate * 100) / 100,
+      creditPKR: pkrOverride !== undefined && creditSAR > 0 ? pkrOverride : Math.round(creditSAR * legRate * 100) / 100,
       createdBy: params.editedBy,
       createdAt: now,
       isVoid: false,
     };
   };
 
-  // (a) Per-pax Dr agent legs
+  // (a) Per-pax Dr agent legs — revenue side at Selling ROE
   for (const l of newLines) {
     newLegs.push(mkLeg(
       agentAccountId,
       `Visa — ${l.pilgrimName} | PP: ${l.passportNumber} | ${l.groupCode}${l.groupName && l.groupName !== l.groupCode ? ` (${l.groupName})` : ''} — SAR ${l.sellingPricePerVisa.toLocaleString()}/visa (edited)`,
-      l.lineTotalSAR, 0
+      l.lineTotalSAR, 0, sellROE
     ));
   }
-  // (b) Vendor payable (buying total)
+  // (b) Vendor payable (buying total) — cost side at Buying ROE
   newLegs.push(mkLeg(
     vendorLedgerAccount.id,
     `Visa Purchase Cost for VV #${invoice.invoiceNo} (${newLines.length} Visas) — edited`,
-    0, buyingTotalSAR
+    0, buyingTotalSAR, buyROE
   ));
-  // (c) Margin (selling - buying)
+  // (c) Margin (selling - buying) — PKR leg is the true PKR margin
   newLegs.push(mkLeg(
     marginAccount.id,
     `Gross Visa Margin for VV #${invoice.invoiceNo} — edited`,
-    0, marginSAR
+    0, marginSAR, sellROE, Math.round((sellingTotalPKR - buyingTotalPKR) * 100) / 100
   ));
 
   // Persist invoice + legs

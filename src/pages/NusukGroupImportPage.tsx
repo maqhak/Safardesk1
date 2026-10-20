@@ -15,7 +15,7 @@ import {
 import { fetchVendors } from '../services/masterService';
 import { fetchAgents } from '../services/agentService';
 import { createVisaDistributionBatch } from '../services/visaDistributionService';
-import { getCurrentRate } from '../services/exchangeRateService';
+import { getCurrentRate, getBuyRate, getSellRate } from '../services/exchangeRateService';
 import { logAuditEvent } from '../services/userService';
 import { VendorDoc } from '../types/master';
 import { AgentDoc } from '../types/agent';
@@ -76,6 +76,18 @@ export const NusukGroupImportPage: React.FC = () => {
   const [codedRows, setCodedRows] = useState<CodedRow[]>([]);
   const [fileCurrency, setFileCurrency] = useState<'PKR' | 'SAR' | ''>('');
   const [fileRate, setFileRate] = useState<number>(0);
+  // Dual ROE for the generated VVs (defaults from Settings; editable here).
+  const [buyROE, setBuyROE] = useState<number>(() => getBuyRate());
+  const [sellROE, setSellROE] = useState<number>(() => getSellRate());
+
+  // Rates load from Firestore at app startup — refresh the defaults once
+  // the file is parsed so Step 2 never shows a stale fallback.
+  React.useEffect(() => {
+    if (parsed) {
+      setBuyROE(getBuyRate());
+      setSellROE(getSellRate());
+    }
+  }, [parsed]);
   const [codedVendorFallback, setCodedVendorFallback] = useState('');
 
   React.useEffect(() => {
@@ -380,10 +392,15 @@ export const NusukGroupImportPage: React.FC = () => {
       });
 
       // 2. Distribute complete groups -> VV documents (per-group rates preserved)
-      const rate = getCurrentRate('SAR-PKR') || 0;
+      if (!(buyROE > 0) || !(sellROE > 0)) {
+        showError('Please enter valid Buying and Selling ROE values.');
+        setSaving(false);
+        return;
+      }
       const agentGroupMap = new Map<string, {
         agentId: string; sellingPricePerVisa: number; buyingPricePerVisa: number;
         groupCode: string; groupName: string; visaIds: string[]; exchangeRateSARPKR: number;
+        buyROE: number; sellROE: number;
         packageType?: string;
       }>();
       completeGroups.forEach((g) => {
@@ -394,7 +411,9 @@ export const NusukGroupImportPage: React.FC = () => {
           groupCode: g.groupCode,
           groupName: g.groupName,
           visaIds: g.visas.map((v) => v.id),
-          exchangeRateSARPKR: rate,
+          exchangeRateSARPKR: 0,
+          buyROE,
+          sellROE,
           packageType: g.packageType || undefined,
         });
       });
@@ -453,10 +472,13 @@ export const NusukGroupImportPage: React.FC = () => {
       `Currency: ${fileCurrency}${fileCurrency === 'PKR' ? ` @ ${fileRate}` : ''}.`
     );
     if (!confirmed) return;
+    if (!(buyROE > 0) || !(sellROE > 0)) {
+      showError('Please enter valid Buying and Selling ROE values.');
+      return;
+    }
     setSaving(true);
     try {
       const todayStr = new Date().toISOString().split('T')[0];
-      const rate = fileCurrency === 'SAR' ? (getCurrentRate('SAR-PKR') || 0) : fileRate;
 
       // 1. Import ALL valid coded visas (ready + blocked — no data loss)
       const allValid: VisaDoc[] = codedRows.map((c) => ({
@@ -503,6 +525,7 @@ export const NusukGroupImportPage: React.FC = () => {
         const agentGroupMap = new Map<string, {
           agentId: string; sellingPricePerVisa: number; buyingPricePerVisa: number;
           groupCode: string; groupName: string; visaIds: string[]; exchangeRateSARPKR: number;
+          buyROE: number; sellROE: number;
         }>();
         gmap.forEach((g, key) => {
           agentGroupMap.set(key, {
@@ -512,7 +535,9 @@ export const NusukGroupImportPage: React.FC = () => {
             groupCode: g.groupCode,
             groupName: g.groupName,
             visaIds: g.visaIds,
-            exchangeRateSARPKR: rate,
+            exchangeRateSARPKR: 0,
+            buyROE,
+            sellROE,
           });
         });
         const res = await createVisaDistributionBatch({
@@ -617,6 +642,18 @@ export const NusukGroupImportPage: React.FC = () => {
             <span className="text-[11px] text-slate-500 font-medium">
               {groups.length} groups • {totals.visas} visas
             </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 p-3 bg-sky-50 border border-sky-200 rounded-xl mb-4">
+            <span className="text-xs font-bold text-sky-900">Exchange Rates for the generated VVs:</span>
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+              Buying ROE (1 SAR = ? PKR)
+              <input type="number" min="0" step="0.01" value={buyROE || ''} onChange={(e) => setBuyROE(parseFloat(e.target.value) || 0)} className="w-24 p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold" />
+            </label>
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+              Selling ROE (1 SAR = ? PKR)
+              <input type="number" min="0" step="0.01" value={sellROE || ''} onChange={(e) => setSellROE(parseFloat(e.target.value) || 0)} className="w-24 p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold" />
+            </label>
+            <span className="text-[11px] text-slate-500">Defaults from Settings — payable posts at Buying, receivable at Selling.</span>
           </div>
 
           {/* Pre-save check — visible validation before Import */}
@@ -762,7 +799,7 @@ export const NusukGroupImportPage: React.FC = () => {
             <span className="text-[11px] text-slate-500 font-medium">{codedRows.length} visas • {codedReady.length} ready • {codedBlocked.length} blocked</span>
           </div>
           <div className="p-4 bg-sky-50 border border-sky-200 rounded-xl mb-4">
-            <div className="text-xs font-bold text-sky-900 mb-2">PAYABLE / RECIEVABLE amounts kis currency me hain?</div>
+            <div className="text-xs font-bold text-sky-900 mb-2">In which currency are the PAYABLE / RECIEVABLE amounts?</div>
             <div className="flex flex-wrap items-center gap-3">
               <label className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer bg-white border border-slate-300 rounded-lg px-4 py-2.5">
                 <input type="radio" name="fileCurrency" checked={fileCurrency === 'PKR'} onChange={() => setFileCurrency('PKR')} className="w-4 h-4" />PKR — Pakistani Rupee
@@ -772,14 +809,26 @@ export const NusukGroupImportPage: React.FC = () => {
               </label>
               {fileCurrency === 'PKR' && (
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="font-semibold text-slate-600">Rate (1 SAR = ? PKR):</span>
+                  <span className="font-semibold text-slate-600">File conversion rate (1 SAR = ? PKR):</span>
                   <input type="number" min="0" step="0.01" value={fileRate || ''} onChange={(e) => setFileRate(parseFloat(e.target.value) || 0)} className="w-28 p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold" />
                 </div>
               )}
             </div>
+            <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-sky-200">
+              <span className="text-xs font-bold text-sky-900">Exchange Rates for the generated VVs:</span>
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                Buying ROE
+                <input type="number" min="0" step="0.01" value={buyROE || ''} onChange={(e) => setBuyROE(parseFloat(e.target.value) || 0)} className="w-24 p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold" />
+              </label>
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                Selling ROE
+                <input type="number" min="0" step="0.01" value={sellROE || ''} onChange={(e) => setSellROE(parseFloat(e.target.value) || 0)} className="w-24 p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold" />
+              </label>
+              <span className="text-[11px] text-slate-500">Defaults from Settings — payable posts at Buying, receivable at Selling.</span>
+            </div>
           </div>
           <div className="mb-4">
-            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Default Vendor (jin rows me VND CODE nahi / match nahi hua)</label>
+            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Default Vendor (for rows with a missing or unmatched VND CODE)</label>
             <select value={codedVendorFallback} onChange={(e) => setCodedVendorFallback(e.target.value)} className="w-full sm:w-80 p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900">
               <option value="">-- Select fallback vendor --</option>
               {vendors.map((v) => (<option key={v.id} value={v.id}>{v.name}</option>))}
@@ -789,7 +838,7 @@ export const NusukGroupImportPage: React.FC = () => {
             <table className="w-full text-left text-xs border-collapse min-w-[980px]">
               <thead className="bg-slate-50 text-slate-600 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200">
                 <tr>
-                  <th className="p-2.5">Pilgrim</th><th className="p-2.5">Passport</th><th className="p-2.5">Agent Code → Agent</th><th className="p-2.5">VND Code → Vendor</th>
+                  <th className="p-2.5">Pilgrim</th><th className="p-2.5">Passport</th><th className="p-2.5">Agent Code</th><th className="p-2.5">VND Code</th>
                   <th className="p-2.5 text-right">Payable ({fileCurrency || '?'})</th><th className="p-2.5 text-right">Recievable ({fileCurrency || '?'})</th>
                   <th className="p-2.5 text-right">Buying (SAR)</th><th className="p-2.5 text-right">Selling (SAR)</th><th className="p-2.5 text-center">Status</th>
                 </tr>
@@ -803,8 +852,8 @@ export const NusukGroupImportPage: React.FC = () => {
                     <tr key={c.id} className={blocked ? 'bg-rose-50/50' : ''}>
                       <td className="p-2.5 font-semibold text-slate-900">{c.pilgrimName}</td>
                       <td className="p-2.5 font-mono text-slate-600">{c.passportNumber || '—'}</td>
-                      <td className="p-2.5"><span className="font-mono text-slate-500">{c.agentCode || '—'}</span>{' → '}{agent ? (<span className="font-semibold text-emerald-700">{(agent as any).title || (agent as any).companyName}</span>) : (<span className="font-bold text-rose-600">NOT FOUND</span>)}</td>
-                      <td className="p-2.5"><span className="font-mono text-slate-500">{c.vndCode || '—'}</span>{' → '}{vendor ? (<span className="font-semibold text-emerald-700">{vendor.name}</span>) : (<span className="font-bold text-rose-600">NOT FOUND</span>)}</td>
+                      <td className="p-2.5"><span className="font-mono font-bold text-slate-700">{c.agentCode || '—'}</span>{!agent && (<span className="ml-2 font-bold text-rose-600">NOT FOUND</span>)}</td>
+                      <td className="p-2.5"><span className="font-mono font-bold text-slate-700">{c.vndCode || '—'}</span>{!vendor && (<span className="ml-2 font-bold text-rose-600">NOT FOUND</span>)}</td>
                       <td className="p-2.5 text-right font-mono text-rose-700">{c.payable ? c.payable.toLocaleString() : '—'}</td>
                       <td className="p-2.5 text-right font-mono text-emerald-700">{c.recievable ? c.recievable.toLocaleString() : '—'}</td>
                       <td className="p-2.5 text-right font-mono">{c.buyingSAR ? `SAR ${c.buyingSAR.toLocaleString()}` : '—'}</td>

@@ -36,6 +36,7 @@ import { VisaInvoiceDoc } from '../types/visaDistribution';
 import { VendorDoc } from '../types/master';
 import { LedgerAccountDoc } from '../types/accounting';
 import { useNavigate } from 'react-router-dom';
+import { getBuyRate, getSellRate } from '../services/exchangeRateService';
 
 export const VisaInvoicesPage: React.FC = () => {
   const { userProfile, role } = useAuth();
@@ -60,6 +61,9 @@ export const VisaInvoicesPage: React.FC = () => {
   // Filter states
   const [search, setSearch] = useState<string>('');
   const [agentFilter, setAgentFilter] = useState<string>('all');
+  const [vendorFilter, setVendorFilter] = useState<string>('all');
+  const [sortKey, setSortKey] = useState<string>('invoiceNo');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
 
@@ -84,7 +88,8 @@ export const VisaInvoicesPage: React.FC = () => {
   const [editInvoice, setEditInvoice] = useState<VisaInvoiceDoc | null>(null);
   const [editGroups, setEditGroups] = useState<VVEditGroup[]>([]);
   const [editDate, setEditDate] = useState<string>('');
-  const [editRate, setEditRate] = useState<number>(0);
+  const [editBuyROE, setEditBuyROE] = useState<number>(0);
+  const [editSellROE, setEditSellROE] = useState<number>(0);
   const [editAgentId, setEditAgentId] = useState<string>('');
   const [editSaving, setEditSaving] = useState<boolean>(false);
   const [editLoading, setEditLoading] = useState<boolean>(false);
@@ -124,10 +129,11 @@ export const VisaInvoicesPage: React.FC = () => {
     return ledgerAccounts.filter(a => a.accountType === 'cash' || a.accountType === 'bank' || a.accountCode.startsWith('CSH') || a.accountCode.startsWith('BNK'));
   }, [ledgerAccounts]);
 
-  // Filtered VV documents
+  // Filtered + sorted VV documents
   const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv) => {
+    const list = invoices.filter((inv) => {
       if (agentFilter !== 'all' && inv.agentId !== agentFilter) return false;
+      if (vendorFilter !== 'all' && inv.vendorId !== vendorFilter) return false;
       if (startDate && inv.date < startDate) return false;
       if (endDate && inv.date > endDate) return false;
 
@@ -143,7 +149,36 @@ export const VisaInvoicesPage: React.FC = () => {
 
       return true;
     });
-  }, [invoices, agentFilter, startDate, endDate, search, agentMap, vendorMap]);
+    const num = (v: any) => Number(v) || 0;
+    const keyOf = (inv: VisaInvoiceDoc): any => {
+      switch (sortKey) {
+        case 'date': return inv.date || '';
+        case 'agent': return (agentMap.get(inv.agentId)?.title || '').toLowerCase();
+        case 'vendor': return (vendorMap.get(inv.vendorId)?.name || '').toLowerCase();
+        case 'selling': return num(inv.sellingTotalSAR);
+        case 'buying': return num(inv.buyingTotalSAR);
+        case 'margin': return num(inv.marginSAR);
+        case 'totalPKR': return num(inv.totalsPKR);
+        default: return inv.invoiceNo || '';
+      }
+    };
+    list.sort((a, b) => {
+      const ka = keyOf(a); const kb = keyOf(b);
+      const cmp = typeof ka === 'number' && typeof kb === 'number' ? ka - kb : String(ka).localeCompare(String(kb));
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return list;
+  }, [invoices, agentFilter, vendorFilter, startDate, endDate, search, agentMap, vendorMap, sortKey, sortDir]);
+
+  const toggleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir(key === 'invoiceNo' || key === 'date' ? 'desc' : 'asc');
+    }
+  };
+  const sortArrow = (key: string) => (sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '');
 
   // Total VV value (selling) — voided VVs excluded; coerce to Number (old docs
   // may store totals as strings, which would concatenate instead of adding)
@@ -180,7 +215,11 @@ export const VisaInvoicesPage: React.FC = () => {
       const { groups } = await getVVEditData(inv.id);
       setEditGroups(groups);
       setEditDate(inv.date);
-      setEditRate(inv.exchangeRate || 0);
+      // Dual ROE prefill. A stored rate of 1 (or less) is never a real
+      // SAR→PKR rate — it means the VV was created before dual ROE was
+      // wired, so fall back to the Settings rates for a one-save repair.
+      setEditSellROE((inv as any).sellROE > 1 ? (inv as any).sellROE : (inv.exchangeRate > 1 ? inv.exchangeRate : getSellRate()));
+      setEditBuyROE((inv as any).buyROE > 1 ? (inv as any).buyROE : getBuyRate());
       setEditAgentId(inv.agentId || '');
     } catch (err: any) {
       showError(err.message || 'Failed to load VV for editing.');
@@ -210,8 +249,8 @@ export const VisaInvoicesPage: React.FC = () => {
       showError('Please select a date.');
       return;
     }
-    if (!(editRate > 0)) {
-      showError('Please enter a valid exchange rate.');
+    if (!(editSellROE > 0) || !(editBuyROE > 0)) {
+      showError('Please enter valid Buying and Selling ROE values.');
       return;
     }
     for (const g of editGroups) {
@@ -232,7 +271,9 @@ export const VisaInvoicesPage: React.FC = () => {
     try {
       const updated = await updateVisaInvoiceRates(editInvoice.id, {
         date: editDate,
-        exchangeRate: editRate,
+        exchangeRate: editSellROE,
+        buyROE: editBuyROE,
+        sellROE: editSellROE,
         agentId: editAgentId || editInvoice.agentId,
         groups: editGroups,
         editedBy: userProfile?.name || 'Owner',
@@ -389,7 +430,7 @@ export const VisaInvoicesPage: React.FC = () => {
 
       {/* Filters Bar */}
       <Card padding="md" className="border-slate-200 shadow-xs space-y-3 print:hidden">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -410,6 +451,19 @@ export const VisaInvoicesPage: React.FC = () => {
               <option value="all">All Agents</option>
               {agents.map((a) => (
                 <option key={a.id} value={a.id}>[{a.accountCode}] {a.title}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <select
+              value={vendorFilter}
+              onChange={(e) => setVendorFilter(e.target.value)}
+              className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-700 focus:outline-none"
+            >
+              <option value="all">All Sub-Vendors</option>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>{v.name}</option>
               ))}
             </select>
           </div>
@@ -438,14 +492,14 @@ export const VisaInvoicesPage: React.FC = () => {
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-100 text-slate-700 uppercase font-bold text-[10px] tracking-wider border-b border-slate-300">
               <tr>
-                <th className="py-3 px-3">VV No.</th>
-                <th className="py-3 px-3">Date</th>
-                <th className="py-3 px-3">B2B Agent</th>
-                <th className="py-3 px-3">Sub-Vendor</th>
-                <th className="py-3 px-3 text-right">Selling (SAR)</th>
-                <th className="py-3 px-3 text-right">Buying (SAR)</th>
-                <th className="py-3 px-3 text-right">Margin (SAR)</th>
-                <th className="py-3 px-3 text-right">Total (PKR)</th>
+                <th className="py-3 px-3"><button type="button" onClick={() => toggleSort('invoiceNo')} title="Sort by VV number">VV No.{sortArrow('invoiceNo')}</button></th>
+                <th className="py-3 px-3"><button type="button" onClick={() => toggleSort('date')} title="Sort by date">Date{sortArrow('date')}</button></th>
+                <th className="py-3 px-3"><button type="button" onClick={() => toggleSort('agent')} title="Sort by agent">B2B Agent{sortArrow('agent')}</button></th>
+                <th className="py-3 px-3"><button type="button" onClick={() => toggleSort('vendor')} title="Sort by sub-vendor">Sub-Vendor{sortArrow('vendor')}</button></th>
+                <th className="py-3 px-3 text-right"><button type="button" onClick={() => toggleSort('selling')} title="Sort by selling total">Selling (SAR){sortArrow('selling')}</button></th>
+                <th className="py-3 px-3 text-right"><button type="button" onClick={() => toggleSort('buying')} title="Sort by buying total">Buying (SAR){sortArrow('buying')}</button></th>
+                <th className="py-3 px-3 text-right"><button type="button" onClick={() => toggleSort('margin')} title="Sort by margin">Margin (SAR){sortArrow('margin')}</button></th>
+                <th className="py-3 px-3 text-right"><button type="button" onClick={() => toggleSort('totalPKR')} title="Sort by total PKR">Total (PKR){sortArrow('totalPKR')}</button></th>
                 <th className="py-3 px-3 text-center">Commission</th>
                 <th className="py-3 px-3 text-center print:hidden">Action</th>
               </tr>
@@ -865,36 +919,52 @@ export const VisaInvoicesPage: React.FC = () => {
                   className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
                 >
                   <option value="">-- Select Agent --</option>
-                  {agentDocs.map((a: any) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name || a.partyName || a.id}
-                    </option>
-                  ))}
+                  {agentDocs.map((a: any) => {
+                    const label = a.companyName || a.agencyName || a.name || a.contactPerson || a.agentCode || a.id;
+                    return (
+                      <option key={a.id} value={a.id}>
+                        {a.agentCode ? `[${a.agentCode}] ` : ''}{label}
+                      </option>
+                    );
+                  })}
                 </select>
                 <div className="text-[10px] text-slate-500 mt-0.5">
                   Changing the agent moves the receivable to the new agent's ledger.
                 </div>
               </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">VV Date *</label>
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">VV Date *</label>
-                  <input
-                    type="date"
-                    value={editDate}
-                    onChange={(e) => setEditDate(e.target.value)}
-                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Exchange Rate (1 SAR = ? PKR) *</label>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Buying ROE (1 SAR = ? PKR) *</label>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
-                    value={editRate || ''}
-                    onChange={(e) => setEditRate(parseFloat(e.target.value) || 0)}
+                    value={editBuyROE || ''}
+                    onChange={(e) => setEditBuyROE(parseFloat(e.target.value) || 0)}
                     className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
                   />
+                  <div className="text-[10px] text-slate-500 mt-0.5">Vendor payable posts at this rate.</div>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Selling ROE (1 SAR = ? PKR) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editSellROE || ''}
+                    onChange={(e) => setEditSellROE(parseFloat(e.target.value) || 0)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                  />
+                  <div className="text-[10px] text-slate-500 mt-0.5">Agent receivable and margin post at this rate.</div>
                 </div>
               </div>
 
@@ -963,7 +1033,7 @@ export const VisaInvoicesPage: React.FC = () => {
                 </table>
               </div>
               <p className="text-[11px] text-slate-500 bg-amber-50 border border-amber-200 rounded-lg p-2">
-                Save karne par: purani legs void (audit trail mehfooz) + nayi legs usi VV number se post. Agent ka receivable, vendor ka payable aur margin sab update ho jayenge.
+                On save: the old legs are voided (audit trail preserved) and fresh legs are posted under the same VV number. The agent's receivable, the vendor's payable and the margin will all be updated.
               </p>
             </div>
           )}

@@ -87,7 +87,14 @@ export const VoucherSelectPage: React.FC = () => {
     const matchIds = agentIdentityIds.length > 0 ? agentIdentityIds : [agentId];
     let list = remainingVisas.filter((v) => matchIds.includes(v.agentId || ''));
     if (shirkaVendorId) {
-      list = list.filter((v) => !v.vendorId || (v.vendorId === shirkaVendorId && (v.shirkaId || '') === (shirkaId || '')));
+      // Per-field wildcard: a visa with no vendor stamp matches any vendor,
+      // and a visa with no Sub-Vendor stamp matches any selected Sub-Vendor
+      // (e.g. visas imported via Coded Import carry no shirkaId).
+      list = list.filter(
+        (v) =>
+          (!v.vendorId || v.vendorId === shirkaVendorId) &&
+          (!v.shirkaId || !shirkaId || v.shirkaId === shirkaId)
+      );
     }
     const q = paxSearch.trim().toUpperCase();
     if (q) {
