@@ -682,7 +682,7 @@ Please keep these credentials safe and change password after first login.`;
                             {formatMoney(agent.dueLimitSAR, 'SAR')}
                           </span>
                           <span className="text-[11px] text-slate-400 block font-mono">
-                            Rate: {agent.exchangeRatePKRRate.toFixed(2)}
+                            Rate: {(agent.exchangeRatePKRRate || 0).toFixed(2)}
                           </span>
                         </td>
 
@@ -1193,7 +1193,7 @@ Please keep these credentials safe and change password after first login.`;
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                 <span className="text-[11px] text-slate-500 block uppercase font-medium">Forex Exchange Rate</span>
                 <span className="text-lg font-bold font-mono text-[#c9a227] mt-0.5 block">
-                  1 SAR = {selectedAgentBalance.exchangeRatePKRRate.toFixed(2)} PKR
+                  1 SAR = {(selectedAgentBalance.exchangeRatePKRRate || 0).toFixed(2)} PKR
                 </span>
                 <span className="text-[10px] text-slate-400">
                   Agent Contract Rate

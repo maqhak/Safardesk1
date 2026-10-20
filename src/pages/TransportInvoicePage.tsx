@@ -14,6 +14,7 @@ import {
   createTransportInvoice,
   voidTransportInvoice,
   deleteTransportInvoice,
+  recordTransportInvoicePayment,
 } from '../services/transportInvoiceService';
 import { TransportInvoiceDoc, TRANSPORT_SECTORS } from '../types/transportInvoice';
 import { fetchLedgerAccounts } from '../services/accountingService';
@@ -41,6 +42,14 @@ export const TransportInvoicePage: React.FC = () => {
   const [voiding, setVoiding] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [pDate, setPDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [pAmount, setPAmount] = useState<number>(0);
+  const [pRate, setPRate] = useState<number>(0);
+  const [pAccountId, setPAccountId] = useState('');
+  const [pNotes, setPNotes] = useState('');
+  const [cashBankAccounts, setCashBankAccounts] = useState<any[]>([]);
 
   // New-invoice form
   const [formOpen, setFormOpen] = useState(false);
@@ -50,6 +59,7 @@ export const TransportInvoicePage: React.FC = () => {
   const [fVendorId, setFVendorId] = useState('');
   const [fVehicleId, setFVehicleId] = useState('');
   const [fSector, setFSector] = useState(TRANSPORT_SECTORS[0]);
+  const [fReferenceNo, setFReferenceNo] = useState('');
   const [fDescription, setFDescription] = useState('');
   const [fAmountSAR, setFAmountSAR] = useState<number>(0);
   const [fRate, setFRate] = useState<number>(0);
@@ -74,6 +84,7 @@ export const TransportInvoicePage: React.FC = () => {
       );
       setVendors(vnds);
       setVehicles((vehs as any[]).filter((v) => v.isActive !== false));
+      setCashBankAccounts((accs as any[]).filter((a) => ['cash', 'bank'].includes(a.accountType) && a.isActive !== false));
       setFRate((prev) => (prev > 0 ? prev : sellRate));
     } finally {
       setLoading(false);
@@ -118,6 +129,7 @@ export const TransportInvoicePage: React.FC = () => {
           vehicleId: fVehicleId || undefined,
           vehicleType: vehicle?.vehicleType || undefined,
           sector: fSector,
+          referenceNo: fReferenceNo.trim() || undefined,
           description: fDescription.trim(),
           amountSAR: fAmountSAR,
           rate: fRate,
@@ -128,7 +140,7 @@ export const TransportInvoicePage: React.FC = () => {
       success(`Transport Invoice ${inv.invoiceNo} created — SAR ${inv.amountSAR.toLocaleString()} / PKR ${inv.amountPKR.toLocaleString()}.`);
       setFormOpen(false);
       setFCustomerId(''); setFVendorId(''); setFVehicleId('');
-      setFSector(TRANSPORT_SECTORS[0]); setFDescription(''); setFAmountSAR(0);
+      setFSector(TRANSPORT_SECTORS[0]); setFReferenceNo(''); setFDescription(''); setFAmountSAR(0);
       await load();
     } catch (err: any) {
       showError(err?.message || 'Could not create transport invoice.');
@@ -151,6 +163,38 @@ export const TransportInvoicePage: React.FC = () => {
       showError(err?.message || 'Could not void invoice.');
     } finally {
       setVoiding(false);
+    }
+  };
+
+  const openPayModal = () => {
+    if (!selected) return;
+    setPDate(new Date().toISOString().slice(0, 10));
+    setPAmount(Math.round(((selected.amountSAR || 0) - (selected.paidAmount || 0)) * 100) / 100);
+    setPRate(fRate > 0 ? fRate : selected.rate);
+    setPAccountId(cashBankAccounts[0]?.id || '');
+    setPNotes('');
+    setPayOpen(true);
+  };
+
+  const handleRecordPayment = async () => {
+    if (!selected || !userProfile) return;
+    if (!(pAmount > 0)) { showError('Amount must be greater than zero.'); return; }
+    if (!pAccountId) { showError('Please select a cash/bank account.'); return; }
+    setPaying(true);
+    try {
+      const updated = await recordTransportInvoicePayment(
+        selected.id,
+        { date: pDate, amountSAR: pAmount, rate: pRate > 0 ? pRate : selected.rate, cashOrBankAccountId: pAccountId, notes: pNotes.trim() || undefined },
+        userProfile.name || 'Operator'
+      );
+      setInvoices((list) => list.map((x) => (x.id === updated.id ? updated : x)));
+      setSelected(updated);
+      success(`Payment of SAR ${pAmount.toLocaleString()} recorded against ${updated.invoiceNo}. Status: ${updated.status}.`);
+      setPayOpen(false);
+    } catch (err: any) {
+      showError(err?.message || 'Could not record payment.');
+    } finally {
+      setPaying(false);
     }
   };
 
@@ -216,6 +260,7 @@ export const TransportInvoicePage: React.FC = () => {
                 <th className="p-3">Vendor</th>
                 <th className="p-3">Vehicle</th>
                 <th className="p-3">Sector</th>
+                <th className="p-3">Ref No</th>
                 <th className="p-3 text-right">SAR</th>
                 <th className="p-3 text-right">PKR</th>
                 <th className="p-3">Status</th>
@@ -224,9 +269,9 @@ export const TransportInvoicePage: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
               {loading ? (
-                <tr><td colSpan={10} className="p-8 text-center text-slate-500">Loading…</td></tr>
+                <tr><td colSpan={11} className="p-8 text-center text-slate-500">Loading…</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={10} className="p-8 text-center text-slate-500">No transport invoices found.</td></tr>
+                <tr><td colSpan={11} className="p-8 text-center text-slate-500">No transport invoices found.</td></tr>
               ) : filtered.map((inv) => (
                 <tr key={inv.id} className={inv.isVoid ? 'opacity-60' : ''}>
                   <td className="p-3 font-mono font-bold text-[var(--theme-primary)]">{inv.invoiceNo}</td>
@@ -235,6 +280,7 @@ export const TransportInvoicePage: React.FC = () => {
                   <td className="p-3">{inv.vendorName || '—'}</td>
                   <td className="p-3">{inv.vehicleType || '—'}</td>
                   <td className="p-3">{inv.sector}</td>
+                  <td className="p-3 font-mono">{inv.referenceNo || '—'}</td>
                   <td className="p-3 text-right font-mono font-bold">{inv.amountSAR.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   <td className="p-3 text-right font-mono">{inv.amountPKR.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   <td className="p-3">{statusBadge(inv.status)}</td>
@@ -276,6 +322,12 @@ export const TransportInvoicePage: React.FC = () => {
                 {TRANSPORT_SECTORS.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Voucher No / Manual Number / Tafweej Id</label>
+            <input value={fReferenceNo} onChange={(e) => setFReferenceNo(e.target.value)}
+              placeholder="e.g. TAF-12345"
+              className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -352,6 +404,9 @@ export const TransportInvoicePage: React.FC = () => {
                 {canDelete && (
                   <Button variant="danger" onClick={() => setDeleteOpen(true)} rightIcon={<Trash2 className="w-3.5 h-3.5" />}>Delete</Button>
                 )}
+                {!selected.isVoid && selected.status !== 'Paid' && canCreate && (
+                  <Button variant="primary" onClick={openPayModal}>Record Payment</Button>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button variant="primary" onClick={() => window.print()} rightIcon={<Printer className="w-3.5 h-3.5" />}>Print</Button>
@@ -366,6 +421,7 @@ export const TransportInvoicePage: React.FC = () => {
               <div><div className="text-slate-500 font-semibold">Vendor</div><div className="font-bold">{selected.vendorName || '— (own vehicle)'}</div></div>
               <div><div className="text-slate-500 font-semibold">Vehicle</div><div className="font-bold">{selected.vehicleType || '—'}</div></div>
               <div><div className="text-slate-500 font-semibold">Sector</div><div className="font-bold">{selected.sector}</div></div>
+              {selected.referenceNo && <div><div className="text-slate-500 font-semibold">Voucher No / Manual No / Tafweej Id</div><div className="font-bold font-mono">{selected.referenceNo}</div></div>}
             </div>
             {selected.description && (
               <div><div className="text-slate-500 font-semibold">Description</div><div className="bg-slate-50 border border-slate-200 rounded-lg p-2 whitespace-pre-wrap">{selected.description}</div></div>
@@ -383,6 +439,8 @@ export const TransportInvoicePage: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-slate-500 font-semibold">Status:</span> {statusBadge(selected.status)}
+              <span className="text-slate-500">Paid: <strong className="font-mono">SAR {(selected.paidAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></span>
+              <span className="text-slate-500">Balance: <strong className="font-mono">SAR {((selected.amountSAR || 0) - (selected.paidAmount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></span>
             </div>
           </div>
         </Modal>

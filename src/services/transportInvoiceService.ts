@@ -85,6 +85,7 @@ export interface CreateTransportInvoiceInput {
   vehicleId?: string;
   vehicleType?: string;
   sector: string;
+  referenceNo?: string;
   description: string;
   amountSAR: number;
   rate: number;
@@ -120,6 +121,7 @@ export async function createTransportInvoice(
     vehicleId: input.vehicleId || undefined,
     vehicleType: input.vehicleType || undefined,
     sector: input.sector,
+    referenceNo: input.referenceNo?.trim() || undefined,
     description: input.description || '',
     amountSAR: Math.round(input.amountSAR * 100) / 100,
     amountPKR,
@@ -136,6 +138,7 @@ export async function createTransportInvoice(
 
   // Particulars carry every detail verbatim: vehicle, sector, vendor, description.
   const detailBits = [
+    invoice.referenceNo ? `Ref: ${invoice.referenceNo}` : null,
     invoice.vehicleType ? `Vehicle: ${invoice.vehicleType}` : null,
     `Sector: ${invoice.sector}`,
     invoice.vendorName ? `Vendor: ${invoice.vendorName}` : null,
@@ -190,6 +193,56 @@ export async function createTransportInvoice(
     }
   }
   return invoice;
+}
+
+/**
+ * Record a payment against a transport invoice.
+ * Ledger: Dr Cash/Bank / Cr Customer. Updates paidAmount + status.
+ */
+export async function recordTransportInvoicePayment(
+  invoiceId: string,
+  payment: { date: string; amountSAR: number; rate: number; cashOrBankAccountId: string; notes?: string },
+  recordedBy: string,
+): Promise<TransportInvoiceDoc> {
+  const invoices = await fetchTransportInvoices();
+  const invoice = invoices.find((i) => i.id === invoiceId);
+  if (!invoice) throw new Error('Transport invoice not found.');
+  if (invoice.isVoid) throw new Error('Cannot record payment on a void invoice.');
+  if (!(payment.amountSAR > 0)) throw new Error('Amount must be greater than zero.');
+  if (!(payment.rate > 0)) throw new Error('Exchange rate must be greater than zero.');
+
+  const newPaid = Math.round(((invoice.paidAmount || 0) + payment.amountSAR) * 100) / 100;
+  if (newPaid > invoice.amountSAR + 0.01) {
+    throw new Error(`Payment exceeds the invoice balance. Balance: SAR ${(invoice.amountSAR - (invoice.paidAmount || 0)).toFixed(2)}.`);
+  }
+
+  await postBalancedTransaction({
+    date: payment.date,
+    entryType: 'Payment',
+    transNo: `PMT-TINV-${Date.now().toString().slice(-6)}`,
+    invoiceRef: invoice.invoiceNo,
+    rate: payment.rate,
+    particulars: `Payment received against Transport Invoice ${invoice.invoiceNo} — ${invoice.customerName}${payment.notes ? ` (${payment.notes})` : ''}`,
+    debitAccountId: payment.cashOrBankAccountId,
+    creditAccountId: invoice.customerId,
+    amountSAR: payment.amountSAR,
+    createdBy: recordedBy,
+  });
+
+  const status = newPaid >= invoice.amountSAR - 0.01 ? 'Paid' : newPaid > 0 ? 'Partial' : 'Unpaid';
+  const updated: TransportInvoiceDoc = {
+    ...invoice,
+    paidAmount: newPaid,
+    status: status as any,
+    updatedAt: new Date().toISOString(),
+    updatedBy: recordedBy,
+  };
+  const next = invoices.map((x) => (x.id === invoiceId ? updated : x));
+  try { localStorage.setItem(TRANSPORT_INVOICE_LOCAL_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  if (!isConfigPlaceholder) {
+    await setDoc(doc(db, TRANSPORT_INVOICE_COLLECTION, invoiceId), stripUndefinedDeep(updated));
+  }
+  return updated;
 }
 
 export async function voidTransportInvoice(

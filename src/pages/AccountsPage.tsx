@@ -424,19 +424,26 @@ export const AccountsPage: React.FC = () => {
 
   return (
     <div className="space-y-6 print:space-y-3">
-      {/* Branded Statement Header for Print/PDF View */}
+      {/* Branded Statement Header for Print/PDF View — vertical logo layout */}
       <div className="hidden print:block border-b-2 pb-4 mb-4" style={{ borderColor: 'var(--theme-primary)' }}>
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-black text-[var(--theme-primary)] tracking-tight">{company.companyName}</h1>
-            <p className="text-xs text-slate-700 font-semibold">{company.legalName || 'Hajj & Umrah Tour Operations'}</p>
-            <p className="text-[11px] text-slate-500">{company.address}, {company.city} • Tel: {company.phone} • Email: {company.email}</p>
-          </div>
+        <div className="flex flex-col items-center text-center">
+          {(company as any).logoUrl && (
+            <img
+              src={(company as any).logoUrl}
+              alt={company.companyName}
+              className="h-16 w-auto object-contain mb-2"
+            />
+          )}
+          <h1 className="text-2xl font-black text-[var(--theme-primary)] tracking-tight">{company.companyName}</h1>
+          <p className="text-xs text-slate-700 font-semibold">{company.legalName || 'Hajj & Umrah Tour Operations'}</p>
+          <p className="text-[11px] text-slate-500">{company.address}, {company.city} • Tel: {company.phone} • Email: {company.email}</p>
+        </div>
+        <div className="flex items-center justify-between mt-3">
+          <span className="inline-block text-white px-3 py-1 rounded text-xs font-bold uppercase tracking-wider" style={{ backgroundColor: 'var(--theme-primary)' }}>
+            STATEMENT OF ACCOUNT
+          </span>
           <div className="text-right">
-            <span className="inline-block text-white px-3 py-1 rounded text-xs font-bold uppercase tracking-wider" style={{ backgroundColor: 'var(--theme-primary)' }}>
-              STATEMENT OF ACCOUNT
-            </span>
-            <div className="text-xs text-slate-600 mt-1">
+            <div className="text-xs text-slate-600">
               Currency: <strong>{currency}</strong>
             </div>
             <div className="text-[11px] text-slate-500">
@@ -457,7 +464,7 @@ export const AccountsPage: React.FC = () => {
               <span className="text-slate-500 text-[10px] uppercase font-bold block">Statement Period:</span>
               <strong className="text-slate-900">{statement?.periodLabel || 'All Time'}</strong>
               <div className="text-[11px] mt-0.5">
-                Closing Balance: <strong className="font-mono text-[var(--theme-primary)]">{currency} {statement?.closingBalance.toFixed(2)}</strong>
+                Closing Balance: <strong className="font-mono text-[var(--theme-primary)]">{currency} {(statement?.closingBalance || 0).toFixed(2)}</strong>
               </div>
             </div>
           </div>

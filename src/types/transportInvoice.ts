@@ -22,6 +22,7 @@ export interface TransportInvoiceDoc {
   vehicleId?: string;
   vehicleType?: string; // Car | Staria | Hiace | Coaster | Bus | GMC
   sector: string; // Arrival | Departure | Makkah to Madina | …
+  referenceNo?: string; // Voucher No / Manual Number / Tafweej Id
   description: string;
   amountSAR: number;
   amountPKR: number;
