@@ -646,11 +646,11 @@ export const NusukGroupImportPage: React.FC = () => {
           <div className="flex flex-wrap items-center gap-3 p-3 bg-sky-50 border border-sky-200 rounded-xl mb-4">
             <span className="text-xs font-bold text-sky-900">Exchange Rates for the generated VVs:</span>
             <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-              Buying ROE (1 SAR = ? PKR)
+              Payable ROE — Buying (1 SAR = ? PKR)
               <input type="number" min="0" step="0.01" value={buyROE || ''} onChange={(e) => setBuyROE(parseFloat(e.target.value) || 0)} className="w-24 p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold" />
             </label>
             <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-              Selling ROE (1 SAR = ? PKR)
+              Receivable ROE — Selling (1 SAR = ? PKR)
               <input type="number" min="0" step="0.01" value={sellROE || ''} onChange={(e) => setSellROE(parseFloat(e.target.value) || 0)} className="w-24 p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold" />
             </label>
             <span className="text-[11px] text-slate-500">Defaults from Settings — payable posts at Buying, receivable at Selling.</span>
@@ -817,11 +817,11 @@ export const NusukGroupImportPage: React.FC = () => {
             <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-sky-200">
               <span className="text-xs font-bold text-sky-900">Exchange Rates for the generated VVs:</span>
               <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                Buying ROE
+                Payable ROE (Buying)
                 <input type="number" min="0" step="0.01" value={buyROE || ''} onChange={(e) => setBuyROE(parseFloat(e.target.value) || 0)} className="w-24 p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold" />
               </label>
               <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                Selling ROE
+                Receivable ROE (Selling)
                 <input type="number" min="0" step="0.01" value={sellROE || ''} onChange={(e) => setSellROE(parseFloat(e.target.value) || 0)} className="w-24 p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold" />
               </label>
               <span className="text-[11px] text-slate-500">Defaults from Settings — payable posts at Buying, receivable at Selling.</span>

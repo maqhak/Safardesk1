@@ -808,7 +808,7 @@ export const VisaDistributionPage: React.FC = () => {
                       </div>
 
                       <div className="w-full sm:w-24">
-                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5" title="Buying ROE — applied on cost (PKR = buying SAR x this rate)">Buy ROE</label>
+                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5" title="Payable ROE (Buying) — the vendor payable posts at this rate (PKR = buying SAR x this rate)">Payable ROE</label>
                         <input
                           type="number"
                           min="0"
@@ -816,13 +816,13 @@ export const VisaDistributionPage: React.FC = () => {
                           value={selection.buyROE || ''}
                           onChange={(e) => handleGroupSelectionChange(group.groupCode, 'buyROE', parseFloat(e.target.value) || 0)}
                           placeholder={String(getBuyRate())}
-                          title="Buying ROE — applied on cost (PKR = buying SAR x this rate)"
+                          title="Payable ROE (Buying) — the vendor payable posts at this rate"
                           className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-rose-700 text-right"
                         />
                       </div>
 
                       <div className="w-full sm:w-24">
-                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5" title="Selling ROE — applied on revenue (PKR = selling SAR x this rate)">Sell ROE</label>
+                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-0.5" title="Receivable ROE (Selling) — the agent receivable posts at this rate (PKR = selling SAR x this rate)">Receivable ROE</label>
                         <input
                           type="number"
                           min="0"
@@ -830,7 +830,7 @@ export const VisaDistributionPage: React.FC = () => {
                           value={selection.sellROE || ''}
                           onChange={(e) => handleGroupSelectionChange(group.groupCode, 'sellROE', parseFloat(e.target.value) || 0)}
                           placeholder={String(getSellRate())}
-                          title="Selling ROE — applied on revenue (PKR = selling SAR x this rate)"
+                          title="Receivable ROE (Selling) — the agent receivable posts at this rate"
                           className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-emerald-700 text-right"
                         />
                       </div>

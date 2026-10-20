@@ -693,7 +693,8 @@ export const VisaInvoicesPage: React.FC = () => {
                   return vendor?.name || 'Sub-Vendor';
                 })()}</strong>
                 <div className="text-[11px] text-slate-500">{vendorMap.get(selectedInvoice.vendorId)?.city}, {vendorMap.get(selectedInvoice.vendorId)?.country}</div>
-                <div className="text-[11px] font-mono text-slate-600 mt-1">Exchange Rate: 1 SAR = {selectedInvoice.exchangeRate} PKR</div>
+                <div className="text-[11px] font-mono text-slate-600 mt-1">Payable Rate (Buying): 1 SAR = {(selectedInvoice as any).buyROE || selectedInvoice.exchangeRate} PKR</div>
+                <div className="text-[11px] font-mono text-slate-600">Receivable Rate (Selling): 1 SAR = {(selectedInvoice as any).sellROE || selectedInvoice.exchangeRate} PKR</div>
               </div>
             </div>
 
@@ -810,8 +811,12 @@ export const VisaInvoicesPage: React.FC = () => {
                   <span className="font-mono font-bold text-white">SAR {selectedInvoice.sellingTotalSAR.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between text-slate-300">
-                  <span>Exchange Rate:</span>
-                  <span className="font-mono text-white">1 SAR = {selectedInvoice.exchangeRate} PKR</span>
+                  <span>Payable Rate (Buying):</span>
+                  <span className="font-mono text-white">1 SAR = {(selectedInvoice as any).buyROE || selectedInvoice.exchangeRate} PKR</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Receivable Rate (Selling):</span>
+                  <span className="font-mono text-white">1 SAR = {(selectedInvoice as any).sellROE || selectedInvoice.exchangeRate} PKR</span>
                 </div>
                 <div className="flex justify-between text-slate-200 border-t border-white/20 pt-1.5 font-bold">
                   <span>Total Equivalent (PKR):</span>
@@ -962,7 +967,7 @@ export const VisaInvoicesPage: React.FC = () => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Buying ROE (1 SAR = ? PKR) *</label>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Payable ROE — Buying (1 SAR = ? PKR) *</label>
                   <input
                     type="number"
                     min="0"
@@ -974,7 +979,7 @@ export const VisaInvoicesPage: React.FC = () => {
                   <div className="text-[10px] text-slate-500 mt-0.5">Vendor payable posts at this rate.</div>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Selling ROE (1 SAR = ? PKR) *</label>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Receivable ROE — Selling (1 SAR = ? PKR) *</label>
                   <input
                     type="number"
                     min="0"
