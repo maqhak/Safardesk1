@@ -168,7 +168,10 @@ export async function fetchJournalVouchers(): Promise<JournalVoucherDoc[]> {
       const snap = await getDocs(collection(db, JV_COLLECTION));
       firestoreJVs = snap.docs.map((d) => {
         const data = d.data() as JournalVoucherDoc;
-        return { ...data, id: (data as any).id || d.id };
+        // Normalize: some JV docs were written without an embedded lines
+        // array (their lines live only as ledger entries) — the JV page
+        // maps/filters lines unconditionally and crashed on them.
+        return { ...data, id: (data as any).id || d.id, lines: Array.isArray((data as any).lines) ? (data as any).lines : [] };
       });
     }
   } catch (err) {

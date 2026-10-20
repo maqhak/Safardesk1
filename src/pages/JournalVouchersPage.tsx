@@ -507,7 +507,7 @@ export const JournalVouchersPage: React.FC = () => {
       if (endDate && jv.date > endDate) return false;
 
       if (accountFilter !== 'all') {
-        const hasAccount = jv.lines.some((l) => l.accountId === accountFilter);
+        const hasAccount = ((jv.lines || [])).some((l) => l.accountId === accountFilter);
         if (!hasAccount) return false;
       }
 
@@ -515,7 +515,7 @@ export const JournalVouchersPage: React.FC = () => {
         const q = search.toLowerCase();
         const matchNo = jv.jvNo.toLowerCase().includes(q);
         const matchDetails = (jv.detailsBox || '').toLowerCase().includes(q);
-        const matchLines = jv.lines.some(
+        const matchLines = ((jv.lines || [])).some(
           (l) => l.accountTitle.toLowerCase().includes(q) || l.accountCode.toLowerCase().includes(q)
         );
         return matchNo || matchDetails || matchLines;
@@ -715,8 +715,8 @@ export const JournalVouchersPage: React.FC = () => {
               ) : (
                 filteredJVs.map((jv, idx) => {
                   const isVoid = jv.isVoid;
-                  const debitLines = jv.lines.filter((l) => l.debitSAR > 0);
-                  const creditLines = jv.lines.filter((l) => l.creditSAR > 0);
+                  const debitLines = (jv.lines || []).filter((l) => l.debitSAR > 0);
+                  const creditLines = (jv.lines || []).filter((l) => l.creditSAR > 0);
                   const amountPKR = Math.round(jv.totalDebitSAR * jv.exchangeRate);
 
                   return (
