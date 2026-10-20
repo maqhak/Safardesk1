@@ -72,18 +72,55 @@
     overflow-wrap: anywhere !important;
     max-width: none !important;
   }
-  /* Particulars column gets the lion's share — full name + passport must print, even on 2 lines */
+  /* Particulars column gets the lion's share — full name + passport must print, even on 2 lines.
+     Every other column gets an explicit print width sized for its content, because
+     table-layout:fixed + nowrap numbers in undersized columns overflow into neighbours
+     (the Debit/Credit/Balance overlap seen on 2026-10-20). */
   .ledger-print-compact table { table-layout: fixed !important; }
-  .ledger-print-compact thead th:nth-child(4),
-  .ledger-print-compact tbody td:nth-child(4) { width: 38% !important; }
-  .ledger-print-compact thead th:nth-child(1),
-  .ledger-print-compact tbody td:nth-child(1) { width: 9% !important; }
-  .ledger-print-compact thead th:nth-child(2),
-  .ledger-print-compact tbody td:nth-child(2) { width: 8% !important; }
-  .ledger-print-compact thead th:nth-child(3),
-  .ledger-print-compact tbody td:nth-child(3) { width: 11% !important; }
-  .ledger-print-compact thead th:nth-child(5),
-  .ledger-print-compact tbody td:nth-child(5) { width: 10% !important; }
+  /* --- PKR view: 9 columns (Rate column present) --- */
+  .ledger-print-compact.ledger-with-rate thead th:nth-child(1),
+  .ledger-print-compact.ledger-with-rate tbody td:nth-child(1) { width: 8.5% !important; }
+  .ledger-print-compact.ledger-with-rate thead th:nth-child(2),
+  .ledger-print-compact.ledger-with-rate tbody td:nth-child(2) { width: 7.5% !important; }
+  .ledger-print-compact.ledger-with-rate thead th:nth-child(3),
+  .ledger-print-compact.ledger-with-rate tbody td:nth-child(3) { width: 8.5% !important; }
+  .ledger-print-compact.ledger-with-rate thead th:nth-child(4),
+  .ledger-print-compact.ledger-with-rate tbody td:nth-child(4) { width: 38% !important; }
+  .ledger-print-compact.ledger-with-rate thead th:nth-child(5),
+  .ledger-print-compact.ledger-with-rate tbody td:nth-child(5) { width: 6.5% !important; }
+  .ledger-print-compact.ledger-with-rate thead th:nth-child(6),
+  .ledger-print-compact.ledger-with-rate tbody td:nth-child(6) { width: 5% !important; }
+  .ledger-print-compact.ledger-with-rate thead th:nth-child(7),
+  .ledger-print-compact.ledger-with-rate tbody td:nth-child(7) { width: 9% !important; }
+  .ledger-print-compact.ledger-with-rate thead th:nth-child(8),
+  .ledger-print-compact.ledger-with-rate tbody td:nth-child(8) { width: 9% !important; }
+  .ledger-print-compact.ledger-with-rate thead th:nth-child(9),
+  .ledger-print-compact.ledger-with-rate tbody td:nth-child(9) { width: 8% !important; }
+  /* --- SAR/USD view: 8 columns (no Rate column) --- */
+  .ledger-print-compact.ledger-no-rate thead th:nth-child(1),
+  .ledger-print-compact.ledger-no-rate tbody td:nth-child(1) { width: 9% !important; }
+  .ledger-print-compact.ledger-no-rate thead th:nth-child(2),
+  .ledger-print-compact.ledger-no-rate tbody td:nth-child(2) { width: 8% !important; }
+  .ledger-print-compact.ledger-no-rate thead th:nth-child(3),
+  .ledger-print-compact.ledger-no-rate tbody td:nth-child(3) { width: 9% !important; }
+  .ledger-print-compact.ledger-no-rate thead th:nth-child(4),
+  .ledger-print-compact.ledger-no-rate tbody td:nth-child(4) { width: 38% !important; }
+  .ledger-print-compact.ledger-no-rate thead th:nth-child(5),
+  .ledger-print-compact.ledger-no-rate tbody td:nth-child(5) { width: 7% !important; }
+  .ledger-print-compact.ledger-no-rate thead th:nth-child(6),
+  .ledger-print-compact.ledger-no-rate tbody td:nth-child(6) { width: 10% !important; }
+  .ledger-print-compact.ledger-no-rate thead th:nth-child(7),
+  .ledger-print-compact.ledger-no-rate tbody td:nth-child(7) { width: 10% !important; }
+  .ledger-print-compact.ledger-no-rate thead th:nth-child(8),
+  .ledger-print-compact.ledger-no-rate tbody td:nth-child(8) { width: 9% !important; }
+  /* Safety net: a type pill wider than its print column clips instead of spilling
+     into the Trans.# column (screen rendering keeps the full pill). */
+  .ledger-print-compact tbody td:nth-child(2) > * {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
   .ledger-print-compact .badge, .ledger-print-compact [class*="Badge"] { font-size: 7px !important; }
 }
 

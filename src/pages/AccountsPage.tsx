@@ -64,6 +64,22 @@ import { ReceiptViewerModal } from '../components/accounting/ReceiptViewerModal'
 import { DeleteConfirmModal } from '../components/accounting/DeleteConfirmModal';
 import { LedgerEntryEditModal } from '../components/accounting/LedgerEntryEditModal';
 
+/** Compact type label used ONLY in the printed statement, so the type pill can never
+    spill into the Trans.# column (print overlap fix, 2026-10-20). Screen keeps the full pill. */
+const shortEntryType = (t?: string): string => {
+  const map: Record<string, string> = {
+    'Payment': 'PAY',
+    'Invoice': 'INV',
+    'Item/Service': 'ITEM',
+    'Voucher Charge': 'VCHR',
+    'Journal Voucher': 'JV',
+    'Refund': 'RFD',
+    'Adjustment': 'ADJ',
+    'Opening': 'OP',
+  };
+  return map[t || ''] || (t || '—').slice(0, 4).toUpperCase();
+};
+
 export const AccountsPage: React.FC = () => {
   const { userProfile, role } = useAuth();
   const { profile: company } = useCompany();
@@ -760,7 +776,7 @@ export const AccountsPage: React.FC = () => {
         </div>
 
         {/* Detailed Statement Table with EXACT columns */}
-        <div className="overflow-x-auto ledger-print-compact">
+        <div className={`overflow-x-auto ledger-print-compact ${currency === 'PKR' ? 'ledger-with-rate' : 'ledger-no-rate'}`}>
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-100 text-slate-700 uppercase font-bold text-[10px] tracking-wider border-b border-slate-300 shadow-xs">
               <tr>
@@ -783,7 +799,10 @@ export const AccountsPage: React.FC = () => {
                   {startDate || '—'}
                 </td>
                 <td className="py-2.5 px-3">
-                  <Badge variant="warning" size="sm">Opening</Badge>
+                  <span className="print:hidden">
+                    <Badge variant="warning" size="sm">Opening</Badge>
+                  </span>
+                  <span className="hidden print:inline text-[7px] font-bold tracking-wide text-slate-700">OP</span>
                 </td>
                 <td className="py-2.5 px-3 text-slate-400 font-mono">—</td>
                 <td className="py-2.5 px-3 font-bold text-slate-800">
@@ -823,7 +842,9 @@ export const AccountsPage: React.FC = () => {
                     <tr
                       key={e.id || idx}
                       style={!isVoid && idx % 2 === 1 ? { backgroundColor: 'color-mix(in srgb, var(--theme-primary) 8%, #ffffff)' } : undefined}
-                      className={`transition-colors ${
+                      // Void/superseded legs stay visible on screen (audit trail) but are hidden
+                      // in print — a statement prints only effective entries (2026-10-20).
+                      className={`transition-colors ${isVoid ? 'print:hidden ' : ''}${
                         isVoid 
                           ? 'bg-rose-50/40 text-slate-400 line-through opacity-70' 
                           : idx % 2 === 0 ? 'bg-white hover:bg-slate-50' : 'hover:bg-slate-50'
@@ -833,17 +854,24 @@ export const AccountsPage: React.FC = () => {
                         {e.date}
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <Badge 
-                          variant={
-                            e.entryType === 'Payment' ? 'success' :
-                            e.entryType === 'Invoice' ? 'navy' :
-                            e.entryType === 'Item/Service' ? 'info' :
-                            e.entryType === 'Voucher Charge' ? 'warning' : 'neutral'
-                          }
-                          size="sm"
-                        >
-                          {e.entryType}
-                        </Badge>
+                        {/* Screen: full type pill. Print: compact short label so the pill
+                            can never spill into the Trans.# column (2026-10-20 print overlap fix). */}
+                        <span className="print:hidden">
+                          <Badge 
+                            variant={
+                              e.entryType === 'Payment' ? 'success' :
+                              e.entryType === 'Invoice' ? 'navy' :
+                              e.entryType === 'Item/Service' ? 'info' :
+                              e.entryType === 'Voucher Charge' ? 'warning' : 'neutral'
+                            }
+                            size="sm"
+                          >
+                            {e.entryType}
+                          </Badge>
+                        </span>
+                        <span className="hidden print:inline text-[7px] font-bold tracking-wide text-slate-700">
+                          {shortEntryType(e.entryType)}
+                        </span>
                       </td>
                       <td className="py-2.5 px-3 font-mono font-bold text-[var(--theme-primary)] whitespace-nowrap">
                         {e.transNo || '—'}
@@ -1015,7 +1043,7 @@ export const AccountsPage: React.FC = () => {
             {statement && (
               <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-bold text-xs text-slate-900">
                 <tr>
-                  <td colSpan={6} className="py-3 px-3 uppercase text-[11px] tracking-wider text-slate-700">
+                  <td colSpan={currency === 'PKR' ? 6 : 5} className="py-3 px-3 uppercase text-[11px] tracking-wider text-slate-700">
                     Period Totals & Passenger Manifest Count
                   </td>
                   <td className="py-3 px-3 text-right font-mono text-slate-900">
