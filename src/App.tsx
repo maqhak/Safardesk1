@@ -225,6 +225,38 @@ export default function App() {
                   }
                 />
                 <Route
+                  path="/accounts/payments/cash-received"
+                  element={
+                    <ProtectedRoute requiredModule="Accounts">
+                      <PaymentsPage presetEntryType="cash-received" />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/accounts/payments/cash-sent"
+                  element={
+                    <ProtectedRoute requiredModule="Accounts">
+                      <PaymentsPage presetEntryType="cash-sent" />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/accounts/payments/bank-received"
+                  element={
+                    <ProtectedRoute requiredModule="Accounts">
+                      <PaymentsPage presetEntryType="bank-received" />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/accounts/payments/bank-sent"
+                  element={
+                    <ProtectedRoute requiredModule="Accounts">
+                      <PaymentsPage presetEntryType="bank-sent" />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/accounts/payments"
                   element={
                     <ProtectedRoute requiredModule="Accounts">

@@ -53,6 +53,7 @@ interface NavChild {
   name: string;
   path: string;
   module?: AppModule;
+  children?: NavChild[];
 }
 
 interface NavItem {
@@ -73,7 +74,17 @@ const ALL_NAV_ITEMS: NavItem[] = [
       { name: 'Transport Invoices', path: '/accounts/transport-invoices', module: 'Accounts' },
       { name: 'Item/Service', path: '/accounts/item-service', module: 'Accounts' },
       { name: 'Balances Summary', path: '/accounts/balances', module: 'Accounts' },
-      { name: 'Payments', path: '/accounts/payments', module: 'Accounts' },
+      {
+        name: 'Payments',
+        path: '/accounts/payments',
+        module: 'Accounts',
+        children: [
+          { name: 'Cash Received', path: '/accounts/payments/cash-received', module: 'Accounts' },
+          { name: 'Cash Sent', path: '/accounts/payments/cash-sent', module: 'Accounts' },
+          { name: 'Bank Received', path: '/accounts/payments/bank-received', module: 'Accounts' },
+          { name: 'Bank Sent', path: '/accounts/payments/bank-sent', module: 'Accounts' },
+        ],
+      },
       { name: 'Day Book', path: '/accounts/day-book', module: 'Accounts' },
       { name: 'Journal Vouchers', path: '/accounts/journal-vouchers', module: 'Accounts' },
     ],
@@ -153,6 +164,44 @@ const MobileNavGroup: React.FC<{ item: NavItem; onNavigate: () => void }> = ({ i
             const cActive = child.path === '/accounts'
               ? location.pathname === '/accounts'
               : location.pathname.startsWith(child.path);
+            if (child.children) {
+              const subOpen = location.pathname.startsWith(child.path);
+              return (
+                <div key={child.path}>
+                  <NavLink
+                    to={child.path}
+                    onClick={onNavigate}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] transition ${
+                      cActive ? 'bg-white/15 text-white font-semibold' : 'text-slate-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${cActive ? 'bg-[var(--theme-accent)]' : 'bg-slate-500'}`} />
+                    <span className="flex-1">{child.name}</span>
+                    <ChevronDown className={`w-3 h-3 transition-transform ${subOpen ? 'rotate-180' : ''}`} />
+                  </NavLink>
+                  {subOpen && (
+                    <div className="ml-4 mt-0.5 space-y-0.5">
+                      {child.children.map((sub) => {
+                        const sActive = location.pathname === sub.path;
+                        return (
+                          <NavLink
+                            key={sub.path}
+                            to={sub.path}
+                            onClick={onNavigate}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] transition ${
+                              sActive ? 'bg-white/15 text-white font-semibold' : 'text-slate-400 hover:text-white hover:bg-white/10'
+                            }`}
+                          >
+                            <span className={`w-1 h-1 rounded-full ${sActive ? 'bg-[var(--theme-accent)]' : 'bg-slate-600'}`} />
+                            {sub.name}
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
             return (
               <NavLink
                 key={child.path}

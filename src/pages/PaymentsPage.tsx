@@ -70,7 +70,7 @@ import { ReceiptViewerModal } from '../components/accounting/ReceiptViewerModal'
 import { DeleteConfirmModal } from '../components/accounting/DeleteConfirmModal';
 import { Link } from 'react-router-dom';
 
-export const PaymentsPage: React.FC = () => {
+export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({ presetEntryType }) => {
   const { userProfile, role } = useAuth();
   const { profile: company } = useCompany();
   const { success, error: showError, info } = useToast();
@@ -144,7 +144,7 @@ export const PaymentsPage: React.FC = () => {
   const [viewerEntryAccountId, setViewerEntryAccountId] = useState<string | null>(null);
 
   // New Payment Form States
-  const [entryType, setEntryType] = useState<PaymentEntryType>('cash-received');
+  const [entryType, setEntryType] = useState<PaymentEntryType>(presetEntryType || 'cash-received');
   const [paymentNo, setPaymentNo] = useState<string>('');
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedPayerPayeeId, setSelectedPayerPayeeId] = useState<string>('');
@@ -987,6 +987,8 @@ export const PaymentsPage: React.FC = () => {
         )}
       </Card>
 
+      {!presetEntryType && (
+      <>
       {/* Payments List Table */}
       <Card padding="none" className="border-slate-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
@@ -1425,6 +1427,8 @@ export const PaymentsPage: React.FC = () => {
             </div>
           </div>
 
+          {!presetEntryType && (
+          <>
           {/* 1. Entry Types: Selected first on the form */}
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
@@ -1501,6 +1505,8 @@ export const PaymentsPage: React.FC = () => {
             </div>
           </div>
 
+          </>
+          )}
           {/* Account Selectors */}
           <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1876,6 +1882,8 @@ export const PaymentsPage: React.FC = () => {
           </div>
         </div>
       </Modal>
+      </>
+      )}
     </div>
   );
 };
