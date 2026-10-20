@@ -101,24 +101,22 @@ export const VoucherPrintDocument: React.FC<{
     return () => { cancelled = true; };
   }, [voucher]);
 
-  // Fit to ONE A4 page: measure the NATURAL content height (zoom briefly
-  // reset to 1 — a zoomed scrollHeight lies) and shrink to fit. Re-measure
-  // after images load + a delayed re-check so late content can't spill
-  // the voucher onto a second page.
+  // Fit to ONE A4 page: measure the NATURAL content height and shrink to
+  // fit with transform: scale() (transforms never affect scrollHeight, and
+  // unlike the non-standard `zoom` they render identically in print).
+  // Re-measure after images load + a delayed re-check so late content
+  // can't spill the voucher onto a second page.
   useEffect(() => {
     const el = innerRef.current;
     if (!el) return;
     let cancelled = false;
     const measure = () => {
       if (cancelled) return;
-      const prevZoom = (el as HTMLElement).style.zoom;
       const prevMinH = (el as HTMLElement).style.minHeight;
-      (el as HTMLElement).style.zoom = '1';
       // min-height:297mm inflates scrollHeight even when content is shorter —
       // drop it during measurement to get the TRUE content height.
       (el as HTMLElement).style.minHeight = '0';
       const h = el.scrollHeight;
-      (el as HTMLElement).style.zoom = prevZoom;
       (el as HTMLElement).style.minHeight = prevMinH;
       const pagePx = 297 * 3.779527559; // A4 height px @96dpi
       if (h > pagePx) setScale(Math.max(0.45, pagePx / h));
@@ -233,7 +231,7 @@ export const VoucherPrintDocument: React.FC<{
           .fsv-page { height:297mm; overflow:hidden; }
           @page { size:A4; margin:0; }
         }
-        .fsv-page { width:210mm; height:297mm; overflow:hidden; position:relative; background:#fff; display:flex; align-items:center; justify-content:center; }
+        .fsv-page { width:210mm; height:297mm; overflow:hidden; position:relative; background:#fff; }
         .fsv-watermark { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:50; }
         .fsv-watermark span { display:flex; align-items:center; justify-content:center; text-align:center; width:54mm; height:54mm; border-radius:50%; border:1.6mm solid currentColor; box-shadow:inset 0 0 0 1mm #fff, inset 0 0 0 1.9mm currentColor; font-size:6.5mm; font-weight:bold; letter-spacing:1.2mm; line-height:1.35; padding:6mm; opacity:0.17; transform:rotate(-16deg); }
         .fsv-watermark.ok span { color:#15803d; }
@@ -331,7 +329,7 @@ export const VoucherPrintDocument: React.FC<{
 
       <div className="fsv-page">
         <div className={`fsv-watermark ${wm.cls}`}><span>{wm.text}</span></div>
-        <div ref={innerRef} className="fsv-fit" style={{ zoom: scale, transformOrigin: 'top left' }}>
+        <div ref={innerRef} className="fsv-fit" style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
 
           <div className="fsv-vhead">
             <div className="fsv-sketch"><div className="fsv-arch"><img src={imgKaaba} alt="Kaaba Shareef" /></div></div>
