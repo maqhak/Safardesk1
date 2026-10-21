@@ -121,8 +121,18 @@ export const VisaInvoicesPage: React.FC = () => {
     loadData();
   }, []);
 
-  // Map helpers
-  const agentMap = useMemo(() => new Map(agents.map(a => [a.id, a])), [agents]);
+  // Map helpers — indexed by ledger id AND by linked master agent id, so old
+  // invoices carrying the raw master id (e.g. VV-1015) still resolve to the real
+  // agent name instead of "Unknown Agent". No data is touched; display only.
+  const agentMap = useMemo(() => {
+    const m = new Map<string, any>();
+    agents.forEach((a: any) => {
+      m.set(a.id, a);
+      const linked = a.linkedId || a.linkedAgentId;
+      if (linked && !m.has(linked)) m.set(linked, a);
+    });
+    return m;
+  }, [agents]);
   const vendorMap = useMemo(() => new Map(vendors.map(v => [v.id, v])), [vendors]);
 
   // Cash or Bank accounts for marking commission paid

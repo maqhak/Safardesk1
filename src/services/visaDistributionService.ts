@@ -166,6 +166,22 @@ export async function createVisaDistributionBatch(params: {
     vendorLedgerAccount = newVendorAccount;
   }
 
+  // AGENT LEDGER RESOLUTION (fix 21-Oct): agentId arrives either as the ledger
+  // account id (`ledger-agent-...`, manual Distribution flow) or as the master
+  // agent doc id (`agent-...`, both import flows + VV Edit dropdown). The ledger,
+  // the VV list and statements all key off the LEDGER account id — normalize once
+  // here, mirroring the vendor ledger resolution above. Without this, import and
+  // VV-Edit postings land on a phantom `agent-...` key: the VV list shows
+  // "Unknown Agent" and the agent's ledger statement never reflects the VV.
+  const resolveAgentLedgerId = (rawId: string): string => {
+    if (!rawId || rawId.startsWith('ledger-')) return rawId;
+    const led = ledgerAccounts.find((a: any) =>
+      a.id === `ledger-agent-${rawId}` ||
+      (((a as any).linkedId === rawId || (a as any).linkedAgentId === rawId) && a.accountType === 'agent')
+    );
+    return led ? led.id : rawId;
+  };
+
   // Group distributions by agentId
   const agentBatches = new Map<string, {
     agentId: string;
@@ -268,6 +284,9 @@ export async function createVisaDistributionBatch(params: {
   } catch { /* non-dual fallback below */ }
 
   for (const [agentId, batch] of agentBatches.entries()) {
+    // Normalized once per agent: every write below (invoice, visas, ledger legs)
+    // uses the LEDGER account id so names resolve and statements reflect the VV.
+    const agentLedgerId = resolveAgentLedgerId(agentId);
     // Dual ROE: revenue side uses sellROE, cost side uses buyROE.
     // Manual per-group entry wins; otherwise the agent's manual rate; otherwise Settings.
     const agentManual = Number(batch.exchangeRateSARPKR) > 0 ? Number(batch.exchangeRateSARPKR) : 0;
@@ -280,7 +299,7 @@ export async function createVisaDistributionBatch(params: {
       createdGroups.push({
         groupCode: g.groupCode,
         groupName: g.groupName,
-        agentId: batch.agentId,
+        agentId: agentLedgerId,
         sellingPricePerVisa: g.sellingPricePerVisa,
         buyingPricePerVisa: g.buyingPricePerVisa,
         visaIds: g.visaIds,
@@ -295,7 +314,7 @@ export async function createVisaDistributionBatch(params: {
           updatedVisas[vIndex] = {
             ...updatedVisas[vIndex],
             status: 'Distributed',
-            agentId: batch.agentId,
+            agentId: agentLedgerId,
             distributionId: distribId,
             vendorId: params.vendorId,
             shirkaId: params.shirkaId || undefined,
@@ -343,7 +362,7 @@ export async function createVisaDistributionBatch(params: {
       id: `inv-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       invoiceNo,
       distributionId: distribId,
-      agentId,
+      agentId: agentLedgerId,
       vendorId: params.vendorId,
       shirkaId: params.shirkaId || undefined,
       date: params.date,
@@ -386,7 +405,7 @@ export async function createVisaDistributionBatch(params: {
           id: `le-${seq}`,
           entryNo: `LE-${seq}`,
           date: params.date,
-          accountId: dualRoleVendorAccount.get(agentId) || agentId,
+          accountId: dualRoleVendorAccount.get(agentId) || agentLedgerId,
           entryType: 'Invoice',
           transNo: invoiceNo,
           particulars: `Visa — ${v?.pilgrimName || 'Pilgrim'} | PP: ${v?.passportNumber || '—'} | ${g.groupCode}${g.groupName && g.groupName !== g.groupCode ? ` (${g.groupName})` : ''} — SAR ${sar.toLocaleString()}/visa @${sellROE}`,
@@ -631,10 +650,26 @@ export async function updateVisaInvoiceRates(
   const effectiveVendorId = params.vendorId && params.vendorId !== invoice.vendorId ? params.vendorId : invoice.vendorId;
   const vendorChanged = effectiveVendorId !== invoice.vendorId;
 
+  // Ledger accounts resolved early — the agent normalization below needs them.
+  const ledgerAccounts = await fetchLedgerAccounts();
+
+  // Agent ledger normalization (fix 21-Oct): the edit dropdown hands over the master
+  // agent doc id (`agent-...`); the ledger, VV list and statements key off the
+  // LEDGER account id (`ledger-agent-...`). Normalize so reposted legs land on the
+  // real ledger key instead of a phantom id (the VV-1015 "Unknown Agent" bug).
+  const effectiveAgentLedgerId = (() => {
+    if (!effectiveAgentId || effectiveAgentId.startsWith('ledger-')) return effectiveAgentId;
+    const led = ledgerAccounts.find((a: any) =>
+      a.id === `ledger-agent-${effectiveAgentId}` ||
+      (((a as any).linkedId === effectiveAgentId || (a as any).linkedAgentId === effectiveAgentId) && a.accountType === 'agent')
+    );
+    return led ? led.id : effectiveAgentId;
+  })();
+
   const updated: VisaInvoiceDoc = {
     ...invoice,
     date: params.date,
-    agentId: effectiveAgentId,
+    agentId: effectiveAgentLedgerId,
     vendorId: effectiveVendorId,
     shirkaId: vendorChanged ? undefined : invoice.shirkaId,
     lines: newLines,
@@ -649,8 +684,7 @@ export async function updateVisaInvoiceRates(
     totalsPKR,
   };
 
-  // 3) Resolve ledger accounts (mirror of create flow)
-  const ledgerAccounts = await fetchLedgerAccounts();
+  // 3) Margin + vendor accounts (ledger accounts already resolved above)
   let marginAccount = ledgerAccounts.find(
     (a) => a.accountCode === 'SYS-MARGIN' || a.title.toLowerCase().includes('visa margin')
   );
@@ -675,7 +709,7 @@ export async function updateVisaInvoiceRates(
     try { await saveLedgerAccount(vendorLedgerAccount); } catch { /* best-effort */ }
   }
   // Dual-role: agent linked to a vendor posts Dr to the shared vendor account
-  let agentAccountId = effectiveAgentId;
+  let agentAccountId = effectiveAgentLedgerId;
   try {
     const { fetchAgents } = await import('./agentService');
     const ag: any = (await fetchAgents()).find((a: any) => a.id === effectiveAgentId);
@@ -754,7 +788,7 @@ export async function updateVisaInvoiceRates(
         linkedIds.has(v.id) || (v.distributionId === invoice.distributionId && v.agentId === invoice.agentId)
       );
       const visaPatch: any = { updatedAt: now, updatedBy: params.editedBy };
-      if (agentChanged) visaPatch.agentId = effectiveAgentId;
+      if (agentChanged) visaPatch.agentId = effectiveAgentLedgerId;
       if (vendorChanged) { visaPatch.vendorId = effectiveVendorId; visaPatch.shirkaId = null; }
       for (const v of toMove) {
         try {
