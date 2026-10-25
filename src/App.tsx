@@ -169,7 +169,23 @@ export default function App() {
                   }
                 />
                 <Route
+                  path="/vouchers/accommodation/edit/:id"
+                  element={
+                    <ProtectedRoute requiredModule="Vouchers">
+                      <AccommodationVoucherPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/vouchers/transport/new"
+                  element={
+                    <ProtectedRoute requiredModule="Vouchers">
+                      <TransportVoucherPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/vouchers/transport/edit/:id"
                   element={
                     <ProtectedRoute requiredModule="Vouchers">
                       <TransportVoucherPage />
@@ -202,6 +218,14 @@ export default function App() {
                 />
                 <Route
                   path="/tickets/sale"
+                  element={
+                    <ProtectedRoute requiredModule="Tickets">
+                      <TicketSalePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/tickets/sale/:id"
                   element={
                     <ProtectedRoute requiredModule="Tickets">
                       <TicketSalePage />
@@ -306,6 +330,14 @@ export default function App() {
                 />
                 <Route
                   path="/accounts/invoices/new"
+                  element={
+                    <ProtectedRoute requiredModule="Accounts">
+                      <InvoiceCreatePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/accounts/invoices/edit/:id"
                   element={
                     <ProtectedRoute requiredModule="Accounts">
                       <InvoiceCreatePage />

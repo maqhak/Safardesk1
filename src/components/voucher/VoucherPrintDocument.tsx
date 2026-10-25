@@ -203,9 +203,9 @@ export const VoucherPrintDocument: React.FC<{
 
   // Status watermark (locked spec): Confirmed -> green APPROVED,
   // Draft/Pending -> red NOT APPROVED, Cancelled -> CANCELLED
-  const wm = voucher.status === 'Confirmed'
+  const wm = voucher.status === 'Approved'
     ? { cls: 'ok', text: 'APPROVED' }
-    : voucher.status === 'Cancelled'
+    : voucher.status === 'Void'
     ? { cls: 'no', text: 'CANCELLED' }
     : { cls: 'no', text: 'NOT APPROVED' };
 

@@ -63,6 +63,8 @@ import { VoucherQuickModal } from '../components/accounting/VoucherQuickModal';
 import { ReceiptViewerModal } from '../components/accounting/ReceiptViewerModal';
 import { DeleteConfirmModal } from '../components/accounting/DeleteConfirmModal';
 import { LedgerEntryEditModal } from '../components/accounting/LedgerEntryEditModal';
+import { fetchVisas } from '../services/visaService';
+import { bust, bustPrefix } from '../services/queryCache';
 
 /** Compact type label used ONLY in the printed statement, so the type pill can never
     spill into the Trans.# column (print overlap fix, 2026-10-20). Screen keeps the full pill. */
@@ -96,6 +98,8 @@ export const AccountsPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [accounts, setAccounts] = useState<LedgerAccountDoc[]>([]);
   const [entries, setEntries] = useState<LedgerEntryDoc[]>([]);
+  const [vvCount, setVvCount] = useState<number>(0);
+  const [pilgrimCount, setPilgrimCount] = useState<number>(0);
 
   // Selected Account
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
@@ -182,6 +186,12 @@ export const AccountsPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
+      // Ledger must NEVER show a stale balance: bust the 90s entry/account cache
+      // on every ledger open, so the statement always reflects live Firestore data
+      // (stale cache caused "fluctuating" balances across views, 2026-10-24).
+      bust('ledger:entries:all');
+      bustPrefix('ledger:entries:');
+      bust('ledger:accounts');
       const [accList, entList] = await Promise.all([
         fetchLedgerAccounts(),
         fetchLedgerEntries(),
@@ -242,6 +252,42 @@ export const AccountsPage: React.FC = () => {
   const selectedAccount = useMemo(() => {
     return accounts.find((a) => a.id === selectedAccountId) || accounts[0] || null;
   }, [accounts, selectedAccountId]);
+
+  // VV + Pilgrim counts for the selected account (Fixer: har ledger mein VV/pilgrim ginti)
+  useEffect(() => {
+    if (!selectedAccount) {
+      setVvCount(0);
+      setPilgrimCount(0);
+      return;
+    }
+    // VV count: distinct invoice refs (VV-/INV-) from this account's invoice entries
+    const vvRefs = new Set<string>();
+    for (const e of entries) {
+      if (e.accountId !== selectedAccount.id) continue;
+      const ref = (e.invoiceRef || e.transNo || '').trim();
+      if (/^(VV|INV)-/i.test(ref)) vvRefs.add(ref.toUpperCase());
+    }
+    setVvCount(vvRefs.size);
+    // Pilgrim count: distinct passports linked to this account (agent or vendor, raw or ledger id)
+    // Distinct by passport so stale localStorage docs can't inflate the count.
+    fetchVisas()
+      .then((visas) => {
+        const aid = selectedAccount.id;
+        const lid = (selectedAccount as any).linkedId || '';
+        const seen = new Set<string>();
+        for (const v of visas as any[]) {
+          if (v.isVoid) continue;
+          const va = v.agentId || '';
+          const vv2 = v.vendorId || '';
+          if (va === aid || va === lid || vv2 === aid || vv2 === lid) {
+            const pp = String(v.passportNumber || '').trim().toUpperCase();
+            if (pp) seen.add(pp);
+          }
+        }
+        setPilgrimCount(seen.size);
+      })
+      .catch(() => setPilgrimCount(0));
+  }, [selectedAccount, entries]);
 
   // Filter accounts for the dropdown/picker
   const filteredAccounts = useMemo(() => {
@@ -320,14 +366,14 @@ export const AccountsPage: React.FC = () => {
     }
   };
 
-  // Edit a ledger entry (Owner/Staff) — void-and-repost with same transNo
-  const handleConfirmEdit = async (values: { date: string; particulars: string; amountSAR: number; rate: number }) => {
+  // Edit a ledger entry (Owner/Staff) — direct update in place, no void
+  const handleConfirmEdit = async (values: { date: string; particulars: string; amount: number; currency: 'PKR' | 'SAR'; rate: number }) => {
     if (!entryToEdit) return;
 
     setEditing(true);
     try {
       const updated = await editLedgerEntry(entryToEdit.id, values, userProfile?.name || 'Owner');
-      success(`Entry #${updated.entryNo} updated — corrected entry reposted under ${updated.transNo}.`);
+      success(`Entry #${updated.entryNo} updated.`);
       setEditModalOpen(false);
       setEntryToEdit(null);
       await loadData();
@@ -621,7 +667,7 @@ export const AccountsPage: React.FC = () => {
             >
               {filteredAccounts.map((acc) => (
                 <option key={acc.id} value={acc.id} className="text-slate-900 font-semibold">
-                  [{acc.accountCode}] {acc.title} ({acc.accountType.toUpperCase()})
+                  {acc.title} [{acc.accountCode}] ({acc.accountType.toUpperCase()})
                 </option>
               ))}
             </select>
@@ -714,11 +760,21 @@ export const AccountsPage: React.FC = () => {
 
       {/* Account Info Card & Live Balances */}
       {selectedAccount && statement && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:hidden">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 print:hidden">
           <Card padding="md" className="border-slate-200">
             <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Account Title</div>
             <div className="text-base font-bold text-slate-900 truncate mt-0.5">{selectedAccount.title}</div>
             <div className="text-xs text-slate-500 mt-1 font-mono">{selectedAccount.accountCode} • {selectedAccount.accountType.toUpperCase()}</div>
+          </Card>
+
+          <Card padding="md" className="border-slate-200">
+            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">VVs / Pilgrims</div>
+            <div className="text-lg font-mono font-bold text-slate-800 mt-0.5">
+              {vvCount} <span className="text-xs font-sans font-semibold text-slate-500">VVs</span>
+              <span className="mx-1.5 text-slate-300">•</span>
+              {pilgrimCount} <span className="text-xs font-sans font-semibold text-slate-500">Pilgrims</span>
+            </div>
+            <div className="text-[11px] text-slate-400 mt-1">Visa vouchers & visa entries linked</div>
           </Card>
 
           <Card padding="md" className="border-slate-200">
@@ -755,24 +811,40 @@ export const AccountsPage: React.FC = () => {
 
       {/* Statement Table */}
       <Card padding="none" className="border-slate-200 shadow-xs overflow-hidden">
-        {/* Table Title Bar */}
-        <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div>
-            <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <FileText className="w-4 h-4 text-[var(--theme-primary)]" />
-              <span>Statement of Account — {selectedAccount?.title}</span>
-              <Badge variant="navy">{selectedAccount?.accountCode}</Badge>
-            </h4>
-            <p className="text-[11px] text-slate-500">
-              Showing statement in <strong>{currency}</strong>
-              {currency === 'PKR' ? ' — Rate column shows the SAR→PKR exchange rate applied per entry.' : currency === 'USD' ? ' — USD amounts converted at settings USD→SAR rate.' : ' — clean SAR amounts.'}
-            </p>
+        {/* Table Title Bar — PDF theme: logo + company, centered Statement of Account, agent top-right */}
+        <div className="p-3.5 bg-slate-50 border-b border-slate-200">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              {(company as any)?.logoUrl && (
+                <img src={(company as any).logoUrl} alt="Logo" className="h-12 w-12 object-contain rounded" />
+              )}
+              <div>
+                <div className="font-bold text-slate-900 text-base">{(company as any)?.companyName || 'Company'}</div>
+                <h4 className="font-bold text-slate-700 text-sm text-center flex items-center gap-2 mt-1">
+                  <FileText className="w-4 h-4 text-[var(--theme-primary)]" />
+                  <span>Statement of Account</span>
+                </h4>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="flex items-center justify-end gap-2">
+                <div className="text-right">
+                  <div className="font-bold text-slate-900 text-sm">{selectedAccount?.title}</div>
+                  <span className="text-[11px] text-slate-500">{selectedAccount?.type}</span>
+                </div>
+                <div className="h-10 w-10 rounded-full bg-[var(--theme-primary)]/10 flex items-center justify-center text-[var(--theme-primary)] font-bold text-sm">
+                  {selectedAccount?.title?.charAt(0)?.toUpperCase() || 'A'}
+                </div>
+              </div>
+              <div className="text-xs font-semibold text-slate-500 mt-1">
+                Period: <strong className="text-slate-800">{statement?.periodLabel}</strong>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-500">
-              Period: <strong className="text-slate-800">{statement?.periodLabel}</strong>
-            </span>
-          </div>
+          <p className="text-[11px] text-slate-500 mt-2 text-center">
+            Showing statement in <strong>{currency}</strong>
+            {currency === 'PKR' ? ' — Rate column shows the SAR→PKR exchange rate applied per entry.' : currency === 'USD' ? ' — USD amounts converted at settings USD→SAR rate.' : ' — clean SAR amounts.'}
+          </p>
         </div>
 
         {/* Detailed Statement Table with EXACT columns */}
@@ -825,14 +897,14 @@ export const AccountsPage: React.FC = () => {
                     Loading ledger statement...
                   </td>
                 </tr>
-              ) : !statement || statement.rows.filter((r) => !r.entry.isVoid).length === 0 ? (
+              ) : !statement || statement.rows.filter((r) => isOwner || !r.entry.isVoid).length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-8 text-center text-slate-500">
                     No transactions found for {selectedAccount?.title} in the selected period.
                   </td>
                 </tr>
               ) : (
-                statement.rows.filter((row) => !row.entry.isVoid).map((row, idx) => {
+                statement.rows.filter((row) => isOwner || !row.entry.isVoid).map((row, idx) => {
                   const e = row.entry;
                   const isVoid = e.isVoid;
                   const debit = currency === 'SAR' ? e.debitSAR : currency === 'PKR' ? e.debitPKR : (e.debitSAR || 0) / (usdSarRate || 3.75);
@@ -1043,17 +1115,17 @@ export const AccountsPage: React.FC = () => {
             {statement && (
               <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-bold text-xs text-slate-900">
                 <tr>
-                  <td colSpan={currency === 'PKR' ? 6 : 5} className="py-3 px-3 uppercase text-[11px] tracking-wider text-slate-700">
-                    Period Totals & Passenger Manifest Count
+                  <td colSpan={currency === 'PKR' ? 6 : 5} className="py-3 px-3 uppercase text-[11px] tracking-wider text-slate-700 print:py-1 print:text-[8px] print:whitespace-nowrap">
+                    Period Totals
                   </td>
-                  <td className="py-3 px-3 text-right font-mono text-slate-900">
-                    {statement.totalDebit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <td className="py-3 px-4 text-right font-mono text-slate-900 print:py-1 print:px-1 print:text-[8px] whitespace-nowrap">
+                    {Math.round(statement.totalDebit).toLocaleString()}
                   </td>
-                  <td className="py-3 px-3 text-right font-mono text-emerald-700">
-                    {statement.totalCredit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <td className="py-3 px-4 text-right font-mono text-emerald-700 print:py-1 print:px-1 print:text-[8px] whitespace-nowrap">
+                    {Math.round(statement.totalCredit).toLocaleString()}
                   </td>
-                  <td className="py-3 px-3 text-right font-mono text-[var(--theme-primary)] text-sm">
-                    {statement.closingBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <td className="py-3 px-4 text-right font-mono text-[var(--theme-primary)] text-sm print:py-1 print:px-1 print:text-[8px] whitespace-nowrap">
+                    {Math.round(statement.closingBalance).toLocaleString()}
                   </td>
                   {isOwner && <td className="print:hidden"></td>}
                 </tr>
@@ -1234,7 +1306,7 @@ export const AccountsPage: React.FC = () => {
                   <option value="">-- Choose Account to Debit --</option>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      [{a.accountCode}] {a.title}
+                      {a.title} [{a.accountCode}]
                     </option>
                   ))}
                 </select>
@@ -1253,7 +1325,7 @@ export const AccountsPage: React.FC = () => {
                   <option value="">-- Choose Account to Credit --</option>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      [{a.accountCode}] {a.title}
+                      {a.title} [{a.accountCode}]
                     </option>
                   ))}
                 </select>

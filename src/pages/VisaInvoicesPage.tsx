@@ -463,7 +463,7 @@ export const VisaInvoicesPage: React.FC = () => {
             >
               <option value="all">All Agents</option>
               {agents.map((a) => (
-                <option key={a.id} value={a.id}>[{a.accountCode}] {a.title}</option>
+                <option key={a.id} value={a.id}>{a.title} [{a.accountCode}]</option>
               ))}
             </select>
           </div>
@@ -566,10 +566,10 @@ export const VisaInvoicesPage: React.FC = () => {
                         SAR {inv.buyingTotalSAR.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700 whitespace-nowrap">
-                        SAR {inv.marginSAR.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        SAR {(inv.marginSAR ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono text-slate-700 whitespace-nowrap">
-                        PKR {inv.totalsPKR.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        PKR {(inv.totalsPKR ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         <div className="text-[10px] text-slate-400">@ {inv.exchangeRate}</div>
                       </td>
                       <td className="py-2.5 px-3 text-center whitespace-nowrap">
@@ -810,7 +810,7 @@ export const VisaInvoicesPage: React.FC = () => {
                 </div>
                 <div className="flex justify-between text-slate-600 border-t border-slate-200 pt-1.5">
                   <span>Gross Margin (Credit Visa Margin Income):</span>
-                  <span className="font-mono font-bold text-emerald-700">SAR {selectedInvoice.marginSAR.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                  <span className="font-mono font-bold text-emerald-700">SAR {(selectedInvoice.marginSAR ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
 
@@ -830,7 +830,7 @@ export const VisaInvoicesPage: React.FC = () => {
                 </div>
                 <div className="flex justify-between text-slate-200 border-t border-white/20 pt-1.5 font-bold">
                   <span>Total Equivalent (PKR):</span>
-                  <span className="font-mono text-[#c9a227] text-sm">PKR {selectedInvoice.totalsPKR.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                  <span className="font-mono text-[#c9a227] text-sm">PKR {(selectedInvoice.totalsPKR ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                 </div>
               </div>
             </div>
@@ -967,6 +967,21 @@ export const VisaInvoicesPage: React.FC = () => {
                 </div>
               </div>
               <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">Shirka</label>
+                <div className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700">
+                  {(() => {
+                    if (editInvoice && editVendorId && editVendorId !== editInvoice.vendorId) return 'Cleared on save — a Sub-Vendor change clears the Shirka.';
+                    const vendorObj = vendors.find((v) => v.id === (editInvoice?.vendorId || ''));
+                    const shirka = vendorObj?.shirkas?.find((s) => s.id === editInvoice?.shirkaId);
+                    if (shirka) return shirka.name;
+                    return 'Vendor itself (no Shirka)';
+                  })()}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-0.5">
+                  Not editable in VV edit. Shirka is set at distribution; only a Sub-Vendor change above affects it, by clearing it on save.
+                </div>
+              </div>
+              <div>
                 <label className="block text-[11px] font-semibold text-slate-600 mb-1">VV Date *</label>
                 <input
                   type="date"
@@ -1001,12 +1016,16 @@ export const VisaInvoicesPage: React.FC = () => {
                   <div className="text-[10px] text-slate-500 mt-0.5">Agent receivable and margin post at this rate.</div>
                 </div>
               </div>
+              <p className="text-[10px] text-slate-500">
+                These Payable and Receivable ROE values apply to every group on this VV. Per-group ROE is set at distribution and is not editable here.
+              </p>
 
               <div className="border border-slate-200 rounded-xl overflow-hidden">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-slate-50 text-slate-600 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200">
                     <tr>
                       <th className="p-2.5">Group</th>
+                      <th className="p-2.5">Agent</th>
                       <th className="p-2.5 text-center">Visas</th>
                       <th className="p-2.5">Package Type</th>
                       <th className="p-2.5 text-right">Selling / Visa (SAR) *</th>
@@ -1020,6 +1039,9 @@ export const VisaInvoicesPage: React.FC = () => {
                         <td className="p-2.5">
                           <div className="font-mono font-bold text-[var(--theme-primary)]">{g.groupCode}</div>
                           <div className="text-[11px] text-slate-500">{g.groupName}</div>
+                        </td>
+                        <td className="p-2.5 text-slate-700">
+                          {agentMap.get(editAgentId || editInvoice?.agentId || '')?.title || 'Agent'}
                         </td>
                         <td className="p-2.5 text-center font-mono font-bold">{g.visaCount}</td>
                         <td className="p-2.5">
@@ -1058,13 +1080,44 @@ export const VisaInvoicesPage: React.FC = () => {
                   </tbody>
                   <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
                     <tr>
-                      <td className="p-2.5" colSpan={3}>New Totals</td>
+                      <td className="p-2.5" colSpan={4}>New Totals</td>
                       <td className="p-2.5 text-right font-mono text-emerald-700">SAR {editTotals.sell.toLocaleString()}</td>
                       <td className="p-2.5 text-right font-mono text-rose-700">SAR {editTotals.buy.toLocaleString()}</td>
                       <td className="p-2.5 text-right font-mono">SAR {editTotals.margin.toLocaleString()}</td>
                     </tr>
                   </tfoot>
                 </table>
+              </div>
+              <p className="text-[10px] text-slate-500">
+                All groups on this VV belong to the agent selected above. Moving a single group to a different agent is not available in VV edit.
+              </p>
+              <div className="border border-slate-200 rounded-xl p-3 bg-slate-50">
+                <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">Commission</div>
+                {editInvoice?.commission?.enabled ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase block font-bold">Recipient</span>
+                      <span className="font-semibold text-slate-900">{editInvoice.commission.recipientName}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase block font-bold">Contact</span>
+                      <span className="font-mono text-slate-700">{editInvoice.commission.contactNumber}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase block font-bold">Amount</span>
+                      <span className="font-mono font-bold text-slate-900">SAR {editInvoice.commission.amountSAR.toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase block font-bold">Status</span>
+                      <span className="font-semibold text-slate-900">{editInvoice.commission.status}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-slate-600">No commission on this VV.</div>
+                )}
+                <div className="text-[10px] text-slate-500 mt-2">
+                  Not editable in VV edit. Commission is set at distribution and is carried over unchanged on save; to settle it, use Mark Commission Paid from the VV detail view.
+                </div>
               </div>
               <p className="text-[11px] text-slate-500 bg-amber-50 border border-amber-200 rounded-lg p-2">
                 On save: the old legs are voided (audit trail preserved) and fresh legs are posted under the same VV number. The agent's receivable, the vendor's payable and the margin will all be updated.

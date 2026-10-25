@@ -37,10 +37,11 @@ import { useAuth } from '../contexts/AuthContext';
 /** Prefilled edit form for a visa record (Owner/Staff only). */
 const VisaEditForm: React.FC<{
   visa: VisaDoc;
+  vendors: VendorDoc[];
   saving: boolean;
   onCancel: () => void;
   onSave: (patch: Partial<VisaDoc>) => void;
-}> = ({ visa, saving, onCancel, onSave }) => {
+}> = ({ visa, vendors, saving, onCancel, onSave }) => {
   const [name, setName] = useState(visa.pilgrimName);
   const [passport, setPassport] = useState(visa.passportNumber);
   const [nationality, setNationality] = useState(visa.nationality);
@@ -49,6 +50,8 @@ const VisaEditForm: React.FC<{
   const [issueDate, setIssueDate] = useState(visa.visaIssueDate || '');
   const [groupCode, setGroupCode] = useState(visa.groupCode);
   const [groupName, setGroupName] = useState(visa.groupName || '');
+  const [vendorId, setVendorId] = useState(visa.vendorId || '');
+  const [shirkaId, setShirkaId] = useState(visa.shirkaId || '');
 
   const fieldCls = "w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900";
   const labelCls = "block text-[10px] uppercase font-bold text-slate-500 mb-1";
@@ -96,6 +99,34 @@ const VisaEditForm: React.FC<{
           <label className={labelCls}>Group Name</label>
           <input className={fieldCls} value={groupName} onChange={(e) => setGroupName(e.target.value)} />
         </div>
+        <div className="sm:col-span-2">
+          <label className={labelCls}>Vendor / Shirka</label>
+          <select
+            className={fieldCls}
+            value={`${vendorId}::${shirkaId}`}
+            onChange={(e) => {
+              const [vid, sid] = e.target.value.split('::');
+              setVendorId(vid || '');
+              setShirkaId(sid || '');
+            }}
+          >
+            <option value="::">-- Select Vendor / Shirka --</option>
+            {vendors.map((v) => {
+              const shirkas = (v.shirkas || []).filter((s: any) => s.isActive !== false);
+              if (shirkas.length === 0) {
+                return <option key={v.id} value={`${v.id}::`}>{v.name}{v.vendorCode ? ` (${v.vendorCode})` : ''}</option>;
+              }
+              return (
+                <optgroup key={v.id} label={`${v.name}${v.vendorCode ? ` (${v.vendorCode})` : ''}`}>
+                  <option value={`${v.id}::`}>{v.name} — Company itself</option>
+                  {shirkas.map((s: any) => (
+                    <option key={s.id} value={`${v.id}::${s.id}`}>{s.name} — run by {s.operatorName}</option>
+                  ))}
+                </optgroup>
+              );
+            })}
+          </select>
+        </div>
       </div>
       <div className="flex justify-end gap-2 pt-2">
         <Button variant="outline" size="sm" onClick={onCancel} disabled={saving}>Cancel</Button>
@@ -103,7 +134,9 @@ const VisaEditForm: React.FC<{
           variant="primary"
           size="sm"
           disabled={saving || !name.trim() || !passport.trim() || !groupCode.trim()}
-          onClick={() =>
+          onClick={() => {
+            const vnd = vendors.find((x) => x.id === vendorId);
+            const shk = (vnd?.shirkas || []).find((s: any) => s.id === shirkaId);
             onSave({
               pilgrimName: name.trim(),
               passportNumber: passport.trim(),
@@ -113,8 +146,11 @@ const VisaEditForm: React.FC<{
               visaIssueDate: issueDate || undefined,
               groupCode: groupCode.trim(),
               groupName: groupName.trim() || undefined,
-            })
-          }
+              vendorId: vendorId || undefined,
+              shirkaId: shirkaId || undefined,
+              shirkaName: vendorId ? (shk ? `${vnd!.name} — ${shk.name}` : vnd?.name) : undefined,
+            });
+          }}
         >
           {saving ? 'Saving…' : 'Save Changes'}
         </Button>
@@ -148,6 +184,7 @@ export const VisasPage: React.FC = () => {
   const [manualGroupName, setManualGroupName] = useState('Manual Umrah Group');
   const [manualGender, setManualGender] = useState('Male');
   const [manualAge, setManualAge] = useState<number>(30);
+  const [manualIssueDate, setManualIssueDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Edit / Delete visa (Owner/Staff only)
   const [editVisa, setEditVisa] = useState<VisaDoc | null>(null);
@@ -460,7 +497,7 @@ export const VisasPage: React.FC = () => {
         groupName: manualGroupName,
         gender: manualGender,
         age: manualAge,
-        visaIssueDate: new Date().toISOString().split('T')[0],
+        visaIssueDate: manualIssueDate || new Date().toISOString().split('T')[0],
         dateSource: 'original',
         status: 'Pending',
         createdAt: new Date().toISOString(),
@@ -490,6 +527,7 @@ export const VisasPage: React.FC = () => {
       setModalOpen(false);
       setManualName('');
       setManualPassport('');
+      setManualIssueDate(new Date().toISOString().split('T')[0]);
       loadVisas();
     } catch (err: any) {
       showError(err.message || 'Failed to register manual visa application.');
@@ -632,7 +670,7 @@ export const VisasPage: React.FC = () => {
               variant="outline"
               size="sm"
               leftIcon={<Plus className="w-4 h-4" />}
-              onClick={() => { setManualVendorId(''); setManualShirkaId(''); setModalOpen(true); }}
+              onClick={() => { setManualVendorId(''); setManualShirkaId(''); setManualIssueDate(new Date().toISOString().split('T')[0]); setModalOpen(true); }}
             >
               New Visa Application
             </Button>
@@ -1031,6 +1069,14 @@ export const VisasPage: React.FC = () => {
               onChange={(e) => setManualGroupName(e.target.value)}
             />
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Visa Issue Date"
+              type="date"
+              value={manualIssueDate}
+              onChange={(e) => setManualIssueDate(e.target.value)}
+            />
+          </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -1082,6 +1128,7 @@ export const VisasPage: React.FC = () => {
           <VisaEditForm
             key={editVisa.id}
             visa={editVisa}
+            vendors={vendors}
             saving={editSaving}
             onCancel={() => setEditVisa(null)}
             onSave={handleSaveVisaEdit}

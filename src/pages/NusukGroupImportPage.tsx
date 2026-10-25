@@ -79,6 +79,7 @@ export const NusukGroupImportPage: React.FC = () => {
   // Dual ROE for the generated VVs (defaults from Settings; editable here).
   const [buyROE, setBuyROE] = useState<number>(() => getBuyRate());
   const [sellROE, setSellROE] = useState<number>(() => getSellRate());
+  const [splitPerVisa, setSplitPerVisa] = useState(false);
 
   // Rates load from Firestore at app startup — refresh the defaults once
   // the file is parsed so Step 2 never shows a stale fallback.
@@ -404,18 +405,36 @@ export const NusukGroupImportPage: React.FC = () => {
         packageType?: string;
       }>();
       completeGroups.forEach((g) => {
-        agentGroupMap.set(`${g.groupCode}-${g.agentId}`, {
-          agentId: g.agentId,
-          sellingPricePerVisa: g.selling,
-          buyingPricePerVisa: g.buying,
-          groupCode: g.groupCode,
-          groupName: g.groupName,
-          visaIds: g.visas.map((v) => v.id),
-          exchangeRateSARPKR: 0,
-          buyROE,
-          sellROE,
-          packageType: g.packageType || undefined,
-        });
+        if (splitPerVisa) {
+          // Split mode: one VV per visa
+          g.visas.forEach((v, idx) => {
+            agentGroupMap.set(`${g.groupCode}-${g.agentId}-visa-${v.id || idx}`, {
+              agentId: g.agentId,
+              sellingPricePerVisa: g.selling,
+              buyingPricePerVisa: g.buying,
+              groupCode: g.groupCode,
+              groupName: g.groupName,
+              visaIds: [v.id],
+              exchangeRateSARPKR: 0,
+              buyROE,
+              sellROE,
+              packageType: g.packageType || undefined,
+            });
+          });
+        } else {
+          agentGroupMap.set(`${g.groupCode}-${g.agentId}`, {
+            agentId: g.agentId,
+            sellingPricePerVisa: g.selling,
+            buyingPricePerVisa: g.buying,
+            groupCode: g.groupCode,
+            groupName: g.groupName,
+            visaIds: g.visas.map((v) => v.id),
+            exchangeRateSARPKR: 0,
+            buyROE,
+            sellROE,
+            packageType: g.packageType || undefined,
+          });
+        }
       });
       await createVisaDistributionBatch({
         vendorId,
@@ -778,7 +797,12 @@ export const NusukGroupImportPage: React.FC = () => {
             </p>
           )}
 
-          <div className="flex items-center justify-end gap-3 mt-4">
+          <div className="flex items-center justify-between gap-3 mt-4 flex-wrap">
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+              <input type="checkbox" checked={splitPerVisa} onChange={(e) => setSplitPerVisa(e.target.checked)}
+                className="w-4 h-4 rounded" />
+              Split — one VV per visa
+            </label>
             {done ? (
               <Button variant="primary" onClick={() => navigate('/visas/invoices')} rightIcon={<ArrowRight className="w-4 h-4" />}>
                 View Generated VVs

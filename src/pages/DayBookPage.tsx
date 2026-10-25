@@ -127,14 +127,14 @@ export const DayBookPage: React.FC = () => {
     }
   };
 
-  // Edit a ledger entry (Owner/Staff) — void-and-repost with same transNo
-  const handleConfirmEdit = async (values: { date: string; particulars: string; amountSAR: number; rate: number }) => {
+  // Edit a ledger entry (Owner/Staff) — direct update in place, no void
+  const handleConfirmEdit = async (values: { date: string; particulars: string; amount: number; currency: 'PKR' | 'SAR'; rate: number }) => {
     if (!entryToEdit) return;
 
     setEditing(true);
     try {
       const updated = await editLedgerEntry(entryToEdit.id, values, userProfile?.name || 'Owner');
-      success(`Entry #${updated.entryNo} updated — corrected entry reposted under ${updated.transNo}.`);
+      success(`Entry #${updated.entryNo} updated.`);
       setEditModalOpen(false);
       setEntryToEdit(null);
       await loadData();

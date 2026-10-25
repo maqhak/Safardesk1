@@ -344,7 +344,7 @@ export const VoucherCreatePage: React.FC = () => {
             navigate('/vouchers', { replace: true });
             return;
           }
-          if (target.status === 'Cancelled') {
+          if (target.status === 'Void') {
             showError('Cancelled vouchers cannot be edited.');
             navigate('/vouchers', { replace: true });
             return;
@@ -400,7 +400,7 @@ export const VoucherCreatePage: React.FC = () => {
   const usedVisaIds = useMemo(() => {
     const set = new Set<string>();
     vouchers.forEach((v: any) => {
-      if (v.status === 'Cancelled') return;
+      if (v.status === 'Void') return;
       if (isEditMode && v.id === editId) return; // own pilgrims stay selectable
       (v.visaIds || []).forEach((id: string) => set.add(id));
     });
@@ -1033,7 +1033,7 @@ export const VoucherCreatePage: React.FC = () => {
         shirkaVendorId: payload.shirkaVendorId,
         shirkaId: payload.shirkaId,
         shirkaName: payload.shirkaName,
-        status: 'Confirmed',
+        status: 'Approved',
         passengers: payload.passengers,
         sectors: payload.sectors,
         hotelStays: payload.hotelStays,
@@ -1174,6 +1174,35 @@ export const VoucherCreatePage: React.FC = () => {
               </button>
               )}
             </div>
+
+            {/* ===== COMMISSION (edit mode only, read-only) ===== */}
+            {/* The agent re-pick control above stays create-only on purpose: in edit
+                mode it would navigate away to /vouchers/select and discard this draft,
+                and the voucher's passengers and posted ledger lines are agent-bound. */}
+            {isEditMode && (editingVoucher as any)?.commission?.enabled && (
+              <Card className="p-4">
+                <div className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">Commission (read-only)</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div>
+                    <label className={labelCls}>Recipient</label>
+                    <input type="text" value={(editingVoucher as any).commission.recipientName || '—'} readOnly className={readOnlyCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Contact</label>
+                    <input type="text" value={(editingVoucher as any).commission.contact || '—'} readOnly className={readOnlyCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Amount (SAR)</label>
+                    <input type="text" value={String((editingVoucher as any).commission.amountSAR || 0)} readOnly className={readOnlyCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Status</label>
+                    <input type="text" value={(editingVoucher as any).commission.isPaid ? 'Paid' : 'Unpaid'} readOnly className={readOnlyCls} />
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2">This commission is preserved exactly as recorded. It cannot be edited here and its posting is unchanged.</p>
+              </Card>
+            )}
 
             {/* ===== ROW 1: Pax QTY | Copy From | Date ===== */}
             <Card className="p-4">

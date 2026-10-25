@@ -116,15 +116,39 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
   const [voidReason, setVoidReason] = useState<string>('');
   const [voiding, setVoiding] = useState<boolean>(false);
 
-  // Edit Payment Modal (Owner/Staff)
+  // Edit Payment Modal (Owner/Staff) — mirrors the entry form state field for
+  // field, so editing reuses the entry layout (voucher header, Creditor /
+  // Debitor panels, rate, invoice link, receipt block) instead of a reduced
+  // 5-field form. The entry type itself stays fixed: the save service reposts
+  // with the original entry type, so the type is shown, not switched.
   const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
   const [paymentToEdit, setPaymentToEdit] = useState<PaymentDoc | null>(null);
   const [editDate, setEditDate] = useState<string>('');
-  const [editFromId, setEditFromId] = useState<string>('');
-  const [editToId, setEditToId] = useState<string>('');
-  const [editAmountSAR, setEditAmountSAR] = useState<number>(0);
   const [editParticulars, setEditParticulars] = useState<string>('');
+  const [editEntryType, setEditEntryType] = useState<PaymentEntryType>('cash-received');
+  const [editDepartment, setEditDepartment] = useState<string>('Accounts');
+  const [editAmountCurrency, setEditAmountCurrency] = useState<'SAR' | 'PKR'>('SAR');
+  const [editEnteredAmount, setEditEnteredAmount] = useState<number>(0);
+  const [editExchangeRate, setEditExchangeRate] = useState<number>(0);
+  const [editPayerPayeeId, setEditPayerPayeeId] = useState<string>('');
+  const [editCashTillId, setEditCashTillId] = useState<string>('');
+  const [editBankId, setEditBankId] = useState<string>('');
+  const [editAgainstInvoiceNo, setEditAgainstInvoiceNo] = useState<string>('');
+  const [editReceiptDataUrl, setEditReceiptDataUrl] = useState<string>('');
+  const [editReceiptFileName, setEditReceiptFileName] = useState<string>('');
+  const [editReceiptFileType, setEditReceiptFileType] = useState<'image' | 'pdf'>('image');
+  const [editReceiptReplaced, setEditReceiptReplaced] = useState<boolean>(false);
+  const [editReceiptError, setEditReceiptError] = useState<string>('');
+  const [editProcessingFile, setEditProcessingFile] = useState<boolean>(false);
   const [editing, setEditing] = useState<boolean>(false);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+  const editCameraInputRef = useRef<HTMLInputElement>(null);
+  // Edit-side derived amounts — same conversion as the entry form, so a
+  // PKR-typed payment is edited in PKR and converted to SAR only on save.
+  const editIsReceived = editEntryType === 'cash-received' || editEntryType === 'bank-received';
+  const editIsCash = editEntryType.startsWith('cash');
+  const editAmountSAR = editAmountCurrency === 'SAR' ? editEnteredAmount : (editExchangeRate > 0 ? editEnteredAmount / editExchangeRate : 0);
+  const editAmountPKR = editAmountCurrency === 'PKR' ? editEnteredAmount : editEnteredAmount * editExchangeRate;
 
   // Retry state
   const [retryingId, setRetryingId] = useState<string | null>(null);
@@ -175,6 +199,14 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
   }, [buyRate, sellRate]);
   const [againstInvoiceNo, setAgainstInvoiceNo] = useState<string>('');
   const [particulars, setParticulars] = useState<string>('');
+  // eTravel-inspired voucher header fields
+  const [department, setDepartment] = useState<string>('Accounts');
+  const DEPARTMENTS = ['Accounts', 'Administration', 'Booking', 'Finance', 'Hotel Voucher', 'Human Resources', 'Information Technology', 'Operation', 'Processing'];
+  const voucherTypeLabel = (t: PaymentEntryType) =>
+    t === 'cash-received' ? 'Cash Receipt' : t === 'cash-sent' ? 'Cash Payment' : t === 'bank-received' ? 'Bank Receipt' : 'Bank Payment';
+  // Credit/Debit side mapping: received → Dr Cash/Bank, Cr Payer; sent → Dr Payee, Cr Cash/Bank
+  const isReceived = entryType === 'cash-received' || entryType === 'bank-received';
+  const isCash = entryType.startsWith('cash');
   
   // Mandatory receipt state
   const [receiptDataUrl, setReceiptDataUrl] = useState<string>('');
@@ -220,6 +252,21 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
   const payerPayeeAccounts = useMemo(() => {
     return accounts.filter((a) => ['agent', 'vendor', 'hotel', 'customer'].includes(a.accountType));
   }, [accounts]);
+
+  // Edit fallbacks: if the original counterparty / cash till is no longer in
+  // its role-filtered list, it is still offered as an option so that opening
+  // an edit and saving without changes never silently moves the legs.
+  const editPayerFallback = useMemo(() => {
+    if (!editPayerPayeeId) return null;
+    if (payerPayeeAccounts.some((a) => a.id === editPayerPayeeId)) return null;
+    return accounts.find((a) => a.id === editPayerPayeeId) || null;
+  }, [editPayerPayeeId, payerPayeeAccounts, accounts]);
+  const editCashFallback = useMemo(() => {
+    if (!editCashTillId) return null;
+    if (cashAccounts.some((a) => a.id === editCashTillId)) return null;
+    return accounts.find((a) => a.id === editCashTillId) || null;
+  }, [editCashTillId, cashAccounts, accounts]);
+  const editBankFallback = editBankId && !banks.some((b) => b.id === editBankId);
 
   // Open Create Payment Modal
   const handleOpenCreateModal = async () => {
@@ -522,15 +569,73 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
     }
   };
 
-  // Open Edit modal prefilled with the payment's current values
+  // Open Edit modal prefilled with the payment's current values, decomposed
+  // into the entry form's role-filtered selections (counterparty / cash till /
+  // bank) so the edit form shows exactly what the entry form showed. A
+  // PKR-typed payment reopens with its typed PKR amount and its own rate.
   const openEditModal = (p: PaymentDoc) => {
+    const received = p.entryType === 'cash-received' || p.entryType === 'bank-received';
+    const cash = p.entryType.startsWith('cash');
     setPaymentToEdit(p);
+    setEditEntryType(p.entryType);
     setEditDate(p.date || '');
-    setEditFromId(p.fromAccountId || '');
-    setEditToId(p.toAccountId || '');
-    setEditAmountSAR(p.amountSAR || 0);
     setEditParticulars(p.particulars || '');
+    setEditDepartment('Accounts');
+    const currency = p.enteredCurrency || 'SAR';
+    setEditAmountCurrency(currency);
+    setEditEnteredAmount(
+      p.enteredAmount ?? (currency === 'PKR' ? p.amountPKR : p.amountSAR) ?? 0
+    );
+    setEditExchangeRate(p.exchangeRate || rateForType(p.entryType));
+    setEditAgainstInvoiceNo(p.againstInvoiceNo || '');
+    setEditReceiptDataUrl('');
+    setEditReceiptFileName(p.receiptFileName || '');
+    setEditReceiptFileType(p.receiptFileType || 'image');
+    setEditReceiptReplaced(false);
+    setEditReceiptError('');
+    if (received) {
+      setEditPayerPayeeId(p.fromAccountId || '');
+      if (cash) {
+        setEditCashTillId(p.toAccountId || '');
+        setEditBankId('');
+      } else {
+        setEditCashTillId('');
+        setEditBankId(banks.find((b) => b.linkedLedgerAccountId === p.toAccountId)?.id || p.bankAccountId || '');
+      }
+    } else {
+      setEditPayerPayeeId(p.toAccountId || '');
+      if (cash) {
+        setEditCashTillId(p.fromAccountId || '');
+        setEditBankId('');
+      } else {
+        setEditCashTillId('');
+        setEditBankId(banks.find((b) => b.linkedLedgerAccountId === p.fromAccountId)?.id || p.bankAccountId || '');
+      }
+    }
     setEditModalOpen(true);
+  };
+
+  // Receipt upload inside the edit form — stages a replacement; the original
+  // receipt is kept unless a new file is staged and saved (never dropped).
+  const handleEditFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setEditReceiptError('');
+    setEditProcessingFile(true);
+    try {
+      const processed = await processReceiptFile(file);
+      setEditReceiptDataUrl(processed.dataUrl);
+      setEditReceiptFileName(processed.fileName);
+      setEditReceiptFileType(processed.fileType);
+      setEditReceiptReplaced(true);
+      success(`New receipt staged: ${processed.fileName}`);
+    } catch (err: any) {
+      setEditReceiptError(err.message || 'File upload failed. Ensure size is under 10MB.');
+      setEditReceiptDataUrl('');
+      setEditReceiptReplaced(false);
+    } finally {
+      setEditProcessingFile(false);
+    }
   };
 
   const handleConfirmEdit = async () => {
@@ -539,16 +644,65 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
       showError('Date is required.');
       return;
     }
-    if (!(editAmountSAR > 0)) {
+    if (!(editEnteredAmount > 0)) {
       showError('Amount must be greater than zero.');
       return;
     }
-    if (!editFromId || !editToId) {
+    if (editAmountCurrency === 'PKR' && !(editExchangeRate > 0)) {
+      showError('Exchange rate is required for PKR amounts.');
+      return;
+    }
+    if (!editPayerPayeeId) {
+      showError('Please select a Payer or Payee account.');
+      return;
+    }
+    // The save service keeps the original invoice link: a changed link is
+    // refused here rather than silently discarded on save.
+    if (editAgainstInvoiceNo !== (paymentToEdit.againstInvoiceNo || '')) {
+      showError('Invoice link cannot be changed by this edit yet — the original link is kept. Please restore the original invoice link to save.');
+      return;
+    }
+    // Receipt is never dropped: either the original receipt or a staged
+    // replacement must be present.
+    const receiptKept = editReceiptReplaced ? Boolean(editReceiptDataUrl) : Boolean(paymentToEdit.receiptFile);
+    if (!receiptKept) {
+      showError('RECEIPT RULE: A payment CANNOT be saved without an attached receipt photo/PDF.');
+      return;
+    }
+
+    // Derive From/To from the role-filtered panels, exactly like entry save.
+    // Fall back to the original legs when a selected bank/till is no longer
+    // listed, so opening and saving without changes never moves the legs.
+    let fromAccId = '';
+    let toAccId = '';
+    if (editIsReceived) {
+      fromAccId = editPayerPayeeId;
+      if (editIsCash) {
+        toAccId = editCashTillId || paymentToEdit.toAccountId;
+      } else {
+        const bank = banks.find((b) => b.id === editBankId);
+        toAccId = bank ? bank.linkedLedgerAccountId : paymentToEdit.toAccountId;
+      }
+    } else {
+      toAccId = editPayerPayeeId;
+      if (editIsCash) {
+        fromAccId = editCashTillId || paymentToEdit.fromAccountId;
+      } else {
+        const bank = banks.find((b) => b.id === editBankId);
+        fromAccId = bank ? bank.linkedLedgerAccountId : paymentToEdit.fromAccountId;
+      }
+    }
+    if (!fromAccId || !toAccId) {
       showError('Both from and to accounts are required.');
       return;
     }
-    if (editFromId === editToId) {
+    if (fromAccId === toAccId) {
       showError('From and to accounts cannot be the same.');
+      return;
+    }
+    const amountSAR = editAmountSAR;
+    if (!(amountSAR > 0)) {
+      showError('Amount must be greater than zero.');
       return;
     }
 
@@ -558,15 +712,32 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
         paymentToEdit.id,
         {
           date: editDate,
-          fromAccountId: editFromId,
-          toAccountId: editToId,
-          amountSAR: editAmountSAR,
-          particulars: editParticulars,
-          exchangeRate: paymentToEdit.exchangeRate || 0,
+          fromAccountId: fromAccId,
+          toAccountId: toAccId,
+          amountSAR: Math.round(amountSAR * 100) / 100,
+          particulars: editParticulars.trim() || `${editEntryType.replace('-', ' ').toUpperCase()} recorded`,
+          exchangeRate: editExchangeRate,
         },
         userProfile?.name || 'Owner'
       );
-      success(`Payment #${updated.paymentNo} updated — corrected payment reposted.`);
+      // A staged receipt replacement is applied after the repost, on the
+      // reposted record. If it fails, the original receipt stays in place.
+      if (editReceiptReplaced && editReceiptDataUrl) {
+        try {
+          await updatePaymentReceipt(updated.id, {
+            receiptFile: editReceiptDataUrl,
+            receiptFileName: editReceiptFileName,
+            receiptFileType: editReceiptFileType,
+          }, userProfile?.name || userProfile?.email || 'Staff');
+        } catch {
+          info(`Payment #${updated.paymentNo} updated, but the new receipt could not be applied — the original receipt is kept.`);
+          setEditModalOpen(false);
+          setPaymentToEdit(null);
+          await loadData();
+          return;
+        }
+      }
+      success(`Payment #${updated.paymentNo} updated.`);
       setEditModalOpen(false);
       setPaymentToEdit(null);
       await loadData();
@@ -940,7 +1111,7 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
               <option value="all">All Linked Accounts</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
-                  [{a.accountCode}] {a.title}
+                  {a.title} [{a.accountCode}]
                 </option>
               ))}
             </select>
@@ -1290,87 +1461,400 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
         onConfirm={handleConfirmVoid}
       />
 
-      {/* Edit Payment Modal (Owner/Staff) — prefilled; save reposts corrected payment with same number */}
+      {/* Edit Payment Modal (Owner/Staff) — entry form reused for editing, prefilled */}
       <Modal
         isOpen={editModalOpen}
         onClose={() => setEditModalOpen(false)}
         title={`Edit Payment #${paymentToEdit?.paymentNo}`}
-        subtitle="The original payment is removed and a corrected payment is reposted with the same payment number."
+        subtitle="Correct the payment details. The original receipt is kept unless a new receipt is attached."
+        size="lg"
         footer={
-          <>
-            <Button variant="outline" size="sm" onClick={() => setEditModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" loading={editing} onClick={handleConfirmEdit}>
-              Save Changes
-            </Button>
-          </>
+          <div className="flex items-center justify-between w-full">
+            <div className="text-xs">
+              {editReceiptReplaced ? (
+                <span className="text-emerald-600 font-bold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  New receipt attached ({editReceiptFileName})
+                </span>
+              ) : paymentToEdit?.receiptFileName ? (
+                <span className="text-emerald-600 font-bold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Original receipt kept ({paymentToEdit.receiptFileName})
+                </span>
+              ) : (
+                <span className="text-rose-600 font-bold flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  No receipt on file — attach one to save
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEditModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" loading={editing} disabled={editProcessingFile} onClick={handleConfirmEdit}>
+                Save Changes
+              </Button>
+            </div>
+          </div>
         }
       >
-        <div className="space-y-4 py-2">
-          <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-4 py-1 text-xs">
+          {/* TOP: Center-aligned voucher header — same as the entry form */}
+          <div className="p-4 bg-[#0e2c4c] text-white rounded-xl text-center space-y-3">
             <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Date *</label>
-              <input
-                type="date"
-                value={editDate}
-                onChange={(e) => setEditDate(e.target.value)}
-                className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900"
+              <span className="text-[10px] text-slate-300 uppercase font-bold tracking-wider block">
+                Voucher No.
+              </span>
+              <span className="text-xl font-mono font-black text-[#c9a227] tracking-tight">
+                {paymentToEdit?.paymentNo || 'PMT-…'}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-left">
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Voucher Type</span>
+                <span className="block bg-white/10 border border-white/20 rounded px-2 py-1.5 text-xs font-bold">
+                  {voucherTypeLabel(editEntryType)}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Voucher Date</span>
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  required
+                  className="w-full bg-white/10 text-white border border-white/20 rounded px-2 py-1.5 text-xs font-mono min-w-[9.5rem]"
+                />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Department</span>
+                <select
+                  value={editDepartment}
+                  onChange={(e) => setEditDepartment(e.target.value)}
+                  className="w-full bg-white/10 text-white border border-white/20 rounded px-2 py-1.5 text-xs font-semibold"
+                >
+                  {DEPARTMENTS.map((d) => (
+                    <option key={d} value={d} className="text-slate-900">{d}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Currency</span>
+                <select
+                  value={editAmountCurrency}
+                  onChange={(e) => setEditAmountCurrency(e.target.value as 'SAR' | 'PKR')}
+                  className="w-full bg-white/10 text-white border border-white/20 rounded px-2 py-1.5 text-xs font-bold"
+                >
+                  <option value="SAR" className="text-slate-900">Saudi Riyal</option>
+                  <option value="PKR" className="text-slate-900">Pak Rupees</option>
+                </select>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Voucher Status</span>
+                <span className="block bg-emerald-500/20 border border-emerald-300/40 text-emerald-200 rounded px-2 py-1.5 text-xs font-bold text-center">
+                  Final
+                </span>
+              </div>
+            </div>
+            <div className="max-w-2xl mx-auto">
+              <label className="block text-[10px] text-slate-300 uppercase font-bold tracking-wider mb-1">
+                Voucher Description *
+              </label>
+              <textarea
+                value={editParticulars}
+                onChange={(e) => setEditParticulars(e.target.value)}
+                placeholder="Write the description — the same line appears in the ledger (Particulars)…"
+                rows={2}
+                required
+                className="w-full p-2.5 bg-white text-slate-900 border border-white/20 rounded-lg text-xs text-center font-semibold focus:ring-2 focus:ring-[#c9a227]/40 focus:outline-none"
               />
             </div>
-            <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Amount (SAR) *</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={editAmountSAR || ''}
-                onChange={(e) => setEditAmountSAR(parseFloat(e.target.value) || 0)}
-                className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 text-right"
-              />
-            </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">From Account *</label>
-              <select
-                value={editFromId}
-                onChange={(e) => setEditFromId(e.target.value)}
-                className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900"
-              >
-                <option value="">-- Select --</option>
-                {accounts.map((a: any) => (
-                  <option key={a.id} value={a.id}>{a.title} ({a.accountCode})</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">To Account *</label>
-              <select
-                value={editToId}
-                onChange={(e) => setEditToId(e.target.value)}
-                className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900"
-              >
-                <option value="">-- Select --</option>
-                {accounts.map((a: any) => (
-                  <option key={a.id} value={a.id}>{a.title} ({a.accountCode})</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Particulars</label>
-            <input
-              type="text"
-              value={editParticulars}
-              onChange={(e) => setEditParticulars(e.target.value)}
-              placeholder="Payment description"
-              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900"
-            />
-          </div>
+
           <p className="text-[11px] text-slate-500">
-            Type ({paymentToEdit?.entryType}), receipt and invoice link are kept unchanged.
+            Entry Type: {voucherTypeLabel(editEntryType)} — the entry type cannot be changed in this edit.
           </p>
+
+          {/* Creditor (LEFT) / Debitor (RIGHT) — same role-filtered panels as entry */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* LEFT = Creditor (Credit entry) */}
+            <div className="border-2 border-emerald-200 rounded-xl overflow-hidden">
+              <div className="bg-emerald-600 text-white text-center py-1.5">
+                <span className="text-xs font-black tracking-widest uppercase">Creditor</span>
+                <span className="block text-[10px] opacity-80 font-semibold">Credit Entry</span>
+              </div>
+              <div className="p-3 space-y-3 bg-emerald-50/40">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Account (Credit) *</label>
+                  {editIsReceived ? (
+                    <select value={editPayerPayeeId} onChange={(e) => setEditPayerPayeeId(e.target.value)} required
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
+                      <option value="">-- Choose Account --</option>
+                      {payerPayeeAccounts.map((a) => (
+                        <option key={a.id} value={a.id}>{a.title} [{a.accountCode}] ({a.accountType.toUpperCase()})</option>
+                      ))}
+                      {editPayerFallback && (
+                        <option key={editPayerFallback.id} value={editPayerFallback.id}>{editPayerFallback.title} [{editPayerFallback.accountCode}]</option>
+                      )}
+                    </select>
+                  ) : editIsCash ? (
+                    <select value={editCashTillId} onChange={(e) => setEditCashTillId(e.target.value)} required
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
+                      {cashAccounts.map((c) => (
+                        <option key={c.id} value={c.id}>{c.title} [{c.accountCode}]</option>
+                      ))}
+                      {editCashFallback && (
+                        <option key={editCashFallback.id} value={editCashFallback.id}>{editCashFallback.title} [{editCashFallback.accountCode}]</option>
+                      )}
+                    </select>
+                  ) : (
+                    <select value={editBankId} onChange={(e) => setEditBankId(e.target.value)} required
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
+                      {banks.map((b) => (
+                        <option key={b.id} value={b.id}>{b.bankName} — {b.accountTitle} ({b.accountNumber} • {b.currency})</option>
+                      ))}
+                      {editBankFallback && (
+                        <option key={editBankId} value={editBankId}>Original bank account — kept unchanged</option>
+                      )}
+                    </select>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Credit Amount ({editAmountCurrency}) *</label>
+                  <input type="number" min="0.01" step="0.01" value={editEnteredAmount || ''}
+                    onChange={(e) => setEditEnteredAmount(parseFloat(e.target.value) || 0)}
+                    placeholder="0.00" required
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-emerald-700" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Exchange Rate (SAR→PKR)</label>
+                  <input type="number" step="0.01" value={editExchangeRate || ''}
+                    onChange={(e) => { const v = e.target.value; setEditExchangeRate(v === '' ? 0 : parseFloat(v) || 0); }}
+                    placeholder={rateForType(editEntryType).toFixed(2)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Particulars</label>
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 min-h-[2.5rem]">
+                    {editParticulars || <span className="text-slate-400">Same as voucher description…</span>}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* RIGHT = Debitor (Debit entry) */}
+            <div className="border-2 border-rose-200 rounded-xl overflow-hidden">
+              <div className="bg-rose-600 text-white text-center py-1.5">
+                <span className="text-xs font-black tracking-widest uppercase">Debitor</span>
+                <span className="block text-[10px] opacity-80 font-semibold">Debit Entry</span>
+              </div>
+              <div className="p-3 space-y-3 bg-rose-50/40">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Account (Debit) *</label>
+                  {!editIsReceived ? (
+                    <select value={editPayerPayeeId} onChange={(e) => setEditPayerPayeeId(e.target.value)} required
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
+                      <option value="">-- Choose Account --</option>
+                      {payerPayeeAccounts.map((a) => (
+                        <option key={a.id} value={a.id}>{a.title} [{a.accountCode}] ({a.accountType.toUpperCase()})</option>
+                      ))}
+                      {editPayerFallback && (
+                        <option key={editPayerFallback.id} value={editPayerFallback.id}>{editPayerFallback.title} [{editPayerFallback.accountCode}]</option>
+                      )}
+                    </select>
+                  ) : editIsCash ? (
+                    <select value={editCashTillId} onChange={(e) => setEditCashTillId(e.target.value)} required
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
+                      {cashAccounts.map((c) => (
+                        <option key={c.id} value={c.id}>{c.title} [{c.accountCode}]</option>
+                      ))}
+                      {editCashFallback && (
+                        <option key={editCashFallback.id} value={editCashFallback.id}>{editCashFallback.title} [{editCashFallback.accountCode}]</option>
+                      )}
+                    </select>
+                  ) : (
+                    <select value={editBankId} onChange={(e) => setEditBankId(e.target.value)} required
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
+                      {banks.map((b) => (
+                        <option key={b.id} value={b.id}>{b.bankName} — {b.accountTitle} ({b.accountNumber} • {b.currency})</option>
+                      ))}
+                      {editBankFallback && (
+                        <option key={editBankId} value={editBankId}>Original bank account — kept unchanged</option>
+                      )}
+                    </select>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Debit Amount ({editAmountCurrency}) *</label>
+                  <input type="number" min="0.01" step="0.01" value={editEnteredAmount || ''}
+                    onChange={(e) => setEditEnteredAmount(parseFloat(e.target.value) || 0)}
+                    placeholder="0.00" required
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-rose-700" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Exchange Rate (SAR→PKR)</label>
+                  <input type="number" step="0.01" value={editExchangeRate || ''}
+                    onChange={(e) => { const v = e.target.value; setEditExchangeRate(v === '' ? 0 : parseFloat(v) || 0); }}
+                    placeholder={rateForType(editEntryType).toFixed(2)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Particulars</label>
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 min-h-[2.5rem]">
+                    {editParticulars || <span className="text-slate-400">Same as voucher description…</span>}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* Double-entry equality check — both amounts exactly equal */}
+          <div className="flex items-center justify-center gap-2 p-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold">
+            <Scale className="w-4 h-4 text-[#c9a227]" />
+            <span>
+              Debit = Credit — SAR {editAmountSAR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {' '}• PKR {editAmountPKR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center justify-between">
+              <span>Against Invoice No (Optional — Visa invoices are paid HERE)</span>
+              <span className="text-[10px] text-slate-400">Updates invoice balance automatically</span>
+            </label>
+            <select
+              value={editAgainstInvoiceNo}
+              onChange={(e) => setEditAgainstInvoiceNo(e.target.value)}
+              className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"
+            >
+              <option value="">-- No specific invoice (Direct account credit/debit) --</option>
+              {invoices.map((inv) => (
+                <option key={inv.invoiceNo} value={inv.invoiceNo}>
+                  {inv.invoiceNo} [{inv.module}] — {inv.accountTitle} | Balance: SAR {inv.balanceSAR.toLocaleString()} ({inv.status})
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-slate-500 mt-1">
+              Note: the invoice link cannot be changed by this edit yet — the original link is kept on save. Restore the original link to save.
+            </p>
+          </div>
+
+          {/* Receipt block — original kept, replacement staged here */}
+          <div className="p-3.5 border-2 border-dashed border-amber-300 bg-amber-50/50 rounded-xl space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <UploadCloud className="w-4 h-4 text-[#c9a227]" />
+                <span>Receipt Photo / PDF (RECEIPT RULE & AI VERIFICATION) *</span>
+              </label>
+              <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                Hard Requirement
+              </span>
+            </div>
+
+            <p className="text-[11px] text-slate-600 leading-snug">
+              The original receipt is kept unless a new file is attached here. Every receipt is archived to the buyer company's Google Drive and audited by Gemini AI. Max size: 10MB.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <input
+                ref={editFileInputRef}
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={handleEditFileUpload}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                leftIcon={<UploadCloud className="w-3.5 h-3.5" />}
+                onClick={() => editFileInputRef.current?.click()}
+                disabled={editProcessingFile}
+              >
+                Upload Photo / PDF
+              </Button>
+
+              <input
+                ref={editCameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleEditFileUpload}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                leftIcon={<Camera className="w-3.5 h-3.5" />}
+                onClick={() => editCameraInputRef.current?.click()}
+                disabled={editProcessingFile}
+              >
+                Snap with Camera
+              </Button>
+
+              {paymentToEdit?.receiptFile && !editReceiptReplaced && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewerReceiptUrl(paymentToEdit.receiptFile);
+                    setViewerFileName(paymentToEdit.receiptFileName || paymentToEdit.paymentNo);
+                    setViewerFileType(paymentToEdit.receiptFileType || 'image');
+                    setViewerPaymentNo(paymentToEdit.paymentNo);
+                    setViewerWebViewLink(paymentToEdit.webViewLink || null);
+                    setViewerAiStatus(paymentToEdit.aiStatus);
+                    setViewerAiNotes(paymentToEdit.aiNotes || null);
+                    setViewerEntryAccountId(paymentToEdit.fromAccountId);
+                  }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white border border-emerald-300 text-emerald-700 font-bold rounded-lg text-xs cursor-pointer shadow-2xs"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>View Original ({paymentToEdit.receiptFileName || paymentToEdit.paymentNo})</span>
+                </button>
+              )}
+
+              {editReceiptReplaced && editReceiptDataUrl && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewerReceiptUrl(editReceiptDataUrl);
+                      setViewerFileName(editReceiptFileName);
+                      setViewerFileType(editReceiptFileType);
+                      setViewerPaymentNo(paymentToEdit?.paymentNo || '');
+                      setViewerWebViewLink(null);
+                      setViewerAiStatus('Verified');
+                      setViewerAiNotes(null);
+                      setViewerEntryAccountId(editPayerPayeeId);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white border border-emerald-300 text-emerald-700 font-bold rounded-lg text-xs cursor-pointer shadow-2xs"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Preview New ({editReceiptFileName})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditReceiptDataUrl('');
+                      setEditReceiptFileName(paymentToEdit?.receiptFileName || '');
+                      setEditReceiptFileType(paymentToEdit?.receiptFileType || 'image');
+                      setEditReceiptReplaced(false);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white border border-slate-300 text-slate-600 font-bold rounded-lg text-xs cursor-pointer"
+                  >
+                    <span>Keep Original Instead</span>
+                  </button>
+                </>
+              )}
+            </div>
+
+            {editReceiptError && (
+              <div className="text-xs text-rose-600 font-semibold flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>{editReceiptError}</span>
+              </div>
+            )}
+          </div>
         </div>
       </Modal>
       </>
@@ -1415,24 +1899,74 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
         }
       >
         <form onSubmit={handleSubmitPayment} className="space-y-4 py-1 text-xs">
-          {/* Header Reference: Manual No. shown large & readable */}
-          <div className="flex items-center justify-between p-3.5 bg-[#0e2c4c] text-white rounded-xl">
+          {/* TOP: Center-aligned voucher header (eTravel-inspired one-page design) */}
+          <div className="p-4 bg-[#0e2c4c] text-white rounded-xl text-center space-y-3">
             <div>
               <span className="text-[10px] text-slate-300 uppercase font-bold tracking-wider block">
-                Manual / Voucher Sequence No.
+                Voucher No.
               </span>
               <span className="text-xl font-mono font-black text-[#c9a227] tracking-tight">
-                {paymentNo || 'PMT-00105'}
+                {paymentNo || 'PMT-…'}
               </span>
             </div>
-            <div className="text-right">
-              <span className="text-[10px] text-slate-300 uppercase font-bold block">Transaction Date</span>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-left">
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Voucher Type</span>
+                <span className="block bg-white/10 border border-white/20 rounded px-2 py-1.5 text-xs font-bold">
+                  {voucherTypeLabel(entryType)}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Voucher Date</span>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                  className="w-full bg-white/10 text-white border border-white/20 rounded px-2 py-1.5 text-xs font-mono min-w-[9.5rem]"
+                />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Department</span>
+                <select
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  className="w-full bg-white/10 text-white border border-white/20 rounded px-2 py-1.5 text-xs font-semibold"
+                >
+                  {DEPARTMENTS.map((d) => (
+                    <option key={d} value={d} className="text-slate-900">{d}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Currency</span>
+                <select
+                  value={amountCurrency}
+                  onChange={(e) => setAmountCurrency(e.target.value as 'SAR' | 'PKR')}
+                  className="w-full bg-white/10 text-white border border-white/20 rounded px-2 py-1.5 text-xs font-bold"
+                >
+                  <option value="SAR" className="text-slate-900">Saudi Riyal</option>
+                  <option value="PKR" className="text-slate-900">Pak Rupees</option>
+                </select>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Voucher Status</span>
+                <span className="block bg-emerald-500/20 border border-emerald-300/40 text-emerald-200 rounded px-2 py-1.5 text-xs font-bold text-center">
+                  Final
+                </span>
+              </div>
+            </div>
+            <div className="max-w-2xl mx-auto">
+              <label className="block text-[10px] text-slate-300 uppercase font-bold tracking-wider mb-1">
+                Voucher Description *
+              </label>
+              <textarea
+                value={particulars}
+                onChange={(e) => setParticulars(e.target.value)}
+                placeholder="Write the description — the same line appears in the ledger (Particulars)…"
+                rows={2}
                 required
-                className="bg-white/10 text-white border border-white/20 rounded px-2 py-1 text-xs font-mono"
+                className="w-full p-2.5 bg-white text-slate-900 border border-white/20 rounded-lg text-xs text-center font-semibold focus:ring-2 focus:ring-[#c9a227]/40 focus:outline-none"
               />
             </div>
           </div>
@@ -1517,151 +2051,127 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
 
           </>
           )}
-          {/* Account Selectors */}
-          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  {entryType.includes('received') ? 'Payer Account (Agent / Customer) *' : 'Payee Account (Vendor / Hotel / Agent) *'}
-                </label>
-                <select
-                  value={selectedPayerPayeeId}
-                  onChange={(e) => handlePayerPayeeChange(e.target.value)}
-                  required
-                  className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
-                >
-                  <option value="">-- Choose Account --</option>
-                  {payerPayeeAccounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      [{a.accountCode}] {a.title} ({a.accountType.toUpperCase()})
-                    </option>
-                  ))}
-                </select>
+          {/* Creditor (LEFT) / Debitor (RIGHT) — inline entries, no popup (eTravel-inspired) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* LEFT = Creditor (Credit entry) */}
+            <div className="border-2 border-emerald-200 rounded-xl overflow-hidden">
+              <div className="bg-emerald-600 text-white text-center py-1.5">
+                <span className="text-xs font-black tracking-widest uppercase">Creditor</span>
+                <span className="block text-[10px] opacity-80 font-semibold">Credit Entry</span>
               </div>
-
-              {entryType.startsWith('cash') ? (
+              <div className="p-3 space-y-3 bg-emerald-50/40">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Cash Till / Branch Drawer *
-                  </label>
-                  <select
-                    value={selectedCashTillId}
-                    onChange={(e) => setSelectedCashTillId(e.target.value)}
-                    required
-                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
-                  >
-                    {cashAccounts.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        [{c.accountCode}] {c.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
-                    <span>Bank Account (Master) *</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewBankName('');
-                        setNewBankTitle('');
-                        setNewBankNumber('');
-                        setNewBankIban('');
-                        setNewBankBranch('');
-                        setNewBankCurrency('SAR');
-                        setNewBankLedgerId('auto');
-                        setBankModalOpen(true);
-                      }}
-                      className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
-                    >
-                      + Add Bank
-                    </button>
-                  </label>
-                  <select
-                    value={selectedBankId}
-                    onChange={(e) => setSelectedBankId(e.target.value)}
-                    required
-                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
-                  >
-                    {banks.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.bankName} — {b.accountTitle} ({b.accountNumber} • {b.currency})
-                      </option>
-                    ))}
-                  </select>
-                  {selectedBankId && (
-                    <div className="text-[10px] text-slate-500 mt-1 font-mono">
-                      IBAN: {banks.find(b => b.id === selectedBankId)?.iban}
-                    </div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Account (Credit) *</label>
+                  {isReceived ? (
+                    <select value={selectedPayerPayeeId} onChange={(e) => handlePayerPayeeChange(e.target.value)} required
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
+                      <option value="">-- Choose Account --</option>
+                      {payerPayeeAccounts.map((a) => (
+                        <option key={a.id} value={a.id}>{a.title} [{a.accountCode}] ({a.accountType.toUpperCase()})</option>
+                      ))}
+                    </select>
+                  ) : isCash ? (
+                    <select value={selectedCashTillId} onChange={(e) => setSelectedCashTillId(e.target.value)} required
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
+                      {cashAccounts.map((c) => (
+                        <option key={c.id} value={c.id}>{c.title} [{c.accountCode}]</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <select value={selectedBankId} onChange={(e) => setSelectedBankId(e.target.value)} required
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
+                      {banks.map((b) => (
+                        <option key={b.id} value={b.id}>{b.bankName} — {b.accountTitle} ({b.accountNumber} • {b.currency})</option>
+                      ))}
+                    </select>
                   )}
                 </div>
-              )}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Credit Amount ({amountCurrency}) *</label>
+                  <input type="number" min="0.01" step="0.01" value={enteredAmount || ''}
+                    onChange={(e) => setEnteredAmount(parseFloat(e.target.value) || 0)}
+                    placeholder="0.00" required
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-emerald-700" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Exchange Rate (SAR→PKR)</label>
+                  <input type="number" step="0.01" value={exchangeRate || ''}
+                    onChange={(e) => { const v = e.target.value; setExchangeRate(v === '' ? 0 : parseFloat(v) || 0); }}
+                    placeholder={rateForType(entryType).toFixed(2)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Particulars</label>
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 min-h-[2.5rem]">
+                    {particulars || <span className="text-slate-400">Same as voucher description…</span>}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* RIGHT = Debitor (Debit entry) */}
+            <div className="border-2 border-rose-200 rounded-xl overflow-hidden">
+              <div className="bg-rose-600 text-white text-center py-1.5">
+                <span className="text-xs font-black tracking-widest uppercase">Debitor</span>
+                <span className="block text-[10px] opacity-80 font-semibold">Debit Entry</span>
+              </div>
+              <div className="p-3 space-y-3 bg-rose-50/40">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Account (Debit) *</label>
+                  {!isReceived ? (
+                    <select value={selectedPayerPayeeId} onChange={(e) => handlePayerPayeeChange(e.target.value)} required
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
+                      <option value="">-- Choose Account --</option>
+                      {payerPayeeAccounts.map((a) => (
+                        <option key={a.id} value={a.id}>{a.title} [{a.accountCode}] ({a.accountType.toUpperCase()})</option>
+                      ))}
+                    </select>
+                  ) : isCash ? (
+                    <select value={selectedCashTillId} onChange={(e) => setSelectedCashTillId(e.target.value)} required
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
+                      {cashAccounts.map((c) => (
+                        <option key={c.id} value={c.id}>{c.title} [{c.accountCode}]</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <select value={selectedBankId} onChange={(e) => setSelectedBankId(e.target.value)} required
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
+                      {banks.map((b) => (
+                        <option key={b.id} value={b.id}>{b.bankName} — {b.accountTitle} ({b.accountNumber} • {b.currency})</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Debit Amount ({amountCurrency}) *</label>
+                  <input type="number" min="0.01" step="0.01" value={enteredAmount || ''}
+                    onChange={(e) => setEnteredAmount(parseFloat(e.target.value) || 0)}
+                    placeholder="0.00" required
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-rose-700" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Exchange Rate (SAR→PKR)</label>
+                  <input type="number" step="0.01" value={exchangeRate || ''}
+                    onChange={(e) => { const v = e.target.value; setExchangeRate(v === '' ? 0 : parseFloat(v) || 0); }}
+                    placeholder={rateForType(entryType).toFixed(2)}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Particulars</label>
+                  <div className="p-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 min-h-[2.5rem]">
+                    {particulars || <span className="text-slate-400">Same as voucher description…</span>}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-
-          {/* Amounts & Currency Rates — amount can be typed in SAR or PKR */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center justify-between">
-                <span>Amount *</span>
-                <span className="inline-flex rounded-full border border-slate-300 overflow-hidden">
-                  {(['SAR', 'PKR'] as const).map((cur) => (
-                    <button
-                      key={cur}
-                      type="button"
-                      onClick={() => setAmountCurrency(cur)}
-                      className={`px-2.5 py-0.5 text-[10px] font-bold transition ${
-                        amountCurrency === cur ? 'bg-[#0e2c4c] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'
-                      }`}
-                    >
-                      {cur}
-                    </button>
-                  ))}
-                </span>
-              </label>
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={enteredAmount || ''}
-                onChange={(e) => setEnteredAmount(parseFloat(e.target.value) || 0)}
-                placeholder={`0.00 (${amountCurrency})`}
-                required
-                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[var(--theme-primary)]"
-              />
-              <div className="text-[10px] text-slate-500 mt-1 font-mono">
-                = SAR {amountSAR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                {' '}• PKR {amountPKR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                Exchange Rate (SAR→PKR) <span className="text-[10px] font-normal text-slate-400">
-                  {(entryType === 'cash-sent' || entryType === 'bank-sent') ? '· Buying ROE' : '· Selling ROE'}
-                </span>
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                value={exchangeRate || ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setExchangeRate(v === '' ? 0 : parseFloat(v) || 0);
-                }}
-                placeholder={rateForType(entryType).toFixed(2)}
-                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Computed Totals</label>
-              <div className="p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs font-mono font-bold text-emerald-700 space-y-0.5">
-                <div>SAR {amountSAR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                <div>PKR {amountPKR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-              </div>
-            </div>
+          {/* Double-entry equality check — both amounts exactly equal */}
+          <div className="flex items-center justify-center gap-2 p-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold">
+            <Scale className="w-4 h-4 text-[#c9a227]" />
+            <span>
+              Debit = Credit — SAR {amountSAR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {' '}• PKR {amountPKR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           </div>
 
           <div>
@@ -1681,21 +2191,6 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
                 </option>
               ))}
             </select>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
-              <span>Details Box (Particulars) *</span>
-              <span className="text-[10px] text-slate-400 font-normal">Appears verbatim in the ledger statement</span>
-            </label>
-            <textarea
-              value={particulars}
-              onChange={(e) => setParticulars(e.target.value)}
-              placeholder="e.g. Al-Rajhi inward wire received from Al-Barakah for Umrah visa batch..."
-              rows={2}
-              required
-              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-[#0e2c4c]/20 focus:outline-none"
-            />
           </div>
 
           {/* Mandatory Receipt Upload & AI Verification Notice */}
@@ -1882,7 +2377,7 @@ export const PaymentsPage: React.FC<{ presetEntryType?: PaymentEntryType }> = ({
                 .filter((a) => a.accountType === 'bank')
                 .map((a) => (
                   <option key={a.id} value={a.id}>
-                    [{a.accountCode}] {a.title}
+                    {a.title} [{a.accountCode}]
                   </option>
                 ))}
             </select>

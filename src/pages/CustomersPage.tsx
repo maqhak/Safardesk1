@@ -64,6 +64,7 @@ export const CustomersPage: React.FC = () => {
   const [passportNumber, setPassportNumber] = useState<string>('');
   const [nationality, setNationality] = useState<string>('Pakistani');
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
+  const [dateOfBirth, setDateOfBirth] = useState<string>('');
   const [mobile, setMobile] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [city, setCity] = useState<string>('Karachi');
@@ -209,6 +210,7 @@ export const CustomersPage: React.FC = () => {
         passportNumber: passportNumber.trim().toUpperCase(),
         nationality,
         gender,
+        dateOfBirth: dateOfBirth || undefined,
         mobile: mobile.trim(),
         email: email.trim(),
         city: city.trim(),
@@ -223,6 +225,7 @@ export const CustomersPage: React.FC = () => {
       setAddModalOpen(false);
       setFullName('');
       setPassportNumber('');
+      setDateOfBirth('');
       setMobile('');
       setEmail('');
       setCity('Karachi');
@@ -567,27 +570,27 @@ export const CustomersPage: React.FC = () => {
               </select>
             </div>
             <Input
+              label="Date of Birth"
+              type="date"
+              value={dateOfBirth}
+              onChange={(e) => setDateOfBirth(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
               label="Mobile Number *"
               placeholder="e.g. +92 300 1234567"
               value={mobile}
               onChange={(e) => setMobile(e.target.value)}
               required
             />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Email Address"
               type="email"
               placeholder="e.g. ahmed@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-            />
-            <Input
-              label="CNIC / National ID"
-              placeholder="e.g. 42101-9988776-1"
-              value={cnic}
-              onChange={(e) => setCnic(e.target.value)}
             />
           </div>
 
@@ -600,12 +603,19 @@ export const CustomersPage: React.FC = () => {
               required
             />
             <Input
-              label="Street Address"
-              placeholder="e.g. DHA Phase 6"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              label="CNIC / National ID"
+              placeholder="e.g. 42101-9988776-1"
+              value={cnic}
+              onChange={(e) => setCnic(e.target.value)}
             />
           </div>
+
+          <Input
+            label="Street Address"
+            placeholder="e.g. DHA Phase 6"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+          />
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Notes & Special Requirements</label>

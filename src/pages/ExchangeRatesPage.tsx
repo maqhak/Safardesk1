@@ -11,6 +11,7 @@ import {
   FileSpreadsheet,
   TrendingUp,
   Trash2,
+  Pencil,
   X
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -26,7 +27,7 @@ import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
 import { ExchangeRateDoc } from '../types/finance';
 import { fetchExchangeRates, createExchangeRate, convert } from '../services/financeService';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db, isConfigPlaceholder } from '../services/firebase';
 import { logAuditEvent } from '../services/userService';
 
@@ -38,12 +39,39 @@ export const ExchangeRatesPage: React.FC = () => {
   const [rates, setRates] = useState<ExchangeRateDoc[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Manual Add Modal
+  // Manual Add Modal (also reused, prefilled, for editing one history entry)
   const [addModalOpen, setAddModalOpen] = useState<boolean>(false);
   const [pair, setPair] = useState<string>('SAR/PKR');
   const [rateVal, setRateVal] = useState<string>('');
   const [effectiveDate, setEffectiveDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [creating, setCreating] = useState<boolean>(false);
+  // Entry being edited (null = creating a new entry). Edit updates the same
+  // history document in place: no other document references a rate by id —
+  // settled documents carry their own numeric rate snapshot, and live rates
+  // are looked up by pair, so correcting one history row cannot corrupt
+  // settled calculations.
+  const [editingRate, setEditingRate] = useState<ExchangeRateDoc | null>(null);
+
+  const openAddModal = () => {
+    setEditingRate(null);
+    setPair('SAR/PKR');
+    setRateVal('');
+    setEffectiveDate(new Date().toISOString().split('T')[0]);
+    setAddModalOpen(true);
+  };
+
+  const openEditModal = (row: ExchangeRateDoc) => {
+    setEditingRate(row);
+    setPair(row.pair);
+    setRateVal(String(row.rate));
+    setEffectiveDate(row.effectiveDate);
+    setAddModalOpen(true);
+  };
+
+  const closeAddModal = () => {
+    setAddModalOpen(false);
+    setEditingRate(null);
+  };
 
   // Bulk Upload Wizard Modal
   const [bulkModalOpen, setBulkModalOpen] = useState<boolean>(false);
@@ -90,6 +118,47 @@ export const ExchangeRatesPage: React.FC = () => {
 
     setCreating(true);
     try {
+      if (editingRate) {
+        // Edit: update the same history document in place. A pair+date
+        // collision with a different entry is rejected, mirroring create.
+        const clash = rates.find(
+          (r) => r.id !== editingRate.id &&
+            r.pair.toUpperCase() === pair.toUpperCase() &&
+            r.effectiveDate === effectiveDate
+        );
+        if (clash) {
+          showError(`An exchange rate for ${pair} on effective date ${effectiveDate} already exists.`);
+          return;
+        }
+        try {
+          if (!isConfigPlaceholder) {
+            await updateDoc(doc(db, 'exchangeRates', editingRate.id), {
+              pair: pair.toUpperCase(),
+              rate: numRate,
+              effectiveDate,
+            });
+          }
+        } catch (err) {
+          console.warn('Firestore update failed for exchange rate:', err);
+        }
+        try {
+          const stored = localStorage.getItem('safardesk_exchange_rates');
+          if (stored) {
+            const list = JSON.parse(stored).map((r: any) =>
+              r?.id === editingRate.id
+                ? { ...r, pair: pair.toUpperCase(), rate: numRate, effectiveDate }
+                : r
+            );
+            localStorage.setItem('safardesk_exchange_rates', JSON.stringify(list));
+          }
+        } catch { /* best-effort */ }
+        success(`Exchange rate for ${pair} updated to ${numRate} effective ${effectiveDate}.`);
+        setAddModalOpen(false);
+        setEditingRate(null);
+        setRateVal('');
+        await loadData();
+        return;
+      }
       await createExchangeRate(userProfile, {
         pair: pair.toUpperCase(),
         rate: numRate,
@@ -292,15 +361,25 @@ export const ExchangeRatesPage: React.FC = () => {
       render: (row) => (
         <div className="flex items-center justify-end gap-2">
           {userProfile?.role === 'owner' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleDeleteClick(row)}
-              className="text-rose-600 hover:text-rose-700"
-              leftIcon={<Trash2 className="w-4 h-4" />}
-            >
-              Delete
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => openEditModal(row)}
+                leftIcon={<Pencil className="w-4 h-4" />}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDeleteClick(row)}
+                className="text-rose-600 hover:text-rose-700"
+                leftIcon={<Trash2 className="w-4 h-4" />}
+              >
+                Delete
+              </Button>
+            </>
           )}
         </div>
       ),
@@ -337,7 +416,7 @@ export const ExchangeRatesPage: React.FC = () => {
                   variant="primary"
                   size="sm"
                   leftIcon={<Plus className="w-4 h-4" />}
-                  onClick={() => setAddModalOpen(true)}
+                  onClick={openAddModal}
                 >
                   Add Rate
                 </Button>
@@ -409,16 +488,16 @@ export const ExchangeRatesPage: React.FC = () => {
         />
       </Card>
 
-      {/* Manual Add Rate Modal */}
+      {/* Manual Add Rate Modal (also used for editing one entry, prefilled) */}
       <Modal
         isOpen={addModalOpen}
-        onClose={() => setAddModalOpen(false)}
-        title="Add Exchange Rate Benchmark"
-        subtitle="Set foreign currency exchange rate against PKR base."
+        onClose={closeAddModal}
+        title={editingRate ? 'Edit Exchange Rate' : 'Add Exchange Rate Benchmark'}
+        subtitle={editingRate ? 'Update the rate for this history entry.' : 'Set foreign currency exchange rate against PKR base.'}
         footer={
           <div className="flex items-center justify-end gap-3">
-            <Button variant="ghost" onClick={() => setAddModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={handleAddManual} loading={creating}>Save Rate</Button>
+            <Button variant="ghost" onClick={closeAddModal}>Cancel</Button>
+            <Button variant="primary" onClick={handleAddManual} loading={creating}>{editingRate ? 'Save Changes' : 'Save Rate'}</Button>
           </div>
         }
       >

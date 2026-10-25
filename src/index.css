@@ -248,3 +248,8 @@
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Fixer order 2026-10-23: date inputs must be wide enough to show the FULL date (eTravel parity) */
+input[type="date"] {
+  min-width: 9.5rem;
+}

@@ -426,16 +426,19 @@ export const AirlinesPage: React.FC = () => {
         <form onSubmit={handleSaveEdit} className="space-y-4">
           <div>
             <Input
-              label="IATA Code"
+              label="IATA Code (2 Characters)"
+              placeholder="e.g. SV, EK, QR"
               maxLength={2}
               value={editIata}
               onChange={(e) => setEditIata(e.target.value.toUpperCase())}
               required
+              helperText="Must be strictly 2 uppercase characters. Duplicates are rejected."
             />
           </div>
           <div>
             <Input
               label="Airline Name"
+              placeholder="e.g. Saudia or Emirates"
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
               required
@@ -443,7 +446,8 @@ export const AirlinesPage: React.FC = () => {
           </div>
           <div>
             <Input
-              label="Country"
+              label="Country / Base"
+              placeholder="e.g. Saudi Arabia"
               value={editCountry}
               onChange={(e) => setEditCountry(e.target.value)}
               required

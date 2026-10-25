@@ -10,7 +10,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCompany } from '../contexts/CompanyContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Badge } from '../components/ui/Badge';
 
 /**
  * Fix #18: shareable read-only voucher link (/vouchers/shared/:voucherId).
@@ -105,99 +104,10 @@ export const VoucherSharedView: React.FC = () => {
         </Button>
       </div>
 
-      {/* OFFICIAL voucher document (same F&S A4 design as print) */}
+      {/* OFFICIAL voucher document (same F&S A4 design as print).
+          Owner order 2026-10-23: scan view shows ONLY the official voucher —
+          no summary card below it at all. */}
       <VoucherPrintDocument voucher={voucher} company={company} groupCode={groupCode} theme="color" preview />
-
-      <div className="print:hidden mt-4">
-      <Card className="p-6 sm:p-8">
-        {/* Letterhead */}
-        <div className="border-b-2 border-slate-900 pb-4 mb-5">
-          <h1 className="text-2xl font-black text-[var(--theme-primary)] tracking-tight">{company.companyName}</h1>
-          <p className="text-xs text-slate-600 mt-1">
-            {[company.address, company.city, company.phone, company.email].filter(Boolean).join(' • ')}
-          </p>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-2">Umrah Trip Voucher (Read-Only)</p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 mb-5 text-xs">
-          <span className="font-mono font-black text-xl text-[#c9a227]">{voucher.voucherNo}</span>
-          <Badge variant={voucher.status === 'Confirmed' ? 'success' : voucher.status === 'Cancelled' ? 'danger' : 'warning'}>
-            {voucher.status}
-          </Badge>
-          <span className="text-slate-500 uppercase font-semibold">Link: {voucher.linkType}</span>
-        </div>
-
-        {/* Passengers */}
-        <h3 className="font-bold text-slate-900 text-sm mb-2">Passengers ({voucher.passengers.length})</h3>
-        <div className="grid sm:grid-cols-2 gap-2 mb-5 text-xs">
-          {voucher.passengers.map((p, i) => (
-            <div key={i} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
-              <div className="font-bold text-slate-800">{p.name}</div>
-              <div className="text-slate-500 font-mono">{p.passportNumber} • {p.ageType}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Sectors */}
-        {voucher.sectors.length > 0 && (
-          <>
-            <h3 className="font-bold text-slate-900 text-sm mb-2">Transport Sectors</h3>
-            <div className="space-y-2 mb-5 text-xs">
-              {voucher.sectors.map((s, i) => (
-                <div key={i} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex justify-between">
-                  <span className="font-bold text-[var(--theme-primary)]">{s.type} • {s.date}</span>
-                  <span className="text-slate-600">{s.isSelfGari ? 'Self' : s.vehicleType || '—'}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* Hotel stays */}
-        {voucher.hotelStays.length > 0 && (
-          <>
-            <h3 className="font-bold text-slate-900 text-sm mb-2">Hotel Stays</h3>
-            <div className="space-y-2 mb-5 text-xs">
-              {voucher.hotelStays.map((h, i) => (
-                <div key={i} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex justify-between">
-                  <span className="font-bold text-slate-800">
-                    {h.hotelName} {h.isSelfHotel && <span className="text-slate-500 font-medium">(Self Hotel)</span>}
-                  </span>
-                  <span className="text-slate-600">{h.city} • {h.nights}n • {h.bedType} bed</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* Charges */}
-        <h3 className="font-bold text-slate-900 text-sm mb-2">Charges</h3>
-        <div className="space-y-1.5 mb-4 text-xs">
-          {voucher.charges.map((c, i) => (
-            <div key={i} className="flex justify-between py-1.5 border-b border-slate-100">
-              <span className="text-slate-700">{c.description}</span>
-              <span className="font-mono font-bold">SAR {(c.amountSAR || 0).toLocaleString()}</span>
-            </div>
-          ))}
-          <div className="flex justify-between pt-2 font-black text-sm">
-            <span>Total</span>
-            <span className="font-mono text-[var(--theme-primary)]">SAR {(voucher.totals.totalSAR || 0).toLocaleString()}</span>
-          </div>
-          {voucher.totals.totalPKR > 0 && (
-            <div className="flex justify-between text-slate-500">
-              <span>PKR equivalent</span>
-              <span className="font-mono">PKR {Math.round(voucher.totals.totalPKR).toLocaleString()}</span>
-            </div>
-          )}
-        </div>
-
-        <p className="text-[11px] text-slate-400 mt-4">
-          Created by {voucher.createdByName} on {new Date(voucher.createdAt).toLocaleString()}
-          {voucher.status === 'Cancelled' && ` • Cancelled by ${voucher.cancelledBy || '—'}`}
-          {' '}• Read-only shared link — no changes can be made from this view.
-        </p>
-      </Card>
-      </div>
     </div>
   );
 };

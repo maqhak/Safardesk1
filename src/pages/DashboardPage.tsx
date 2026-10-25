@@ -279,7 +279,7 @@ export const DashboardPage: React.FC = () => {
   const voucherCompletion = useMemo(() => {
     const usedVisaIds = new Set<string>();
     vouchers.forEach((v) => {
-      if (v.status === 'Cancelled') return;
+      if (v.status === 'Void') return;
       (v.visaIds || []).forEach((id) => usedVisaIds.add(id));
     });
     const total = visas.length;

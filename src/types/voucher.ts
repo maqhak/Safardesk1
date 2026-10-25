@@ -144,7 +144,7 @@ export interface VoucherDoc {
   makkahShirka?: string; // Oracle APEX text fields
   madinaShirka?: string;
   packageIncludes?: string[]; // Manually selected Package Includes checklist
-  status: 'Draft' | 'Pending Approval' | 'Confirmed' | 'Cancelled';
+  status: 'Draft' | 'Approved' | 'Void';
   approvedBy?: string;
   approvedByName?: string;
   approvedAt?: string;

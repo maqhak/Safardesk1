@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Eye, Printer, Ban, Plus, Search, Trash2 } from 'lucide-react';
+import { Eye, Printer, Ban, Plus, Search, Trash2, Pencil } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -18,8 +18,11 @@ import {
 } from '../services/transportInvoiceService';
 import { fetchVouchers } from '../services/voucherService';
 import type { VoucherDoc } from '../types/voucher';
-import { TransportInvoiceDoc, TRANSPORT_SECTORS } from '../types/transportInvoice';
-import { fetchLedgerAccounts } from '../services/accountingService';
+import { TransportInvoiceDoc, TRANSPORT_SECTORS, TRANSPORT_INVOICE_COLLECTION, TRANSPORT_INVOICE_LOCAL_KEY } from '../types/transportInvoice';
+import { fetchLedgerAccounts, fetchLedgerEntries, voidLedgerEntry, postBalancedTransaction } from '../services/accountingService';
+import { doc, setDoc } from 'firebase/firestore';
+import { db, isConfigPlaceholder } from '../services/firebase';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
 import { fetchVendors } from '../services/masterService';
 import { fetchVehicles } from '../services/masterService';
 import { getSellRate } from '../services/exchangeRateService';
@@ -55,8 +58,9 @@ export const TransportInvoicePage: React.FC = () => {
   const [vouchers, setVouchers] = useState<VoucherDoc[]>([]);
   const [fVoucherId, setFVoucherId] = useState('');
 
-  // New-invoice form
+  // New-invoice form (also reused, prefilled, for editing — see openEdit)
   const [formOpen, setFormOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<TransportInvoiceDoc | null>(null);
   const [saving, setSaving] = useState(false);
   const [fDate, setFDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [fCustomerId, setFCustomerId] = useState('');
@@ -149,6 +153,149 @@ export const TransportInvoicePage: React.FC = () => {
       await load();
     } catch (err: any) {
       showError(err?.message || 'Could not create transport invoice.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** Edit: prefill the same modal from the selected TINV record. */
+  const openEdit = (inv: TransportInvoiceDoc) => {
+    if (inv.isVoid) { showError('Voided invoices cannot be edited.'); return; }
+    setEditingInvoice(inv);
+    setFDate(inv.date);
+    setFCustomerId(inv.customerId);
+    setFVendorId(inv.vendorId || '');
+    setFVehicleId(inv.vehicleId || '');
+    setFSector(TRANSPORT_SECTORS.includes(inv.sector) ? inv.sector : TRANSPORT_SECTORS[0]);
+    setFReferenceNo(inv.referenceNo || '');
+    setFDescription(inv.description || '');
+    setFAmountSAR(inv.amountSAR || 0);
+    setFRate(inv.rate || 0);
+    const linked = vouchers.find((v) => v.voucherNo === inv.referenceNo);
+    setFVoucherId(linked ? linked.id : '');
+    setDetailOpen(false);
+    setFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setFormOpen(false);
+    if (editingInvoice) {
+      setEditingInvoice(null);
+      setFCustomerId(''); setFVendorId(''); setFVehicleId('');
+      setFSector(TRANSPORT_SECTORS[0]); setFReferenceNo(''); setFDescription(''); setFAmountSAR(0);
+      setFVoucherId('');
+    }
+  };
+
+  /**
+   * Edit save — no update function exists in transportInvoiceService, so this
+   * mirrors the approved VV edit pattern: void the old ledger legs and post
+   * fresh legs under the SAME TINV number, updating the same document in
+   * place (the invoice itself is never marked void).
+   */
+  const handleSaveEdit = async () => {
+    if (!editingInvoice) return;
+    if (!fCustomerId) { showError('Please select a Customer.'); return; }
+    if (!(fAmountSAR > 0)) { showError('Amount must be greater than zero.'); return; }
+    if (!(fRate > 0)) { showError('Please enter a valid exchange rate.'); return; }
+    const paid = editingInvoice.paidAmount || 0;
+    if (paid > 0 && fAmountSAR < paid) {
+      showError('Amount cannot be reduced below the amount already paid.');
+      return;
+    }
+    const customer = customerAccounts.find((a) => a.id === fCustomerId);
+    const vendor = vendors.find((v: any) => v.id === fVendorId);
+    const vehicle = vehicles.find((v: any) => v.id === fVehicleId);
+    setSaving(true);
+    try {
+      const entries = await fetchLedgerEntries();
+      const mine = entries.filter((e) => e.transNo === editingInvoice.invoiceNo && !e.isVoid);
+      for (const e of mine) {
+        await voidLedgerEntry(e.id, `Transport Invoice ${editingInvoice.invoiceNo} edited`, userProfile?.name || 'Operator');
+      }
+      const accounts = await fetchLedgerAccounts();
+      const incomeId = accounts.find((a) => a.accountCode === 'SYS-TRN')?.id || 'acc-sys-trn';
+      const costId = accounts.find((a) => a.accountCode === 'SYS-TRC')?.id || 'acc-sys-trc';
+      const amountPKR = Math.round(fAmountSAR * fRate * 100) / 100;
+      const detailBits = [
+        fReferenceNo.trim() ? `Ref: ${fReferenceNo.trim()}` : null,
+        vehicle?.vehicleType ? `Vehicle: ${vehicle.vehicleType}` : null,
+        `Sector: ${fSector}`,
+        vendor?.name || (vendor as any)?.vendorName ? `Vendor: ${vendor.name || (vendor as any).vendorName}` : null,
+        fDescription.trim() ? `Description: ${fDescription.trim()}` : null,
+      ].filter(Boolean).join(' | ');
+      const customerName = customer?.title || customer?.accountName || fCustomerId;
+      await postBalancedTransaction({
+        date: fDate,
+        entryType: 'Invoice',
+        transNo: editingInvoice.invoiceNo,
+        invoiceRef: editingInvoice.invoiceNo,
+        rate: fRate,
+        particulars: `Transport Invoice ${editingInvoice.invoiceNo} — ${customerName} | ${detailBits}`,
+        debitAccountId: fCustomerId,
+        creditAccountId: incomeId,
+        amountSAR: Math.round(fAmountSAR * 100) / 100,
+        createdBy: userProfile?.name || 'Operator',
+      });
+      if (fVendorId) {
+        const vendorAccount = accounts.find(
+          (a) => a.id === `ledger-vnd-${fVendorId}` ||
+            ((a as any).linkedAgentId === fVendorId || (a as any).linkedId === fVendorId)
+        );
+        const vendorAccountId = vendorAccount ? vendorAccount.id : `ledger-vnd-${fVendorId}`;
+        await postBalancedTransaction({
+          date: fDate,
+          entryType: 'Invoice',
+          transNo: editingInvoice.invoiceNo,
+          invoiceRef: editingInvoice.invoiceNo,
+          rate: fRate,
+          particulars: `Transport Purchase for ${editingInvoice.invoiceNo} — ${vendor?.name || (vendor as any)?.vendorName} | ${detailBits}`,
+          debitAccountId: costId,
+          creditAccountId: vendorAccountId,
+          amountSAR: Math.round(fAmountSAR * 100) / 100,
+          createdBy: userProfile?.name || 'Operator',
+        });
+      }
+      const updated: TransportInvoiceDoc = {
+        ...editingInvoice,
+        date: fDate,
+        customerId: fCustomerId,
+        customerName,
+        vendorId: fVendorId || undefined,
+        vendorName: vendor?.name || (vendor as any)?.vendorName || undefined,
+        vehicleId: fVehicleId || undefined,
+        vehicleType: vehicle?.vehicleType || undefined,
+        sector: fSector,
+        referenceNo: fReferenceNo.trim() || undefined,
+        description: fDescription.trim(),
+        amountSAR: Math.round(fAmountSAR * 100) / 100,
+        amountPKR,
+        rate: fRate,
+        status: paid >= fAmountSAR - 0.01 ? 'Paid' : paid > 0 ? 'Partial' : 'Unpaid',
+        isVoid: false,
+        updatedAt: new Date().toISOString(),
+        updatedBy: userProfile?.name || 'Operator',
+      };
+      if (!isConfigPlaceholder) {
+        await setDoc(doc(db, TRANSPORT_INVOICE_COLLECTION, editingInvoice.id), stripUndefinedDeep(updated));
+      }
+      try {
+        const raw = localStorage.getItem(TRANSPORT_INVOICE_LOCAL_KEY);
+        if (raw) {
+          const list = JSON.parse(raw) as TransportInvoiceDoc[];
+          localStorage.setItem(TRANSPORT_INVOICE_LOCAL_KEY, JSON.stringify(list.map((x) => (x.id === editingInvoice.id ? updated : x))));
+        }
+      } catch { /* local mirror best-effort */ }
+      setInvoices((list) => list.map((x) => (x.id === updated.id ? updated : x)));
+      if (selected?.id === updated.id) setSelected(updated);
+      success(`Transport Invoice ${updated.invoiceNo} updated — SAR ${updated.amountSAR.toLocaleString()} / PKR ${updated.amountPKR.toLocaleString()}.`);
+      setFormOpen(false);
+      setEditingInvoice(null);
+      setFCustomerId(''); setFVendorId(''); setFVehicleId('');
+      setFSector(TRANSPORT_SECTORS[0]); setFReferenceNo(''); setFDescription(''); setFAmountSAR(0);
+      setFVoucherId('');
+    } catch (err: any) {
+      showError(err?.message || 'Could not update transport invoice.');
     } finally {
       setSaving(false);
     }
@@ -320,7 +467,12 @@ export const TransportInvoicePage: React.FC = () => {
                   <td className="p-3 text-right font-mono">{inv.amountPKR.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   <td className="p-3">{statusBadge(inv.status)}</td>
                   <td className="p-3 text-right">
-                    <Button variant="outline" size="sm" onClick={() => { setSelected(inv); setDetailOpen(true); }} rightIcon={<Eye className="w-3.5 h-3.5" />}>View</Button>
+                    <div className="flex gap-1 justify-end">
+                      <Button variant="outline" size="sm" onClick={() => { setSelected(inv); setDetailOpen(true); }} rightIcon={<Eye className="w-3.5 h-3.5" />}>View</Button>
+                      {canCreate && !inv.isVoid && (
+                        <Button variant="outline" size="sm" onClick={() => openEdit(inv)} rightIcon={<Pencil className="w-3.5 h-3.5" />}>Edit</Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -329,17 +481,17 @@ export const TransportInvoicePage: React.FC = () => {
         </div>
       </Card>
 
-      {/* New invoice modal */}
+      {/* New / Edit invoice modal — edit reuses this same form, prefilled */}
       <Modal
         isOpen={formOpen}
-        onClose={() => setFormOpen(false)}
-        title="New Transport Invoice"
-        subtitle="Bill a customer for transport. Select the vendor you sourced it from (optional)."
+        onClose={closeForm}
+        title={editingInvoice ? `Edit Transport Invoice ${editingInvoice.invoiceNo}` : 'New Transport Invoice'}
+        subtitle={editingInvoice ? 'Update the invoice details. Ledger legs are reposted under the same invoice number.' : 'Bill a customer for transport. Select the vendor you sourced it from (optional).'}
         size="lg"
         footer={
           <div className="flex items-center justify-end gap-2 w-full">
-            <Button variant="outline" size="sm" onClick={() => setFormOpen(false)}>Cancel</Button>
-            <Button variant="primary" size="sm" onClick={handleCreate} loading={saving}>Create Invoice</Button>
+            <Button variant="outline" size="sm" onClick={closeForm}>Cancel</Button>
+            <Button variant="primary" size="sm" onClick={editingInvoice ? handleSaveEdit : handleCreate} loading={saving}>{editingInvoice ? 'Save Changes' : 'Create Invoice'}</Button>
           </div>
         }
       >
@@ -381,7 +533,7 @@ export const TransportInvoicePage: React.FC = () => {
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold">
                 <option value="">-- Select Customer --</option>
                 {customerAccounts.map((a: any) => (
-                  <option key={a.id} value={a.id}>[{(a.accountCode || '').trim()}] {a.title || a.accountName}</option>
+                  <option key={a.id} value={a.id}>{a.title || a.accountName} [{(a.accountCode || '').trim()}]</option>
                 ))}
               </select>
             </div>
@@ -454,6 +606,9 @@ export const TransportInvoicePage: React.FC = () => {
                 )}
               </div>
               <div className="flex gap-2">
+                {!selected.isVoid && canCreate && (
+                  <Button variant="outline" onClick={() => openEdit(selected)} rightIcon={<Pencil className="w-3.5 h-3.5" />}>Edit</Button>
+                )}
                 <Button variant="primary" onClick={() => window.print()} rightIcon={<Printer className="w-3.5 h-3.5" />}>Print</Button>
                 <Button variant="outline" onClick={() => setDetailOpen(false)}>Close</Button>
               </div>
@@ -526,7 +681,7 @@ export const TransportInvoicePage: React.FC = () => {
               <select value={pAccountId} onChange={(e) => setPAccountId(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg text-sm">
                 <option value="">— Select account —</option>
                 {cashBankAccounts.map((a: any) => (
-                  <option key={a.id} value={a.id}>[{a.accountCode}] {a.title}</option>
+                  <option key={a.id} value={a.id}>{a.title} [{a.accountCode}]</option>
                 ))}
               </select>
             </div>

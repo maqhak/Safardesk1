@@ -37,7 +37,7 @@ const INITIAL_VOUCHERS: VoucherDoc[] = [
     linkType: 'visa',
     visaIds: ['visa-001'],
     customerId: 'cust-001',
-    status: 'Confirmed',
+    status: 'Approved',
     passengers: [
       { name: 'Muhammad Ahmed Khan', passportNumber: 'AB1234567', ageType: 'Adult', visaId: 'visa-001' }
     ],
@@ -77,6 +77,10 @@ export function normalizeVoucher(raw: any): VoucherDoc {
     exchangeRate: v.totals.exchangeRate || 0,
   };
   if (!v.status) v.status = 'Draft';
+  // Backward compat (2026-10-23): old statuses → eTravel-style Save Mode
+  if (v.status === 'Confirmed') v.status = 'Approved';
+  else if (v.status === 'Pending Approval') v.status = 'Draft';
+  else if (v.status === 'Cancelled') v.status = 'Void';
   if (!v.voucherNo) v.voucherNo = '';
   if (!v.linkType) v.linkType = 'visa';
   if (v.voucherKind !== 'accommodation' && v.voucherKind !== 'transport') v.voucherKind = 'full';
@@ -238,7 +242,7 @@ export async function createVoucher(
   // Approval workflow: owner vouchers auto-confirm; staff/agent vouchers
   // need owner approval before ledger posting.
   const initialStatus: VoucherDoc['status'] =
-    actor.role === 'owner' ? 'Confirmed' : 'Pending Approval';
+    actor.role === 'owner' ? 'Approved' : 'Draft';
 
   const newVoucher: VoucherDoc = {
     ...data,
@@ -271,7 +275,7 @@ export async function createVoucher(
   localStorage.setItem(LOCAL_STORAGE_VOUCHERS_KEY, JSON.stringify([newVoucher, ...existing]));
 
   // Post charges to ledger if confirmed
-  if (newVoucher.status === 'Confirmed') {
+  if (newVoucher.status === 'Approved') {
     await postVoucherToLedger(actor, newVoucher);
   }
 
@@ -402,12 +406,12 @@ export async function approveVoucher(actor: UserProfile, voucherId: string): Pro
   const index = vouchers.findIndex((v) => v.id === voucherId);
   if (index === -1) throw new Error('Voucher not found.');
   const voucher = vouchers[index];
-  if (voucher.status !== 'Pending Approval' && voucher.status !== 'Draft') {
-    throw new Error('Only pending/draft vouchers can be approved.');
+  if (voucher.status !== 'Draft') {
+    throw new Error('Only draft vouchers can be approved.');
   }
   const updated = {
     ...voucher,
-    status: 'Confirmed' as const,
+    status: 'Approved' as const,
     approvedBy: actor.uid,
     approvedByName: actor.name || actor.email,
     approvedAt: new Date().toISOString(),
@@ -450,8 +454,8 @@ export async function disapproveVoucher(actor: UserProfile, voucherId: string, n
   const index = vouchers.findIndex((v) => v.id === voucherId);
   if (index === -1) throw new Error('Voucher not found.');
   const voucher = vouchers[index];
-  if (voucher.status !== 'Pending Approval' && voucher.status !== 'Draft') {
-    throw new Error('Only pending/draft vouchers can be disapproved.');
+  if (voucher.status !== 'Draft') {
+    throw new Error('Only draft vouchers can be disapproved.');
   }
   const updated = {
     ...voucher,
@@ -494,7 +498,7 @@ export async function cancelVoucher(actor: UserProfile, voucherId: string): Prom
   if (index === -1) throw new Error('Voucher not found.');
 
   const voucher = vouchers[index];
-  if (voucher.status === 'Cancelled') throw new Error('Voucher is already cancelled.');
+  if (voucher.status === 'Void') throw new Error('Voucher is already cancelled.');
 
   // Fix #18: post REVERSING ledger entries (mirror of the original charge lines).
   // History is kept — originals are never edited or deleted.
@@ -552,7 +556,7 @@ export async function cancelVoucher(actor: UserProfile, voucherId: string): Prom
 
   const updated: VoucherDoc = {
     ...voucher,
-    status: 'Cancelled',
+    status: 'Void',
     cancelledAt: new Date().toISOString(),
     cancelledBy: actor.name || actor.email,
   };
@@ -594,7 +598,7 @@ export async function deleteVoucher(actor: UserProfile, voucherId: string): Prom
   const vouchers = await fetchVouchers();
   const voucher = vouchers.find((v) => v.id === voucherId);
   if (!voucher) throw new Error('Voucher not found.');
-  if (voucher.status === 'Confirmed') {
+  if (voucher.status === 'Approved') {
     throw new Error('This voucher is Confirmed and posted to the ledger. Cancel it first, then delete.');
   }
 
@@ -868,7 +872,7 @@ export async function applyVoucherEditDirect(
   const vouchers = await fetchVouchers();
   const voucher = vouchers.find((v) => v.id === voucherId);
   if (!voucher) throw new Error('Voucher not found.');
-  if (voucher.status === 'Cancelled') throw new Error('Cannot edit a cancelled voucher.');
+  if (voucher.status === 'Void') throw new Error('Cannot edit a cancelled voucher.');
   const updated = await applyEditPayload(actor, voucher, payload);
   await logAuditEvent({
     action: 'VOUCHER_EDITED',
@@ -896,7 +900,7 @@ export async function approveVoucherEdit(
   const vouchers = await fetchVouchers();
   const voucher = vouchers.find((v) => v.id === req.voucherId);
   if (!voucher) throw new Error('Voucher not found.');
-  if (voucher.status === 'Cancelled') throw new Error('Cannot edit a cancelled voucher.');
+  if (voucher.status === 'Void') throw new Error('Cannot edit a cancelled voucher.');
 
   const updated = await applyEditPayload(actor, voucher, req.newData);
 

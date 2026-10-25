@@ -34,7 +34,7 @@ import { useCan } from '../hooks/useCan';
 import { useDeepOpen } from '../hooks/useDeepOpen';
 import { TicketDoc, TicketPassenger, TicketSector } from '../types/ticket';
 import { AirlineDoc } from '../types/master';
-import { fetchTickets, createTicket, refundTicket, updateTicket, deleteTicket, getTicketSectors, getTicketRouteLabel } from '../services/ticketService';
+import { fetchTickets, createTicket, refundTicket, deleteTicket, getTicketSectors, getTicketRouteLabel } from '../services/ticketService';
 import { getCurrentRate, useCurrentRate } from '../services/exchangeRateService';
 
 // Convert any supported currency amount to SAR using settings rates
@@ -70,21 +70,10 @@ export const TicketsPage: React.FC = () => {
   const canEditDelete = role === 'owner' || role === 'staff';
   const canDelete = role === 'owner'; // Delete is Owner-only
 
-  // Edit Ticket modal state (prefilled with the record's current values)
-  const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
-  const [editSaving, setEditSaving] = useState<boolean>(false);
-  const [editPNR, setEditPNR] = useState('');
-  const [editPassengerName, setEditPassengerName] = useState('');
-  const [editTicketNo, setEditTicketNo] = useState('');
-  const [editFlightNo, setEditFlightNo] = useState('');
-  const [editFlightDate, setEditFlightDate] = useState('');
-  const [editDepTime, setEditDepTime] = useState('');
-  const [editArrTime, setEditArrTime] = useState('');
-  const [editSupplier, setEditSupplier] = useState('');
-  const [editBuyerName, setEditBuyerName] = useState('');
-  const [editCostPKR, setEditCostPKR] = useState('');
-  const [editSalePKR, setEditSalePKR] = useState('');
-  const [editNote, setEditNote] = useState('');
+  // NOTE: ticket editing no longer uses an in-page modal. Edit buttons
+  // navigate to /tickets/sale/:id (TicketSalePage edit mode), which edits
+  // the full record. The old 13-field edit modal was removed because its
+  // save discarded 2nd+ passengers and never wrote the sectors array.
 
   // Delete confirmation state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false);
@@ -129,6 +118,7 @@ export const TicketsPage: React.FC = () => {
   const [departureTime, setDepartureTime] = useState<string>('08:00');
   const [arrivalTime, setArrivalTime] = useState<string>('12:00');
   const [supplierName, setSupplierName] = useState<string>('Saudia GDS Direct');
+  const [supplierVendorId, setSupplierVendorId] = useState<string>('');
   const [purchaseSource, setPurchaseSource] = useState<'vendor' | 'airline' | 'customer'>('airline');
   const [vendorsCache, setVendorsCache] = useState<any[]>([]);
   const [purchaseCost, setPurchaseCost] = useState<string>('');
@@ -192,61 +182,6 @@ export const TicketsPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
-
-  const openEditTicket = (t: TicketDoc) => {
-    setEditPNR(t.pnr || '');
-    setEditPassengerName(t.passengers?.[0]?.name || '');
-    setEditTicketNo(t.passengers?.[0]?.ticketNo || '');
-    setEditFlightNo(t.flightNo || '');
-    setEditFlightDate(t.flightDate || '');
-    setEditDepTime(t.departureTime || '');
-    setEditArrTime(t.arrivalTime || '');
-    setEditSupplier(t.supplierName || '');
-    setEditBuyerName(t.buyerName || '');
-    setEditCostPKR(t.purchaseCostPKR != null ? String(t.purchaseCostPKR) : '');
-    setEditSalePKR(t.salePricePKR != null ? String(t.salePricePKR) : '');
-    setEditNote(t.note || '');
-    setSelectedTicket(t);
-    setDetailModalOpen(false);
-    setEditModalOpen(true);
-  };
-
-  const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userProfile || !selectedTicket) return;
-    if (!editPNR.trim()) { showError('PNR is required.'); return; }
-    const cost = parseFloat(editCostPKR);
-    const sale = parseFloat(editSalePKR);
-    if (isNaN(cost) || isNaN(sale) || cost < 0 || sale < 0) {
-      showError('Please enter valid purchase and sale prices.');
-      return;
-    }
-    setEditSaving(true);
-    try {
-      const pax0 = selectedTicket.passengers?.[0] || { name: '', passportNumber: '', ageType: 'Adult', ticketNo: '' };
-      const updated = await updateTicket(userProfile, selectedTicket.id, {
-        pnr: editPNR.trim().toUpperCase(),
-        passengers: [{ ...pax0, name: editPassengerName.trim(), ticketNo: editTicketNo.trim() }],
-        flightNo: editFlightNo.trim().toUpperCase(),
-        flightDate: editFlightDate,
-        departureTime: editDepTime,
-        arrivalTime: editArrTime,
-        supplierName: editSupplier.trim(),
-        buyerName: editBuyerName.trim(),
-        purchaseCostPKR: Math.round(cost * 100) / 100,
-        salePricePKR: Math.round(sale * 100) / 100,
-        note: editNote.trim() || undefined,
-      });
-      setSelectedTicket(updated);
-      success(`Ticket PNR ${updated.pnr} updated successfully.`);
-      setEditModalOpen(false);
-      await loadData();
-    } catch (err: any) {
-      showError(err?.message || 'Failed to update ticket.');
-    } finally {
-      setEditSaving(false);
-    }
-  };
 
   const handleDeleteClick = (t: TicketDoc) => {
     setSelectedTicket(t);
@@ -369,6 +304,7 @@ export const TicketsPage: React.FC = () => {
         whtAmountSAR: whtAmtNum || undefined,
         netProfitSAR: netProfitNum || undefined,
         supplierName: resolvedSupplier,
+        vendorId: purchaseSource === 'vendor' ? supplierVendorId : undefined,
         buyerType,
         buyerId,
         buyerName: buyerObj?.fullName || buyerObj?.companyName || 'General Buyer',
@@ -504,7 +440,7 @@ export const TicketsPage: React.FC = () => {
           </Button>
           {canEditDelete && (
             <button
-              onClick={(e) => { e.stopPropagation(); openEditTicket(row); }}
+              onClick={(e) => { e.stopPropagation(); navigate(`/tickets/sale/${row.id}`); }}
               className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-slate-100 rounded-lg transition"
               title="Edit Ticket"
             >
@@ -777,14 +713,18 @@ export const TicketsPage: React.FC = () => {
               <div className="mt-2">
                 {purchaseSource === 'vendor' && (
                   <select
-                    value={supplierName}
-                    onChange={(e) => setSupplierName(e.target.value)}
+                    value={supplierVendorId}
+                    onChange={(e) => {
+                      const v = vendorsCache.find((vv: any) => vv.id === e.target.value);
+                      setSupplierVendorId(e.target.value);
+                      setSupplierName(v ? (v.name || v.companyName || '') : '');
+                    }}
                     className="w-full p-2 bg-white border border-slate-300 rounded text-xs"
                     required
                   >
                     <option value="">Select vendor...</option>
                     {vendorsCache.map((v: any) => (
-                      <option key={v.id} value={v.name || v.companyName}>{v.name || v.companyName}</option>
+                      <option key={v.id} value={v.id}>{v.name || v.companyName}</option>
                     ))}
                   </select>
                 )}
@@ -1016,7 +956,7 @@ export const TicketsPage: React.FC = () => {
                   </Button>
                 )}
                 {canEditDelete && (
-                  <Button variant="outline" size="sm" onClick={() => openEditTicket(selectedTicket)}>
+                  <Button variant="outline" size="sm" onClick={() => navigate(`/tickets/sale/${selectedTicket.id}`)}>
                     <Pencil className="w-4 h-4 mr-1" /> Edit
                   </Button>
                 )}
@@ -1122,44 +1062,8 @@ export const TicketsPage: React.FC = () => {
         </Modal>
       )}
 
-      {/* Edit Ticket Modal — prefilled with the record's current values */}
-      <Modal
-        isOpen={editModalOpen}
-        onClose={() => setEditModalOpen(false)}
-        title={selectedTicket ? `Edit Ticket — PNR ${selectedTicket.pnr}` : 'Edit Ticket'}
-        subtitle="Update booking details. Margin is recalculated automatically."
-        footer={
-          <div className="flex items-center justify-end gap-3">
-            <Button variant="ghost" onClick={() => setEditModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" onClick={handleSaveEdit} loading={editSaving}>Save Changes</Button>
-          </div>
-        }
-      >
-        <form onSubmit={handleSaveEdit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Input label="PNR" value={editPNR} onChange={(e) => setEditPNR(e.target.value.toUpperCase())} required />
-            <Input label="Passenger Name" value={editPassengerName} onChange={(e) => setEditPassengerName(e.target.value)} />
-            <Input label="Ticket No" value={editTicketNo} onChange={(e) => setEditTicketNo(e.target.value)} />
-            <Input label="Flight No" value={editFlightNo} onChange={(e) => setEditFlightNo(e.target.value.toUpperCase())} />
-            <Input label="Flight Date" type="date" value={editFlightDate} onChange={(e) => setEditFlightDate(e.target.value)} />
-            <Input label="Supplier" value={editSupplier} onChange={(e) => setEditSupplier(e.target.value)} />
-            <Input label="Departure Time" type="time" value={editDepTime} onChange={(e) => setEditDepTime(e.target.value)} />
-            <Input label="Arrival Time" type="time" value={editArrTime} onChange={(e) => setEditArrTime(e.target.value)} />
-            <Input label="Buyer Name" value={editBuyerName} onChange={(e) => setEditBuyerName(e.target.value)} />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input label="Purchase Cost (PKR)" type="number" step="0.01" value={editCostPKR} onChange={(e) => setEditCostPKR(e.target.value)} required />
-            <Input label="Sale Price (PKR)" type="number" step="0.01" value={editSalePKR} onChange={(e) => setEditSalePKR(e.target.value)} required />
-          </div>
-          {editCostPKR && editSalePKR && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-semibold text-emerald-800 flex items-center justify-between">
-              <span>Updated Margin:</span>
-              <span className="font-mono text-sm">PKR {((parseFloat(editSalePKR) || 0) - (parseFloat(editCostPKR) || 0)).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
-            </div>
-          )}
-          <Input label="Note" value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="Optional note" />
-        </form>
-      </Modal>
+      {/* Edit Ticket Modal removed: editing now happens on /tickets/sale/:id
+          (TicketSalePage edit mode), which preserves all passengers and sectors. */}
 
       {/* Delete Confirmation */}
       <ConfirmDialog

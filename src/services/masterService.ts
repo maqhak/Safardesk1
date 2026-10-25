@@ -193,7 +193,8 @@ export async function fetchVendors(): Promise<VendorDoc[]> {
   const byId = new Map<string, VendorDoc>();
   for (const v of localVendors) if (v?.id) byId.set(v.id, v);
   for (const v of firestoreVendors) if (v?.id) byId.set(v.id, v);
-  return Array.from(byId.values());
+  // Owner order 2026-10-22: Sub-Vendor system removed — only main vendors, no shirkas.
+  return Array.from(byId.values()).map((v) => ({ ...v, shirkas: [] }));
 }
 
 export async function generateNextVendorCode(): Promise<string> {

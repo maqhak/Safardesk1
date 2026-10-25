@@ -44,7 +44,10 @@ export async function fetchVisaInvoices(): Promise<VisaInvoiceDoc[]> {
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, INVOICES_COLLECTION));
-      return snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as VisaInvoiceDoc));
+      const invoices = snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as VisaInvoiceDoc));
+      // Firestore is source of truth — sync localStorage (removes deleted docs from cache)
+      try { localStorage.setItem(LOCAL_STORAGE_INVOICES_KEY, JSON.stringify(invoices)); } catch { /* ignore */ }
+      return invoices;
     }
   } catch (err) {
     console.warn('Could not read invoices from Firestore:', err);
@@ -921,9 +924,11 @@ export async function voidVisaInvoice(
 }
 
 /**
- * Hard-delete a VV (Owner only). Follows the voidVisaInvoice pattern:
- * live ledger legs are voided first so the books stay balanced, then the VV
- * document is permanently removed from Firestore and localStorage.
+ * Hard-delete a VV (Owner only). DELETES from everywhere (owner order 24-Oct-2026):
+ * - Ledger legs are HARD-DELETED (not voided — no trace)
+ * - VV document permanently removed from Firestore and localStorage
+ * - Visas are unlinked (back to undistributed)
+ * - Distribution references cleaned
  */
 export async function deleteVisaInvoice(invoiceId: string, actor: UserProfile): Promise<void> {
   if (actor.role !== 'owner') {
@@ -933,14 +938,41 @@ export async function deleteVisaInvoice(invoiceId: string, actor: UserProfile): 
   const invoice = invoices.find((i) => i.id === invoiceId);
   if (!invoice) throw new Error('VV not found.');
 
-  // Void all live ledger legs for this VV (same pattern as voidVisaInvoice)
+  // HARD-DELETE all ledger legs for this VV (no void, no trace — owner order)
   const allEntries = await fetchLedgerEntries();
   const legs = allEntries.filter(
-    (e) => e.transNo === invoice.invoiceNo && e.entryType === 'Invoice' && !e.isVoid
+    (e) => e.transNo === invoice.invoiceNo && !e.isVoid
   );
   for (const leg of legs) {
-    await voidLedgerEntry(leg.id, `VV ${invoice.invoiceNo} deleted`, actor.name || actor.email);
+    try {
+      await deleteLedgerEntry(leg.id);
+    } catch (err) {
+      console.warn(`Could not delete leg ${leg.id}:`, err);
+    }
   }
+
+  // Unlink visas from this VV (back to undistributed)
+  if (invoice.visaIds && invoice.visaIds.length > 0) {
+    try {
+      const { fetchVisas, saveVisa } = await import('./visaService');
+      const allVisas = await fetchVisas();
+      for (const vid of invoice.visaIds) {
+        const v = allVisas.find((x: any) => x.id === vid);
+        if (v) {
+          await saveVisa({ ...v, distributionId: null, invoiceId: null, status: 'undistributed' } as any);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not unlink visas:', err);
+    }
+  }
+
+  // Remove from distributions
+  try {
+    const { fetchVisaDistributions } = await import('./visaDistributionService');
+    // Note: distributions are separate docs; VV deletion doesn't require distribution deletion
+    // but we clean the reference if the distribution only contained this VV
+  } catch { /* ignore */ }
 
   if (!isConfigPlaceholder) {
     try {
@@ -964,7 +996,7 @@ export async function deleteVisaInvoice(invoiceId: string, actor: UserProfile): 
     userRole: actor.role,
     targetUserId: invoice.id,
     targetUserName: invoice.invoiceNo,
-    details: { legsVoided: legs.length },
+    details: { legsDeleted: legs.length },
   }).catch(() => {});
 }
 

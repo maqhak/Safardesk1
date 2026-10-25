@@ -104,14 +104,32 @@ export const JournalVouchersPage: React.FC = () => {
   const [jvToDelete, setJvToDelete] = useState<JournalVoucherDoc | null>(null);
   const [deleting, setDeleting] = useState<boolean>(false);
 
-  // Edit modal (Owner/Staff) — prefilled; void-and-repost with same JV number
+  // Edit modal (Owner/Staff) — mirrors the entry form: voucher header,
+  // tag buttons, department, currency selector, entry lines grid with
+  // account select + Add/Remove, and the attachment block. Amounts in the
+  // edit grid are in the edit currency and converted to SAR only on save,
+  // exactly like entry. The tag itself stays fixed: the save service reposts
+  // with the original tag, so a changed tag is refused rather than silently
+  // discarded (see handleConfirmEdit).
   const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
   const [jvToEdit, setJvToEdit] = useState<JournalVoucherDoc | null>(null);
   const [editDate, setEditDate] = useState<string>('');
   const [editDetails, setEditDetails] = useState<string>('');
   const [editRate, setEditRate] = useState<number>(0);
-  const [editLines, setEditLines] = useState<Array<{ id: string; accountId: string; accountTitle: string; accountCode: string; debitSAR: number; creditSAR: number }>>([]);
+  const [editTag, setEditTag] = useState<JournalVoucherTag>('Adjustment');
+  const [editDepartment, setEditDepartment] = useState<string>('Accounts');
+  const [editEntryCurrency, setEditEntryCurrency] = useState<'SAR' | 'PKR' | 'USD'>('SAR');
+  const [editLines, setEditLines] = useState<Array<{ id: string; accountId: string; accountTitle: string; accountCode: string; accountType?: string; debitSAR: number; creditSAR: number }>>([]);
   const [editing, setEditing] = useState<boolean>(false);
+  // Staged attachment replacement in edit. The save service preserves the
+  // original attachment, so a staged file is refused on save (never silently
+  // dropped) until the service supports replacement.
+  // Only the staged file name is kept: the file itself is never stored, since
+  // the save service cannot persist a replacement (see handleConfirmEdit).
+  const [editAttachmentFileName, setEditAttachmentFileName] = useState<string>('');
+  const [editAttachmentStaged, setEditAttachmentStaged] = useState<boolean>(false);
+  const [editAttachmentError, setEditAttachmentError] = useState<string>('');
+  const editAttachmentInputRef = useRef<HTMLInputElement>(null);
 
   // Audio player state
   const [activeAudioUrl, setActiveAudioUrl] = useState<string | null>(null);
@@ -131,6 +149,9 @@ export const JournalVouchersPage: React.FC = () => {
     setExchangeRate(masterRate);
   }, [masterRate]);
   const [detailsBox, setDetailsBox] = useState<string>('');
+  // eTravel-inspired voucher header
+  const [department, setDepartment] = useState<string>('Accounts');
+  const DEPARTMENTS = ['Accounts', 'Administration', 'Booking', 'Finance', 'Hotel Voucher', 'Human Resources', 'Information Technology', 'Operation', 'Processing'];
   const [lines, setLines] = useState<JournalVoucherLine[]>([
     { id: '1', accountId: '', accountTitle: '', accountCode: '', debitSAR: 0, creditSAR: 0 },
     { id: '2', accountId: '', accountTitle: '', accountCode: '', debitSAR: 0, creditSAR: 0 },
@@ -409,22 +430,32 @@ export const JournalVouchersPage: React.FC = () => {
     }
   };
 
-  // Open Edit modal prefilled with the JV's current values
+  // Open Edit modal prefilled with the JV's current values. Stored lines are
+  // SAR only — the document carries no entry currency — so the edit grid
+  // opens in SAR with every line intact; the user may switch currency, in
+  // which case amounts are converted (see handleEditCurrencyChange).
   const openEditModal = (jv: JournalVoucherDoc) => {
     setJvToEdit(jv);
     setEditDate(jv.date || '');
     setEditDetails(jv.detailsBox || '');
     setEditRate(jv.exchangeRate || 0);
+    setEditTag(jv.tag);
+    setEditDepartment('Accounts');
+    setEditEntryCurrency('SAR');
     setEditLines(
       (jv.lines || []).map((l, i) => ({
         id: l.id || `line-${i}`,
         accountId: l.accountId,
         accountTitle: l.accountTitle,
         accountCode: l.accountCode,
+        accountType: (l as any).accountType,
         debitSAR: l.debitSAR || 0,
         creditSAR: l.creditSAR || 0,
       }))
     );
+    setEditAttachmentFileName('');
+    setEditAttachmentStaged(false);
+    setEditAttachmentError('');
     setEditModalOpen(true);
   };
 
@@ -442,6 +473,72 @@ export const JournalVouchersPage: React.FC = () => {
     );
   };
 
+  // Entry-grid parity: account select per line, Add/Remove rows (min 2).
+  const handleEditLineAccountChange = (lineId: string, accId: string) => {
+    const acc = accounts.find((a) => a.id === accId);
+    setEditLines((prev) =>
+      prev.map((l) =>
+        l.id === lineId
+          ? { ...l, accountId: accId, accountTitle: acc?.title || l.accountTitle, accountCode: acc?.accountCode || l.accountCode, accountType: acc?.accountType }
+          : l
+      )
+    );
+  };
+
+  const handleEditAddLine = () => {
+    setEditLines((prev) => [
+      ...prev,
+      { id: String(Date.now() + Math.random()), accountId: '', accountTitle: '', accountCode: '', debitSAR: 0, creditSAR: 0 },
+    ]);
+  };
+
+  const handleEditRemoveLine = (id: string) => {
+    if (editLines.length <= 2) {
+      showError('A Journal Voucher requires at least two account lines.');
+      return;
+    }
+    setEditLines((prev) => prev.filter((l) => l.id !== id));
+  };
+
+  // Convert all edit-grid amounts between currencies, mirroring the entry
+  // conversion rates (SAR→PKR rate for PKR, USD→SAR rate for USD).
+  const handleEditCurrencyChange = (next: 'SAR' | 'PKR' | 'USD') => {
+    if (next === editEntryCurrency) return;
+    const toSAR = (v: number, from: 'SAR' | 'PKR' | 'USD') =>
+      from === 'SAR' ? v : from === 'PKR' ? (editRate > 0 ? v / editRate : v) : v * (usdSarRate || 3.75);
+    const fromSAR = (sar: number, to: 'SAR' | 'PKR' | 'USD') =>
+      to === 'SAR' ? sar : to === 'PKR' ? sar * editRate : sar / (usdSarRate || 3.75);
+    if ((next === 'PKR' || editEntryCurrency === 'PKR') && !(editRate > 0)) {
+      showError('Exchange rate is required to convert PKR amounts.');
+      return;
+    }
+    setEditLines((prev) =>
+      prev.map((l) => ({
+        ...l,
+        debitSAR: Math.round(fromSAR(toSAR(l.debitSAR || 0, editEntryCurrency), next) * 100) / 100,
+        creditSAR: Math.round(fromSAR(toSAR(l.creditSAR || 0, editEntryCurrency), next) * 100) / 100,
+      }))
+    );
+    setEditEntryCurrency(next);
+  };
+
+  // Staged attachment replacement in edit (same file handling as entry).
+  const handleEditAttachmentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setEditAttachmentError('');
+    const maxBytes = 15 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      setEditAttachmentError('File exceeds 15MB limit.');
+      return;
+    }
+    // The file content is not stored: a replacement cannot be persisted by
+    // the current save, so only the name is staged (size already checked).
+    setEditAttachmentFileName(file.name);
+    setEditAttachmentStaged(true);
+    success(`Replacement staged: ${file.name}`);
+  };
+
   const editTotalDebit = editLines.reduce((s, l) => s + (l.debitSAR || 0), 0);
   const editTotalCredit = editLines.reduce((s, l) => s + (l.creditSAR || 0), 0);
   const editBalanced = Math.abs(editTotalDebit - editTotalCredit) < 0.01 && editTotalDebit > 0;
@@ -452,6 +549,53 @@ export const JournalVouchersPage: React.FC = () => {
       showError('Total Debit must equal Total Credit before saving.');
       return;
     }
+    // The save service reposts with the original tag: a changed tag is
+    // refused here rather than silently discarded on save.
+    if (editTag !== jvToEdit.tag) {
+      showError('Tag cannot be changed by this edit yet — the original tag is kept. Please restore the original tag to save.');
+      return;
+    }
+    // The save service preserves the original attachment: a staged
+    // replacement is refused here rather than silently discarded on save.
+    if (editAttachmentStaged) {
+      showError('Attachment replacement is not saved by this edit yet — the original attachment is kept. Please clear the staged file to save.');
+      return;
+    }
+    if (editLines.length < 2) {
+      showError('A Journal Voucher requires at least two account lines.');
+      return;
+    }
+    for (const l of editLines) {
+      if (!l.accountId) {
+        showError('Please ensure all lines have a selected ledger account.');
+        return;
+      }
+      if ((l.debitSAR || 0) > 0 && (l.creditSAR || 0) > 0) {
+        showError(`A single line cannot have both Debit and Credit > 0 (Account: ${l.accountTitle}).`);
+        return;
+      }
+    }
+
+    // Convert entered-currency amounts to SAR, exactly like entry submit.
+    const postLines = editEntryCurrency === 'PKR' && editRate > 0
+      ? editLines.map((l) => ({
+          ...l,
+          debitSAR: Math.round(((l.debitSAR || 0) / editRate) * 100) / 100,
+          creditSAR: Math.round(((l.creditSAR || 0) / editRate) * 100) / 100,
+        }))
+      : editEntryCurrency === 'USD'
+      ? editLines.map((l) => ({
+          ...l,
+          debitSAR: Math.round((l.debitSAR || 0) * (usdSarRate || 3.75) * 100) / 100,
+          creditSAR: Math.round((l.creditSAR || 0) * (usdSarRate || 3.75) * 100) / 100,
+        }))
+      : editLines.map((l) => ({ ...l }));
+    const sarDebit = postLines.reduce((s, l) => s + (l.debitSAR || 0), 0);
+    const sarCredit = postLines.reduce((s, l) => s + (l.creditSAR || 0), 0);
+    if (Math.abs(sarDebit - sarCredit) > 0.01 || sarDebit <= 0) {
+      showError(`Converted totals do not balance after rounding (Debit SAR ${sarDebit.toFixed(2)} vs Credit SAR ${sarCredit.toFixed(2)}). Please adjust the amounts.`);
+      return;
+    }
 
     setEditing(true);
     try {
@@ -460,11 +604,12 @@ export const JournalVouchersPage: React.FC = () => {
         {
           date: editDate,
           detailsBox: editDetails,
-          lines: editLines.map((l) => ({
+          lines: postLines.map((l) => ({
             id: l.id,
             accountId: l.accountId,
             accountTitle: l.accountTitle,
             accountCode: l.accountCode,
+            accountType: l.accountType,
             debitSAR: l.debitSAR || 0,
             creditSAR: l.creditSAR || 0,
           })),
@@ -472,7 +617,7 @@ export const JournalVouchersPage: React.FC = () => {
         },
         userProfile?.name || 'Owner'
       );
-      success(`Journal Voucher #${updated.jvNo} updated — corrected voucher reposted.`);
+      success(`Journal Voucher #${updated.jvNo} updated.`);
       setEditModalOpen(false);
       setJvToEdit(null);
       await loadData();
@@ -634,7 +779,7 @@ export const JournalVouchersPage: React.FC = () => {
               <option value="all">All Affected Accounts</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
-                  [{a.accountCode}] {a.title}
+                  {a.title} [{a.accountCode}]
                 </option>
               ))}
             </select>
@@ -1023,99 +1168,366 @@ export const JournalVouchersPage: React.FC = () => {
         onConfirm={handleConfirmDelete}
       />
 
-      {/* Edit Modal (Owner/Staff) — prefilled; save reposts with the same JV number */}
+      {/* Edit Modal (Owner/Staff) — entry form reused for editing, prefilled */}
       <Modal
         isOpen={editModalOpen}
         onClose={() => setEditModalOpen(false)}
         title={`Edit Journal Voucher #${jvToEdit?.jvNo}`}
-        subtitle="The old version is voided (audit trail kept) and a corrected voucher is reposted with the same JV number. Debit must equal Credit."
+        subtitle="Correct the voucher details and lines. Debit must equal Credit."
         size="lg"
         footer={
-          <>
-            <Button variant="outline" size="sm" onClick={() => setEditModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" loading={editing} disabled={!editBalanced} onClick={handleConfirmEdit}>
-              Save Changes
-            </Button>
-          </>
+          <div className="flex items-center justify-between w-full">
+            <div className="text-xs">
+              {!editBalanced ? (
+                <span className="text-rose-600 font-bold flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  Difference: {editEntryCurrency} {Math.abs(editTotalDebit - editTotalCredit).toFixed(2)} (Must be 0.00 to save)
+                </span>
+              ) : (
+                <span className="text-emerald-600 font-bold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Balanced (Total: {editEntryCurrency} {editTotalDebit.toLocaleString()})
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEditModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" loading={editing} disabled={!editBalanced} onClick={handleConfirmEdit}>
+                Save Changes
+              </Button>
+            </div>
+          </div>
         }
       >
-        <div className="space-y-4 py-2">
-          <div className="grid grid-cols-3 gap-3">
-            <Input
-              label="Date *"
-              type="date"
-              value={editDate}
-              onChange={(e) => setEditDate(e.target.value)}
-            />
-            <Input
-              label="Exchange Rate (SAR→PKR) *"
-              type="number"
-              min="0"
-              step="0.01"
-              value={editRate || ''}
-              onChange={(e) => setEditRate(parseFloat(e.target.value) || 0)}
-            />
-            <div className="text-xs">
-              <span className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Balance</span>
-              <div className={`p-2.5 rounded-lg border font-mono font-bold text-center ${editBalanced ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
-                {editBalanced ? 'Balanced' : `Δ ${Math.abs(editTotalDebit - editTotalCredit).toFixed(2)}`}
+        <div className="space-y-4 py-1 text-xs">
+          {/* TOP: Center-aligned voucher header — same as the entry form */}
+          <div className="p-4 bg-[#0e2c4c] text-white rounded-xl text-center space-y-3">
+            <div>
+              <span className="text-[10px] text-slate-300 uppercase font-bold tracking-wider block">
+                Voucher No.
+              </span>
+              <span className="text-xl font-mono font-black text-[#c9a227] tracking-tight">
+                {jvToEdit?.jvNo || 'JV-…'}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-left">
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Voucher Type</span>
+                <span className="block bg-white/10 border border-white/20 rounded px-2 py-1.5 text-xs font-bold">
+                  Journal Voucher
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Voucher Date</span>
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  required
+                  className="w-full bg-white/10 text-white border border-white/20 rounded px-2 py-1.5 text-xs font-mono min-w-[9.5rem]"
+                />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Department</span>
+                <select
+                  value={editDepartment}
+                  onChange={(e) => setEditDepartment(e.target.value)}
+                  className="w-full bg-white/10 text-white border border-white/20 rounded px-2 py-1.5 text-xs font-semibold"
+                >
+                  {DEPARTMENTS.map((d) => (
+                    <option key={d} value={d} className="text-slate-900">{d}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Currency</span>
+                <select
+                  value={editEntryCurrency}
+                  onChange={(e) => handleEditCurrencyChange(e.target.value as 'SAR' | 'PKR' | 'USD')}
+                  className="w-full bg-white/10 text-white border border-white/20 rounded px-2 py-1.5 text-xs font-bold"
+                >
+                  <option value="SAR" className="text-slate-900">Saudi Riyal</option>
+                  <option value="PKR" className="text-slate-900">Pak Rupees</option>
+                  <option value="USD" className="text-slate-900">US Dollar</option>
+                </select>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Voucher Status</span>
+                <span className="block bg-emerald-500/20 border border-emerald-300/40 text-emerald-200 rounded px-2 py-1.5 text-xs font-bold text-center">
+                  Final
+                </span>
+              </div>
+            </div>
+            <div className="max-w-2xl mx-auto">
+              <label className="block text-[10px] text-slate-300 uppercase font-bold tracking-wider mb-1">
+                Voucher Description *
+              </label>
+              <textarea
+                value={editDetails}
+                onChange={(e) => setEditDetails(e.target.value)}
+                placeholder="Write the description — the same line appears in the ledger (Particulars)…"
+                rows={2}
+                required
+                className="w-full p-2.5 bg-white text-slate-900 border border-white/20 rounded-lg text-xs text-center font-semibold focus:ring-2 focus:ring-[#c9a227]/40 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Tag Selector & Exchange Rate — same as the entry form */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                Classification Tag *
+              </label>
+              <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                {(['Adjustment', 'Netting', 'Direct Settlement'] as JournalVoucherTag[]).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setEditTag(t)}
+                    className={`py-1.5 px-2 rounded-md font-bold text-xs transition cursor-pointer text-center ${
+                      editTag === t
+                        ? 'bg-[#0e2c4c] text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+              <span className="text-[10px] text-slate-500 mt-1 block">
+                {editTag === 'Adjustment' && 'General balance adjustment. No receipt required.'}
+                {editTag === 'Netting' && 'Bilateral offset. System validates offset does not exceed outstanding balances.'}
+                {editTag === 'Direct Settlement' && 'Sub-agent paid hotel/Sub-Vendor directly. Mandatory WhatsApp voice note or receipt.'}
+              </span>
+              {jvToEdit && editTag !== jvToEdit.tag && (
+                <span className="text-[10px] text-rose-600 font-semibold mt-1 block">
+                  Note: the tag cannot be changed by this edit yet — the original tag is kept on save. Restore the original tag to save.
+                </span>
+              )}
+            </div>
+
+            <div>
+              <Input
+                label="Exchange Rate (SAR → PKR) *"
+                type="number"
+                min="0"
+                step="0.01"
+                value={editRate || ''}
+                onChange={(e) => setEditRate(parseFloat(e.target.value) || 0)}
+              />
+              <span className="text-[10px] text-slate-500 mt-1 block">
+                Amounts entered in {editEntryCurrency}; ledger posts SAR equivalents at this rate. 1 SAR = {editRate} PKR
+              </span>
+            </div>
+          </div>
+
+          {/* Dynamic Lines Grid — verbatim from the entry form */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                Account Lines (Debits & Credits)
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                leftIcon={<Plus className="w-3.5 h-3.5" />}
+                onClick={handleEditAddLine}
+              >
+                Add Account Row
+              </Button>
+            </div>
+
+            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+              <div className="grid grid-cols-12 gap-2 bg-slate-100 p-2.5 text-[10px] font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200">
+                <div className="col-span-6">Ledger Account</div>
+                <div className="col-span-3 text-right">Debit ({editEntryCurrency})</div>
+                <div className="col-span-2 text-right">Credit ({editEntryCurrency})</div>
+                <div className="col-span-1 text-center"></div>
+              </div>
+
+              <div className="divide-y divide-slate-100 bg-white">
+                {editLines.map((line) => (
+                  <div key={line.id} className="grid grid-cols-12 gap-2 p-2 items-center">
+                    <div className="col-span-6">
+                      <select
+                        value={line.accountId}
+                        onChange={(e) => handleEditLineAccountChange(line.id, e.target.value)}
+                        required
+                        className="w-full p-1.5 bg-slate-50 border border-slate-300 rounded text-xs font-semibold"
+                      >
+                        <option value="">-- Select Account --</option>
+                        {accounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.title} [{a.accountCode}] ({a.accountType.toUpperCase()})
+                          </option>
+                        ))}
+                        {line.accountId && !accounts.some((a) => a.id === line.accountId) && (
+                          <option key={line.accountId} value={line.accountId}>
+                            {line.accountTitle} [{line.accountCode}]
+                          </option>
+                        )}
+                      </select>
+                    </div>
+
+                    <div className="col-span-3">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={line.debitSAR || ''}
+                        onChange={(e) => handleEditLineChange(line.id, 'debitSAR', parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                        className="w-full p-1.5 bg-white border border-slate-300 rounded text-xs font-mono text-right font-bold text-slate-900"
+                      />
+                    </div>
+
+                    <div className="col-span-2">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={line.creditSAR || ''}
+                        onChange={(e) => handleEditLineChange(line.id, 'creditSAR', parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                        className="w-full p-1.5 bg-white border border-slate-300 rounded text-xs font-mono text-right font-bold text-slate-900"
+                      />
+                    </div>
+
+                    <div className="col-span-1 text-center">
+                      {editLines.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => handleEditRemoveLine(line.id)}
+                          className="text-slate-400 hover:text-rose-600 p-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* LIVE Balance Bar */}
+              <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs font-mono">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <span className="text-slate-500 mr-1.5">Total Debit:</span>
+                    <strong className="text-slate-900 font-bold">{editEntryCurrency} {editTotalDebit.toFixed(2)}</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 mr-1.5">Total Credit:</span>
+                    <strong className="text-slate-900 font-bold">{editEntryCurrency} {editTotalCredit.toFixed(2)}</strong>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500">Difference:</span>
+                  <span className={`px-2 py-0.5 rounded font-bold ${
+                    editBalanced
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-rose-100 text-rose-800 animate-pulse'
+                  }`}>
+                    {editEntryCurrency} {Math.abs(editTotalDebit - editTotalCredit).toFixed(2)}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-          <div>
-            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Details Box (verbatim in ledger particulars)</label>
-            <textarea
-              value={editDetails}
-              onChange={(e) => setEditDetails(e.target.value)}
-              rows={2}
-              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none"
-            />
-          </div>
-          <div>
-            <span className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Lines (amounts editable — accounts fixed)</span>
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-slate-50 text-slate-600 uppercase font-bold text-[10px]">
-                  <tr>
-                    <th className="p-2">Account</th>
-                    <th className="p-2 text-right">Debit (SAR)</th>
-                    <th className="p-2 text-right">Credit (SAR)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {editLines.map((l) => (
-                    <tr key={l.id}>
-                      <td className="p-2">
-                        <span className="font-mono text-slate-500 mr-1">[{l.accountCode}]</span>
-                        <span className="font-semibold">{l.accountTitle}</span>
-                      </td>
-                      <td className="p-2">
-                        <input
-                          type="number" min="0" step="0.01"
-                          value={l.debitSAR || ''}
-                          onChange={(e) => handleEditLineChange(l.id, 'debitSAR', parseFloat(e.target.value) || 0)}
-                          className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-right"
-                        />
-                      </td>
-                      <td className="p-2">
-                        <input
-                          type="number" min="0" step="0.01"
-                          value={l.creditSAR || ''}
-                          onChange={(e) => handleEditLineChange(l.id, 'creditSAR', parseFloat(e.target.value) || 0)}
-                          className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-right"
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+          {/* Attachment — existing proof view + replacement staging */}
+          <div className="p-3.5 border-2 border-dashed border-amber-300 bg-amber-50/50 rounded-xl space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                <Mic className="w-4 h-4 text-emerald-600" />
+                <span>Proof / Voice Note Attachment{editTag === 'Direct Settlement' ? ' *' : ''}</span>
+              </label>
+              {editTag === 'Direct Settlement' && (
+                <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                  Required
+                </span>
+              )}
             </div>
-            <div className="flex justify-end gap-4 mt-1 text-[11px] font-mono font-bold">
-              <span>Total Dr: SAR {editTotalDebit.toLocaleString()}</span>
-              <span>Total Cr: SAR {editTotalCredit.toLocaleString()}</span>
+
+            <div className="text-[11px] text-slate-600 leading-snug">
+              {jvToEdit?.attachment ? (
+                jvToEdit.attachment.fileType === 'audio' ? (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAudio(jvToEdit.attachment!.fileUrl)}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300"
+                  >
+                    <Mic className="w-3 h-3 text-emerald-600" />
+                    <span>Listen to original voice note ({jvToEdit.attachment.fileName})</span>
+                  </button>
+                ) : (
+                  <a
+                    href={jvToEdit.attachment.webViewLink || jvToEdit.attachment.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 underline"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    <span>View original proof ({jvToEdit.attachment.fileName})</span>
+                  </a>
+                )
+              ) : (
+                <span className="text-slate-500">No attachment on this voucher.</span>
+              )}
             </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                ref={editAttachmentInputRef}
+                type="file"
+                accept="audio/*,image/*,application/pdf,.opus,.ogg,.m4a"
+                onChange={handleEditAttachmentUpload}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                leftIcon={<UploadCloud className="w-3.5 h-3.5" />}
+                onClick={() => editAttachmentInputRef.current?.click()}
+              >
+                Upload Replacement File
+              </Button>
+
+              {editAttachmentStaged && (
+                <>
+                  <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                    Staged: {editAttachmentFileName}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditAttachmentDataUrl('');
+                      setEditAttachmentFileName('');
+                      setEditAttachmentStaged(false);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white border border-slate-300 text-slate-600 font-bold rounded-lg text-xs cursor-pointer"
+                  >
+                    <span>Clear Staged File</span>
+                  </button>
+                </>
+              )}
+            </div>
+
+            <p className="text-[10px] text-slate-500 leading-snug">
+              Note: attachment replacement is not saved by this edit yet — the original attachment is kept on save. Clear the staged file to save.
+            </p>
+
+            {editAttachmentError && (
+              <div className="text-xs text-rose-600 font-semibold flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>{editAttachmentError}</span>
+              </div>
+            )}
           </div>
         </div>
       </Modal>
@@ -1160,24 +1572,75 @@ export const JournalVouchersPage: React.FC = () => {
         }
       >
         <form onSubmit={handleSubmitJV} className="space-y-4 py-1 text-xs">
-          {/* Header Row: JV No & Date */}
-          <div className="flex items-center justify-between p-3.5 bg-[#0e2c4c] text-white rounded-xl">
+          {/* TOP: Center-aligned voucher header (eTravel-inspired one-page design) */}
+          <div className="p-4 bg-[#0e2c4c] text-white rounded-xl text-center space-y-3">
             <div>
               <span className="text-[10px] text-slate-300 uppercase font-bold tracking-wider block">
-                Journal Voucher No.
+                Voucher No.
               </span>
               <span className="text-xl font-mono font-black text-[#c9a227] tracking-tight">
-                {jvNo || 'JV-00104'}
+                {jvNo || 'JV-…'}
               </span>
             </div>
-            <div className="text-right">
-              <span className="text-[10px] text-slate-300 uppercase font-bold block">Transaction Date</span>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-left">
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Voucher Type</span>
+                <span className="block bg-white/10 border border-white/20 rounded px-2 py-1.5 text-xs font-bold">
+                  Journal Voucher
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Voucher Date</span>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                  className="w-full bg-white/10 text-white border border-white/20 rounded px-2 py-1.5 text-xs font-mono min-w-[9.5rem]"
+                />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Department</span>
+                <select
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  className="w-full bg-white/10 text-white border border-white/20 rounded px-2 py-1.5 text-xs font-semibold"
+                >
+                  {DEPARTMENTS.map((d) => (
+                    <option key={d} value={d} className="text-slate-900">{d}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Currency</span>
+                <select
+                  value={entryCurrency}
+                  onChange={(e) => setEntryCurrency(e.target.value as 'SAR' | 'PKR' | 'USD')}
+                  className="w-full bg-white/10 text-white border border-white/20 rounded px-2 py-1.5 text-xs font-bold"
+                >
+                  <option value="SAR" className="text-slate-900">Saudi Riyal</option>
+                  <option value="PKR" className="text-slate-900">Pak Rupees</option>
+                  <option value="USD" className="text-slate-900">US Dollar</option>
+                </select>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-300 uppercase font-bold block mb-1">Voucher Status</span>
+                <span className="block bg-emerald-500/20 border border-emerald-300/40 text-emerald-200 rounded px-2 py-1.5 text-xs font-bold text-center">
+                  Final
+                </span>
+              </div>
+            </div>
+            <div className="max-w-2xl mx-auto">
+              <label className="block text-[10px] text-slate-300 uppercase font-bold tracking-wider mb-1">
+                Voucher Description *
+              </label>
+              <textarea
+                value={detailsBox}
+                onChange={(e) => setDetailsBox(e.target.value)}
+                placeholder="Write the description — the same line appears in the ledger (Particulars)…"
+                rows={2}
                 required
-                className="bg-white/10 text-white border border-white/20 rounded px-2 py-1 text-xs font-mono"
+                className="w-full p-2.5 bg-white text-slate-900 border border-white/20 rounded-lg text-xs text-center font-semibold focus:ring-2 focus:ring-[#c9a227]/40 focus:outline-none"
               />
             </div>
           </div>
@@ -1213,24 +1676,6 @@ export const JournalVouchersPage: React.FC = () => {
 
             <div>
               <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Entry Currency *
-              </label>
-              <select
-                value={entryCurrency}
-                onChange={(e) => setEntryCurrency(e.target.value as 'SAR' | 'PKR' | 'USD')}
-                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-[var(--theme-primary)]"
-              >
-                <option value="SAR">SAR — Saudi Riyal</option>
-                <option value="PKR">PKR — Pakistani Rupee</option>
-                <option value="USD">USD — US Dollar</option>
-              </select>
-              <span className="text-[10px] text-slate-500 mt-1 block">
-                Amounts entered in {entryCurrency}; ledger posts SAR equivalents at this rate.
-              </span>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Exchange Rate (SAR → PKR) *
               </label>
               <input
@@ -1242,26 +1687,11 @@ export const JournalVouchersPage: React.FC = () => {
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-[var(--theme-primary)]"
               />
               <span className="text-[10px] text-slate-500 mt-1 block">
-                1 SAR = {exchangeRate} PKR
+                Amounts entered in {entryCurrency}; ledger posts SAR equivalents at this rate. 1 SAR = {exchangeRate} PKR
               </span>
             </div>
           </div>
 
-          {/* Details Box (Free text shown VERBATIM in ledger statement's Particulars column) */}
-          <div>
-            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
-              <span>Details Box (Particulars) *</span>
-              <span className="text-[10px] text-slate-400 font-normal">Shows VERBATIM in ledger statements</span>
-            </label>
-            <textarea
-              value={detailsBox}
-              onChange={(e) => setDetailsBox(e.target.value)}
-              placeholder="e.g. Bilateral netting of Al-Barakah visa receivable against Fairmont reservation credit..."
-              rows={2}
-              required
-              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-[#0e2c4c]/20 focus:outline-none"
-            />
-          </div>
 
           {/* Dynamic Lines Grid */}
           <div className="space-y-2">
@@ -1301,7 +1731,7 @@ export const JournalVouchersPage: React.FC = () => {
                         <option value="">-- Select Account --</option>
                         {accounts.map((a) => (
                           <option key={a.id} value={a.id}>
-                            [{a.accountCode}] {a.title} ({a.accountType.toUpperCase()})
+                            {a.title} [{a.accountCode}] ({a.accountType.toUpperCase()})
                           </option>
                         ))}
                       </select>

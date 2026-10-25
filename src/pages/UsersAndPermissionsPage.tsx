@@ -46,11 +46,12 @@ import {
   createDefaultPermissions, 
   detectPreset 
 } from '../utils/permissions';
-import { 
-  fetchAllUsers, 
-  createStaffMember, 
-  updateStaffPermissions, 
-  toggleUserActiveStatus, 
+import {
+  fetchAllUsers,
+  createStaffMember,
+  updateStaffPermissions,
+  updateUserProfile,
+  toggleUserActiveStatus,
   resetUserPasswordByOwner,
   generateTemporaryPassword,
   deleteUser
@@ -87,6 +88,11 @@ export const UsersAndPermissionsPage: React.FC = () => {
   const [editPermissions, setEditPermissions] = useState<StaffPermissions>(
     createDefaultPermissions('View Only')
   );
+
+  // Edit staff identity state (mirrors creation; password is never edited here)
+  const [editName, setEditName] = useState('');
+  const [editAgency, setEditAgency] = useState('');
+  const [editPhone, setEditPhone] = useState('');
 
   // Temporary password display modal
   const [tempPasswordModalOpen, setTempPasswordModalOpen] = useState<boolean>(false);
@@ -218,6 +224,7 @@ export const UsersAndPermissionsPage: React.FC = () => {
       setNewStaffName('');
       setNewStaffEmail('');
       setNewStaffPassword('');
+      setNewStaffAgency('Head Office Operations');
       setNewStaffPhone('');
       await loadUsers();
     } catch (err: any) {
@@ -231,16 +238,32 @@ export const UsersAndPermissionsPage: React.FC = () => {
     const existing = user.permissions || createDefaultPermissions('View Only');
     setEditPermissions(existing);
     setEditPreset(detectPreset(existing));
+    setEditName(user.name || '');
+    setEditAgency(user.agencyName || '');
+    setEditPhone(user.phone || '');
     setEditPermsModalOpen(true);
   };
 
-  // Save updated permissions
+  // Save updated permissions + staff identity (name, agency, phone).
+  // Email is intentionally not edited here: it is the login identity, and
+  // changing the users doc alone would desync it from the Auth account.
   const handleSavePermissions = async () => {
     if (!userProfile || !targetUser) return;
 
+    if (!editName.trim()) {
+      showError('Staff name is required.');
+      return;
+    }
+
     try {
       await updateStaffPermissions(userProfile, targetUser.uid, editPermissions);
-      success(`Updated permissions for ${targetUser.name}.`, 'Permissions Saved');
+      await updateUserProfile(targetUser.uid, {
+        name: editName.trim(),
+        phone: editPhone.trim(),
+        // Agency is a plain users-doc field; updateUserProfile writes the fields it is given.
+        agencyName: editAgency.trim(),
+      } as any);
+      success(`Updated permissions for ${editName}.`, 'Permissions Saved');
       setEditPermsModalOpen(false);
       await loadUsers();
     } catch (err: any) {
@@ -640,6 +663,18 @@ export const UsersAndPermissionsPage: React.FC = () => {
                 required
               />
             </div>
+            <Input
+              label="Agency / Department"
+              placeholder="e.g. Head Office Operations"
+              value={newStaffAgency}
+              onChange={(e) => setNewStaffAgency(e.target.value)}
+            />
+            <Input
+              label="Phone Number"
+              placeholder="e.g. +92 300 1234567"
+              value={newStaffPhone}
+              onChange={(e) => setNewStaffPhone(e.target.value)}
+            />
           </div>
 
           {/* Permission Matrix Section */}
@@ -740,6 +775,36 @@ export const UsersAndPermissionsPage: React.FC = () => {
         }
       >
         <div className="space-y-4">
+          {/* Staff identity — mirrors creation (password is changed only via Reset Key) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Staff Full Name"
+              placeholder="e.g. Bilal Farooq"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              required
+            />
+            <Input
+              label="Email Address"
+              type="email"
+              value={targetUser?.email || ''}
+              disabled
+              helperText="Login email — it cannot be changed here."
+            />
+            <Input
+              label="Agency / Department"
+              placeholder="e.g. Head Office Operations"
+              value={editAgency}
+              onChange={(e) => setEditAgency(e.target.value)}
+            />
+            <Input
+              label="Phone Number"
+              placeholder="e.g. +92 300 1234567"
+              value={editPhone}
+              onChange={(e) => setEditPhone(e.target.value)}
+            />
+          </div>
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
             <div>
               <span className="text-xs text-slate-500 font-semibold mr-1">Active Preset:</span>

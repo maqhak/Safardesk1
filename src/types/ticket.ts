@@ -59,6 +59,7 @@ export interface TicketDoc {
   // Net profit after commission & WHT
   netProfitSAR?: number;
   supplierName: string;
+  vendorId?: string; // ledger vendor id when purchased from a vendor
   buyerType: 'agent' | 'customer';
   buyerId: string; // agentId or customerId
   buyerName: string;

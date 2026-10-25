@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Plane, Save, ArrowLeft, Calculator } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -8,22 +8,31 @@ import { Input } from '../components/ui/Input';
 import { AirportSelect, AirlineSelect } from '../components/ui';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { createTicket } from '../services/ticketService';
+import { createTicket, fetchTickets, updateTicket, getTicketSectors } from '../services/ticketService';
 import { fetchCustomers } from '../services/customerService';
 import { fetchAgents } from '../services/agentService';
 import { fetchVendors, fetchAirlines } from '../services/masterService';
 import { getCurrentRate, getBuyRate, getSellRate } from '../services/exchangeRateService';
 import { AirlineDoc } from '../types/master';
-import { TicketSector } from '../types/ticket';
+import { TicketSector, TicketDoc } from '../types/ticket';
 
 const inputCls = "w-full p-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20";
 const labelCls = "block text-[11px] uppercase font-bold text-slate-600 mb-1";
 
 export const TicketSalePage: React.FC = () => {
-  const { userProfile } = useAuth();
+  const { userProfile, role } = useAuth();
   const { success, error: showError } = useToast();
   const navigate = useNavigate();
+  // Edit mode is detected from the route param: /tickets/sale/:id renders
+  // this page with an id, /tickets/sale without one stays create-only.
+  const { id: ticketId } = useParams<{ id: string }>();
+  const isEditMode = Boolean(ticketId);
   const [saving, setSaving] = useState(false);
+  // Edit-mode only: the ticket being edited (source of the prefill and of
+  // the passengers beyond the first, which the form does not re-enter).
+  const [loadingTicket, setLoadingTicket] = useState(isEditMode);
+  const [originalTicket, setOriginalTicket] = useState<TicketDoc | null>(null);
+  const [airlineResolved, setAirlineResolved] = useState(false);
 
   // Invoice header
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
@@ -111,6 +120,123 @@ export const TicketSalePage: React.FC = () => {
     })();
   }, []);
 
+  // Edit mode: Owner/Staff only, matching the gating on the list pages.
+  // updateTicket enforces this again on save; this keeps agents out of the form.
+  useEffect(() => {
+    if (isEditMode && role && role !== 'owner' && role !== 'staff') {
+      showError('Only Owner or Staff can edit a ticket.');
+      navigate('/tickets');
+    }
+  }, [isEditMode, role]);
+
+  // Edit mode: fetch the ticket and prefill every section exactly as at
+  // creation. Fields this form never collected (departure/arrival times,
+  // vendor, purchase/sale currency) are NOT reset here — they are left out
+  // of the update payload, so updateTicket preserves them from the record.
+  useEffect(() => {
+    if (!isEditMode || !ticketId) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingTicket(true);
+      try {
+        const all = await fetchTickets();
+        const t = all.find((x) => x.id === ticketId);
+        if (cancelled) return;
+        if (!t) {
+          showError('Ticket not found.');
+          navigate('/tickets');
+          return;
+        }
+        setOriginalTicket(t);
+        const today = new Date().toISOString().split('T')[0];
+        // Passenger name was stored as "TITLE GIVEN SURNAME" at creation.
+        const pax0 = t.passengers?.[0];
+        const TITLES = ['MR', 'MRS', 'MS', 'MSTR', 'MISS'];
+        let parsedTitle = 'MR';
+        let parsedGiven = '';
+        let parsedSurname = '';
+        if (pax0?.name) {
+          const tokens = pax0.name.trim().split(/\s+/);
+          let rest = tokens;
+          if (tokens.length > 1 && TITLES.includes(tokens[0].toUpperCase())) {
+            parsedTitle = tokens[0].toUpperCase();
+            rest = tokens.slice(1);
+          }
+          if (rest.length > 1) {
+            parsedSurname = rest[rest.length - 1];
+            parsedGiven = rest.slice(0, -1).join(' ');
+          } else if (rest.length === 1) {
+            parsedGiven = rest[0];
+          }
+        }
+        setInvoiceDate(t.invoiceDate || t.issueDate || today);
+        setInvoiceStatus(t.invoiceStatus || 'Issued');
+        setBuyerType(t.buyerType || 'customer');
+        setCustomerTab(t.buyerType || 'customer');
+        setCustomerId(t.buyerId || '');
+        setOrderRef(t.orderRef || '');
+        setNote(t.note || '');
+        setPostTo(t.postTo || '');
+        setAirline(t.airline || null);
+        setIssueDate(t.issueDate || t.invoiceDate || today);
+        setPnr(t.pnr || '');
+        setRouteType(t.routeType || 'One Way');
+        // Creation stores supplier OR service provider in supplierName, so
+        // the stored value round-trips through the supplier field.
+        setSupplierName(t.supplierName || '');
+        setServiceProvider('');
+        setShirkaId(t.shirkaId || '');
+        const loadedSectors = getTicketSectors(t);
+        setSectors(loadedSectors.length > 0
+          ? loadedSectors.map((s) => ({ ...s }))
+          : [{ from: null, to: null, flightDate: '', flightNo: '' }]);
+        setTicketNo(pax0?.ticketNo || '');
+        setTitle(pax0?.title && TITLES.includes(pax0.title.toUpperCase()) ? pax0.title.toUpperCase() : parsedTitle);
+        setSurname(parsedSurname);
+        setGivenName(parsedGiven);
+        setCnic(pax0?.cnic || '');
+        setPassportNo(pax0?.passportNumber || '');
+        setPassportExpiry(pax0?.passportExpiry || '');
+        setNationality(pax0?.nationality || 'Pakistani');
+        setBasicFare(t.basicFareSAR != null ? String(t.basicFareSAR) : '');
+        setTaxes(t.otherTaxesSAR != null ? String(t.otherTaxesSAR) : '');
+        setAirlineCharges(t.airlineChargesSAR != null ? String(t.airlineChargesSAR) : '');
+        setAirCommPct(t.airlineCommPercent != null ? String(t.airlineCommPercent) : '');
+        setAirWhPct(t.whtPercent != null ? String(t.whtPercent) : '');
+        setCustomCommission(Boolean(t.commission?.enabled));
+        setCommissionAmt(t.commission?.amountSAR != null ? String(t.commission.amountSAR) : '');
+        setNetCost(t.purchaseCostPKR != null ? String(t.purchaseCostPKR) : '');
+        // Creation saves salePricePKR = net sale + charges, so split it back.
+        const chargesVal = t.chargesSAR || 0;
+        setCharges(chargesVal ? String(chargesVal) : '');
+        setNetSale(t.salePricePKR != null ? String(t.salePricePKR - chargesVal) : '');
+        setBuyROE(t.buyROE != null ? String(t.buyROE) : String(getBuyRate()));
+        setSellROE(t.sellROE != null ? String(t.sellROE) : String(getSellRate()));
+        setCustWhPct(t.custWhPercent != null ? String(t.custWhPercent) : '');
+        setDiscountPct(t.discountPercent != null ? String(t.discountPercent) : '');
+      } catch {
+        if (!cancelled) {
+          showError('Failed to load ticket.');
+          navigate('/tickets');
+        }
+      } finally {
+        if (!cancelled) setLoadingTicket(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // Prefill runs once per ticket id; the setters are stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditMode, ticketId]);
+
+  // Once the airline list arrives, swap the stored airline object for the
+  // matching list entry so the dropdown shows the current selection.
+  useEffect(() => {
+    if (!originalTicket?.airline || airlineResolved || airlinesList.length === 0) return;
+    const match = airlinesList.find((x: any) => x.id === originalTicket.airline?.id);
+    if (match) setAirline(match);
+    setAirlineResolved(true);
+  }, [airlinesList, originalTicket, airlineResolved]);
+
   // Auto calculations
   const calc = useMemo(() => {
     const bf = parseFloat(basicFare) || 0;
@@ -164,6 +290,81 @@ export const TicketSalePage: React.FC = () => {
           const s = (v.shirkas || []).find((x: any) => x.id === shirkaId);
           if (s) { shirkaName = s.name || ''; break; }
         }
+      }
+      // Edit mode: update in place via updateTicket (never createTicket).
+      // The form edits the first passenger; passengers beyond the first are
+      // carried over untouched, and the full sectors array is written back,
+      // so no passenger or sector is ever discarded by an edit. Fields this
+      // form does not collect (departure/arrival times, vendor, currencies)
+      // are omitted here, so updateTicket preserves them from the record.
+      if (isEditMode && ticketId) {
+        if (!originalTicket) { showError('Ticket not loaded yet.'); return; }
+        const pax0 = originalTicket.passengers?.[0];
+        const editedPassenger = {
+          ...(pax0 || { name: '', passportNumber: '', ageType: 'Adult' as const, ticketNo: '' }),
+          name: `${title} ${givenName} ${surname}`.trim(),
+          title,
+          passportNumber: passportNo.trim(),
+          cnic: cnic.trim() || undefined,
+          passportExpiry: passportExpiry || undefined,
+          nationality: nationality.trim() || undefined,
+          ticketNo: ticketNo.trim(),
+        };
+        await updateTicket(userProfile, ticketId, {
+          pnr: pnr.trim().toUpperCase(),
+          airline,
+          sectors: validSectors.map(s => ({
+            ...s,
+            flightNo: s.flightNo.trim().toUpperCase(),
+            flightDate: s.flightDate || issueDate,
+          })),
+          flightNo: (validSectors[0]?.flightNo || '').trim().toUpperCase(),
+          sectorFrom: validSectors[0]?.from || null,
+          sectorTo: validSectors[0]?.to || null,
+          flightDate: validSectors[0]?.flightDate || issueDate,
+          passengers: [editedPassenger, ...(originalTicket.passengers || []).slice(1)],
+          buyerType,
+          buyerId: customerId,
+          buyerName: buyerName || originalTicket.buyerName,
+          exchangeRateSARPKR: rate,
+          buyROE: buyRate,
+          sellROE: sellRate,
+          purchaseCostPKR: (parseFloat(netCost) || 0),
+          salePricePKR: (parseFloat(netSale) || 0) + (parseFloat(charges) || 0),
+          basicFareSAR: (parseFloat(basicFare) || 0),
+          otherTaxesSAR: (parseFloat(taxes) || 0),
+          airlineCommPercent: parseFloat(airCommPct) || 0,
+          airlineCommAmountSAR: calc.airCommAmt,
+          whtPercent: parseFloat(airWhPct) || 0,
+          whtAmountSAR: calc.airWhAmt,
+          netProfitSAR: calc.profitLoss,
+          supplierName: supplierName.trim() || serviceProvider.trim(),
+          commission: {
+            ...(originalTicket.commission || { enabled: false, recipientName: '', contact: '', amountSAR: 0, isPaid: false }),
+            enabled: customCommission,
+            amountSAR: parseFloat(commissionAmt) || 0,
+          },
+          invoiceDate,
+          invoiceStatus,
+          issueDate,
+          orderRef: orderRef.trim() || undefined,
+          note: note.trim() || undefined,
+          postTo: postTo.trim() || undefined,
+          routeType,
+          shirkaId: shirkaId || undefined,
+          shirkaName: shirkaName || undefined,
+          airlineChargesSAR: parseFloat(airlineCharges) || 0,
+          airlinePayableSAR: calc.airlinePayable,
+          chargesSAR: parseFloat(charges) || 0,
+          custWhPercent: parseFloat(custWhPct) || 0,
+          custWhAmountSAR: calc.custWhAmt,
+          discountPercent: parseFloat(discountPct) || 0,
+          discountAmountSAR: calc.discountAmt,
+          customerReceivableSAR: calc.customerReceivable,
+        });
+        success('Ticket updated.');
+        navigate('/tickets');
+        return;
       }
       await createTicket(userProfile, {
         pnr: pnr.trim().toUpperCase(),
@@ -240,19 +441,41 @@ export const TicketSalePage: React.FC = () => {
 
   const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 });
 
+  if (loadingTicket) {
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          title="Edit Ticket Sale"
+          subtitle="Loading ticket details…"
+          breadcrumbs={[{ label: 'Tickets', href: '/tickets' }, { label: 'Edit Sale' }]}
+          actions={
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => navigate('/tickets')}>
+                <ArrowLeft className="w-4 h-4 mr-1" /> Back
+              </Button>
+            </div>
+          }
+        />
+        <Card className="p-4">
+          <p className="text-sm text-slate-500">Loading ticket…</p>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
-        title="New Ticket Sale"
-        subtitle="Ticket invoice — sale entry with fare breakdown"
-        breadcrumbs={[{ label: 'Tickets', href: '/tickets' }, { label: 'New Sale' }]}
+        title={isEditMode ? 'Edit Ticket Sale' : 'New Ticket Sale'}
+        subtitle={isEditMode ? 'Ticket invoice — update the sale entry with fare breakdown' : 'Ticket invoice — sale entry with fare breakdown'}
+        breadcrumbs={[{ label: 'Tickets', href: '/tickets' }, { label: isEditMode ? 'Edit Sale' : 'New Sale' }]}
         actions={
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate('/tickets')}>
               <ArrowLeft className="w-4 h-4 mr-1" /> Back
             </Button>
             <Button variant="primary" size="sm" loading={saving} onClick={handleSave}>
-              <Save className="w-4 h-4 mr-1" /> Save Ticket Sale
+              <Save className="w-4 h-4 mr-1" /> {isEditMode ? 'Save Changes' : 'Save Ticket Sale'}
             </Button>
           </div>
         }
@@ -406,8 +629,8 @@ export const TicketSalePage: React.FC = () => {
           <div><label className={labelCls}>Commission</label><Input type="number" value={commissionAmt} onChange={e => setCommissionAmt(e.target.value)} placeholder="0" disabled={!customCommission} /></div>
           <div><label className={labelCls}>Net Cost</label><Input type="number" value={netCost} onChange={e => setNetCost(e.target.value)} placeholder="0" /></div>
           <div><label className={labelCls}>Net Sale</label><Input type="number" value={netSale} onChange={e => setNetSale(e.target.value)} placeholder="0" /></div>
-          <div><label className={labelCls} title="Buying ROE — applied on cost">Buy ROE</label><Input type="number" step="0.01" value={buyROE} onChange={e => setBuyROE(e.target.value)} placeholder={String(getBuyRate())} /></div>
-          <div><label className={labelCls} title="Selling ROE — applied on revenue">Sell ROE</label><Input type="number" step="0.01" value={sellROE} onChange={e => setSellROE(e.target.value)} placeholder={String(getSellRate())} /></div>
+          <div><label className={labelCls} title="Payable ROE — applied on cost">Payable ROE</label><Input type="number" step="0.01" value={buyROE} onChange={e => setBuyROE(e.target.value)} placeholder={String(getBuyRate())} /></div>
+          <div><label className={labelCls} title="Receivable ROE — applied on revenue">Receivable ROE</label><Input type="number" step="0.01" value={sellROE} onChange={e => setSellROE(e.target.value)} placeholder={String(getSellRate())} /></div>
           <div><label className={labelCls}>Profit / Loss</label><div className={`p-2 border rounded-lg text-sm font-mono font-bold ${calc.profitLoss >= 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>{fmt(calc.profitLoss)}</div></div>
           <div><label className={labelCls}>Charges</label><Input type="number" value={charges} onChange={e => setCharges(e.target.value)} placeholder="0" /></div>
           <div><label className={labelCls}>Customer WH %</label><Input type="number" value={custWhPct} onChange={e => setCustWhPct(e.target.value)} placeholder="0" /></div>
@@ -420,7 +643,7 @@ export const TicketSalePage: React.FC = () => {
 
       <div className="flex justify-end gap-2 pb-6">
         <Button variant="outline" onClick={() => navigate('/tickets')}>Cancel</Button>
-        <Button variant="primary" loading={saving} onClick={handleSave}><Save className="w-4 h-4 mr-1" /> Save Ticket Sale</Button>
+        <Button variant="primary" loading={saving} onClick={handleSave}><Save className="w-4 h-4 mr-1" /> {isEditMode ? 'Save Changes' : 'Save Ticket Sale'}</Button>
       </div>
     </div>
   );

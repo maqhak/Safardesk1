@@ -68,6 +68,7 @@ export const VendorsPage: React.FC = () => {
   const [notes, setNotes] = useState('');
   const [defBuyPrice, setDefBuyPrice] = useState('');
   const [alsoAgent, setAlsoAgent] = useState(false);
+  const [linkedAgentId, setLinkedAgentId] = useState('');
 
   // Edit Vendor Modal
   const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
@@ -161,22 +162,26 @@ const loadData = async () => {
         defaultBuyingPricePerVisa: parseFloat(defBuyPrice) || undefined,
       });
 
-      // Dual-role: also create the linked Agent record (shares the vendor's ledger account)
+      // Dual-role: link an existing agent, or create the linked Agent record (shares the vendor's ledger account)
       let agentCode = '';
       if (alsoAgent) {
-        const { agent } = await createAgentBasic(userProfile, {
-          companyName: name,
-          contactPerson,
-          mobile,
-          city,
-          email,
-          notes: `Dual-role linked to vendor ${vendor.vendorCode}`,
-          alsoVendor: true,
-          linkedVendorId: vendor.id,
-          skipLedger: true, // one party, one account — vendor's account
-        });
-        agentCode = agent.agentCode;
-        await updateVendor(userProfile, vendor.id, { alsoAgent: true, linkedAgentId: agent.id });
+        if (linkedAgentId) {
+          await updateVendor(userProfile, vendor.id, { alsoAgent: true, linkedAgentId });
+        } else {
+          const { agent } = await createAgentBasic(userProfile, {
+            companyName: name,
+            contactPerson,
+            mobile,
+            city,
+            email,
+            notes: `Dual-role linked to vendor ${vendor.vendorCode}`,
+            alsoVendor: true,
+            linkedVendorId: vendor.id,
+            skipLedger: true, // one party, one account — vendor's account
+          });
+          agentCode = agent.agentCode;
+          await updateVendor(userProfile, vendor.id, { alsoAgent: true, linkedAgentId: agent.id });
+        }
       }
 
       success(`Vendor / Sub-Vendor "${name}" created with auto ledger account.${alsoAgent ? ` Linked agent ${agentCode} created (shared account).` : ''}`);
@@ -185,9 +190,11 @@ const loadData = async () => {
       setContactPerson('');
       setMobile('');
       setEmail('');
+      setCity('Makkah');
       setNotes('');
       setDefBuyPrice('');
       setAlsoAgent(false);
+      setLinkedAgentId('');
       await loadData();
     } catch (err: any) {
       showError(err?.message || 'Failed to create vendor.');
@@ -528,6 +535,14 @@ const loadData = async () => {
               defaultValue="Saudi Arabia"
             />
             <Input
+              label="City"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="e.g. Makkah"
+            />
+          </div>
+          <div>
+            <Input
               label="Email Address"
               type="email"
               value={email}
@@ -564,10 +579,24 @@ const loadData = async () => {
               className="w-4 h-4 mt-0.5 accent-[#0e2c4c]"
             />
             <span>
-              <span className="font-bold text-slate-800">Ye party hum se bhi khareedti hai (Agent bhi hai)</span>
-              <span className="block text-slate-500">Ek hi khata rahega — dena/lena auto net hoga.</span>
+              <span className="font-bold text-slate-800">This party also buys from us (also an agent)</span>
+              <span className="block text-slate-500">One shared account — payables and receivables net automatically.</span>
             </span>
           </label>
+          {alsoAgent && (
+            <select
+              value={linkedAgentId}
+              onChange={(e) => setLinkedAgentId(e.target.value)}
+              className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg"
+            >
+              <option value="">— Create new linked Agent on save —</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.agentCode} — {a.companyName}
+                </option>
+              ))}
+            </select>
+          )}
         </form>
       </Modal>
 
@@ -591,7 +620,7 @@ const loadData = async () => {
       >
         <form onSubmit={handleSaveEdit} className="space-y-4">
           <Input
-            label="Vendor Name"
+            label="Vendor / Sub-Vendor Name"
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
             required
@@ -604,10 +633,10 @@ const loadData = async () => {
               required
             />
             <Input
-              label="Mobile"
+              label="Mobile Number"
               value={editMobile}
               onChange={(e) => setEditMobile(e.target.value)}
-              required
+              placeholder="e.g. +966 55 000 0000"
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -615,17 +644,25 @@ const loadData = async () => {
               label="Country"
               value={editCountry}
               onChange={(e) => setEditCountry(e.target.value)}
-              required
             />
             <Input
-              label="Email"
+              label="City"
+              value={editCity}
+              onChange={(e) => setEditCity(e.target.value)}
+              placeholder="e.g. Makkah"
+            />
+          </div>
+          <div>
+            <Input
+              label="Email Address"
               type="email"
               value={editEmail}
               onChange={(e) => setEditEmail(e.target.value)}
+              placeholder="e.g. partner@sub-vendor.com"
             />
           </div>
-          {/* Sub-Shirkas under this company — one ledger for the company, Shirkas tracked separately */}
-          <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/60">
+          {/* Sub-Vendors hidden per owner order 2026-10-22 — only main vendor shows */}
+          <div className="hidden">
             <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">Sub-Vendors under this company</div>
             <p className="text-[11px] text-slate-500 mb-2">One company can run several Sub-Vendors (A, B, C). Ledger stays one for the company — each Sub-Vendor is tracked separately by name and operator.</p>
             {editShirkas.length === 0 && (
@@ -682,6 +719,16 @@ const loadData = async () => {
                 </Button>
               </div>
             </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-700 block mb-1">Notes / Terms</label>
+            <textarea
+              rows={2}
+              value={editNotes}
+              onChange={(e) => setEditNotes(e.target.value)}
+              placeholder="Contract terms, visa quota allocation notes..."
+              className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20"
+            />
           </div>
           <div>
             <Input

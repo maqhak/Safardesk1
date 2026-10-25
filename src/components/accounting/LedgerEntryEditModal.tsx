@@ -7,7 +7,8 @@ import { LedgerEntryDoc } from '../../types/accounting';
 export interface LedgerEntryEditValues {
   date: string;
   particulars: string;
-  amountSAR: number;
+  amount: number;
+  currency: 'PKR' | 'SAR';
   rate: number;
 }
 
@@ -21,8 +22,10 @@ interface LedgerEntryEditModalProps {
 
 /**
  * Shared edit modal for a single ledger leg (used by Accounts + Day Book).
- * Prefilled with the record's current values. Save voids the old leg and
- * reposts a corrected leg under the SAME transNo (service layer).
+ * Entry-time interface: pick the currency, type the amount in that currency,
+ * the other currency is shown as equivalent — same as the payment/transaction
+ * entry forms. Save updates the entry directly in place (no void, no audit
+ * trail copy).
  */
 export const LedgerEntryEditModal: React.FC<LedgerEntryEditModalProps> = ({
   isOpen,
@@ -33,7 +36,8 @@ export const LedgerEntryEditModal: React.FC<LedgerEntryEditModalProps> = ({
 }) => {
   const [date, setDate] = useState('');
   const [particulars, setParticulars] = useState('');
-  const [amountSAR, setAmountSAR] = useState<number>(0);
+  const [currency, setCurrency] = useState<'PKR' | 'SAR'>('PKR');
+  const [amount, setAmount] = useState<number>(0);
   const [rate, setRate] = useState<number>(0);
   const [formError, setFormError] = useState('');
 
@@ -41,8 +45,21 @@ export const LedgerEntryEditModal: React.FC<LedgerEntryEditModalProps> = ({
     if (entry && isOpen) {
       setDate(entry.date || '');
       setParticulars(entry.particulars || '');
-      setAmountSAR((entry.debitSAR || 0) > 0 ? entry.debitSAR : entry.creditSAR || 0);
-      setRate(entry.rate || 0);
+      const sarAmt = (entry.debitSAR || 0) > 0 ? entry.debitSAR : entry.creditSAR || 0;
+      const pkrAmt = (entry.debitPKR || 0) > 0 ? entry.debitPKR : entry.creditPKR || 0;
+      const r = entry.rate || 0;
+      // Detect the entered currency: if PKR does NOT equal SAR x rate (beyond
+      // rounding), PKR was typed at entry time and SAR was derived from it —
+      // so prefill PKR to keep the typed amount exact.
+      const pkrFromSar = r > 0 ? Math.round(sarAmt * r * 100) / 100 : 0;
+      if (pkrAmt > 0 && Math.abs(pkrAmt - pkrFromSar) > 0.01) {
+        setCurrency('PKR');
+        setAmount(pkrAmt);
+      } else {
+        setCurrency('SAR');
+        setAmount(sarAmt);
+      }
+      setRate(r);
       setFormError('');
     }
   }, [entry, isOpen]);
@@ -52,7 +69,7 @@ export const LedgerEntryEditModal: React.FC<LedgerEntryEditModalProps> = ({
       setFormError('Date is required.');
       return;
     }
-    if (!(amountSAR > 0)) {
+    if (!(amount > 0)) {
       setFormError('Amount must be greater than zero.');
       return;
     }
@@ -61,15 +78,21 @@ export const LedgerEntryEditModal: React.FC<LedgerEntryEditModalProps> = ({
       return;
     }
     setFormError('');
-    await onSave({ date, particulars, amountSAR, rate });
+    await onSave({ date, particulars, amount, currency, rate });
   };
+
+  const equivalent = rate > 0
+    ? currency === 'PKR'
+      ? `SAR equivalent: ${(Math.round((amount / rate) * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : `PKR equivalent: ${(Math.round(amount * rate * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : '';
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={`Edit Entry ${entry ? `#${entry.entryNo}` : ''}`}
-      subtitle="The original entry is voided (audit trail kept) and a corrected entry is reposted with the same transaction number."
+      subtitle="Updates this entry directly."
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onClose}>
@@ -96,28 +119,39 @@ export const LedgerEntryEditModal: React.FC<LedgerEntryEditModalProps> = ({
           placeholder="Entry description"
         />
         <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Currency *</label>
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value as 'PKR' | 'SAR')}
+              className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold"
+            >
+              <option value="PKR">PKR — Pakistani Rupee</option>
+              <option value="SAR">SAR — Saudi Riyal</option>
+            </select>
+          </div>
           <Input
-            label="Amount (SAR) *"
+            label={`Amount (${currency}) *`}
             type="number"
             min="0"
             step="0.01"
-            value={amountSAR || ''}
-            onChange={(e) => setAmountSAR(parseFloat(e.target.value) || 0)}
-          />
-          <Input
-            label="Exchange Rate (SAR→PKR) *"
-            type="number"
-            min="0"
-            step="0.01"
-            value={rate || ''}
-            onChange={(e) => setRate(parseFloat(e.target.value) || 0)}
+            value={amount || ''}
+            onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
           />
         </div>
+        <Input
+          label="Exchange Rate (SAR→PKR) *"
+          type="number"
+          min="0"
+          step="0.01"
+          value={rate || ''}
+          onChange={(e) => setRate(parseFloat(e.target.value) || 0)}
+        />
         {formError && (
           <p className="text-xs font-semibold text-rose-600">{formError}</p>
         )}
         <p className="text-[11px] text-slate-500">
-          PKR equivalent on save: {(amountSAR * rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {equivalent}
         </p>
       </div>
     </Modal>

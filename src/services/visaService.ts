@@ -158,37 +158,39 @@ const INITIAL_VISAS: VisaDoc[] = [
 
 async function fetchVisasRaw(): Promise<VisaDoc[]> {
   let firestoreVisas: VisaDoc[] = [];
-  let firestoreOk = false;
+  let firestoreFailed = false;
 
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, VISAS_COLLECTION));
       firestoreVisas = snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as VisaDoc));
-      firestoreOk = true;
+    } else {
+      firestoreFailed = true;
     }
   } catch (err) {
     console.warn('Could not read visas from Firestore:', err);
+    firestoreFailed = true;
   }
 
-  // Merge with localStorage (in case Firestore writes failed silently)
-  let localVisas: VisaDoc[] = [];
+  // Firestore is source of truth — on success, sync localStorage and return Firestore data only.
+  // (This removes docs deleted from Firestore, fixing stale cache issues.)
+  if (!firestoreFailed) {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_VISAS_KEY, JSON.stringify(firestoreVisas));
+    } catch { /* storage full/blocked */ }
+    return firestoreVisas;
+  }
+
+  // Fallback: Firestore unreachable, use localStorage only.
   const stored = localStorage.getItem(LOCAL_STORAGE_VISAS_KEY);
   if (stored) {
     try {
-      localVisas = JSON.parse(stored);
+      return JSON.parse(stored);
     } catch {
-      // fallback
+      return [];
     }
   }
-
-  if (!firestoreOk) {
-    return localVisas;
-  }
-
-  // Dedupe: Firestore wins, local-only records appended
-  const seen = new Set(firestoreVisas.map((v) => v.id));
-  const localOnly = localVisas.filter((v) => !seen.has(v.id));
-  return [...firestoreVisas, ...localOnly];
+  return [];
 }
 
 /** Cached: repeat visits within 90s don't re-download the whole collection. */

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Trash2 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -7,11 +7,17 @@ import { Button } from '../components/ui/Button';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
-import { fetchLedgerAccounts } from '../services/accountingService';
-import { createManualInvoice, fetchInvoiceIncomeAccounts } from '../services/invoiceService';
+import { fetchLedgerAccounts, fetchLedgerEntries, voidLedgerEntry, postBalancedTransaction } from '../services/accountingService';
+import { createManualInvoice, fetchInvoiceIncomeAccounts, fetchManualInvoices } from '../services/invoiceService';
 import { getCurrentRate, getSellRate } from '../services/exchangeRateService';
 import { LedgerAccountDoc } from '../types/accounting';
-import { ManualInvoiceLine } from '../types/invoice';
+import { ManualInvoiceLine, ManualInvoiceDoc } from '../types/invoice';
+import { doc, setDoc } from 'firebase/firestore';
+import { db, isConfigPlaceholder } from '../services/firebase';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
+
+const MANUAL_INVOICES_COLLECTION = 'manualInvoices';
+const MANUAL_INVOICES_LOCAL_KEY = 'safardesk_manual_invoices';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -28,9 +34,14 @@ const labelCls = 'block text-[11px] font-bold uppercase tracking-wide text-slate
  */
 export const InvoiceCreatePage: React.FC = () => {
   const navigate = useNavigate();
+  const { id: editId } = useParams<{ id: string }>();
+  const isEditMode = !!editId;
   const { userProfile } = useAuth();
   const { success, error: showError } = useToast();
   const canCreate = useCan('Accounts', 'create');
+  const [editingInvoice, setEditingInvoice] = useState<ManualInvoiceDoc | null>(null);
+  const [editLoading, setEditLoading] = useState(isEditMode);
+  const [editNotFound, setEditNotFound] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [accounts, setAccounts] = useState<LedgerAccountDoc[]>([]);
@@ -52,10 +63,44 @@ export const InvoiceCreatePage: React.FC = () => {
         const [accs, inc] = await Promise.all([fetchLedgerAccounts(), fetchInvoiceIncomeAccounts()]);
         setAccounts(accs.filter((a) => a.isActive !== false));
         setIncomeAccounts(inc);
-        if (inc.length > 0) setIncomeAccountId(inc[0].id);
+        if (inc.length > 0 && !isEditMode) setIncomeAccountId(inc[0].id);
       } catch { /* lists stay empty */ }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Edit mode: prefill every section from the saved invoice.
+  useEffect(() => {
+    if (!editId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await fetchManualInvoices();
+        const found = list.find((x) => x.id === editId);
+        if (cancelled) return;
+        if (!found) { setEditNotFound(true); return; }
+        if (found.isVoid) { showError('Voided invoices cannot be edited.'); setEditNotFound(true); return; }
+        setEditingInvoice(found);
+        setDate(found.date || todayStr());
+        setDueDate(found.dueDate || '');
+        setPartyId(found.partyId || '');
+        setIncomeAccountId(found.incomeAccountId || '');
+        setCurrency(found.currency || 'SAR');
+        setRate(found.rate || 0);
+        setLines((found.lines || []).length > 0
+          ? found.lines.map((l) => ({ ...l, amount: Math.round((l.qty || 0) * (l.rate || 0) * 100) / 100 }))
+          : [blankLine()]);
+        setDiscount(found.discount || 0);
+        setNotes(found.notes || '');
+      } catch {
+        if (!cancelled) setEditNotFound(true);
+      } finally {
+        if (!cancelled) setEditLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId]);
 
   const party = accounts.find((a) => a.id === partyId);
   const incomeAccount = incomeAccounts.find((a) => a.id === incomeAccountId);
@@ -74,8 +119,90 @@ export const InvoiceCreatePage: React.FC = () => {
     }));
   };
 
+  /**
+   * Edit save — no update function exists in invoiceService, so this mirrors
+   * the approved VV edit pattern: void the old ledger legs and post fresh
+   * legs under the SAME invoice number, updating the same document in place
+   * (the invoice itself is never marked void).
+   */
+  const handleSaveEdit = async () => {
+    if (!editingInvoice || !party || !incomeAccount) return;
+    if (lines.filter((l) => l.description.trim()).length === 0) { showError('Add at least one line item with a description.'); return; }
+    if (total <= 0) { showError('Invoice total must be greater than zero.'); return; }
+    if (currency === 'SAR' && !(rate > 0)) { showError('Enter a valid SAR → PKR rate.'); return; }
+    const paid = editingInvoice.paidAmount || 0;
+    if (paid > 0 && total < paid) {
+      showError('Total cannot be reduced below the amount already paid.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const entries = await fetchLedgerEntries();
+      const mine = entries.filter((e) => e.transNo === editingInvoice.invoiceNo && !e.isVoid);
+      for (const e of mine) {
+        await voidLedgerEntry(e.id, `Invoice ${editingInvoice.invoiceNo} edited`, userProfile?.uid || userProfile?.email || 'unknown');
+      }
+      await postBalancedTransaction({
+        date,
+        entryType: 'Invoice',
+        transNo: editingInvoice.invoiceNo,
+        particulars: `Manual Invoice ${editingInvoice.invoiceNo} — ${party.title}${notes.trim() ? ` (${notes.trim()})` : ''}`,
+        invoiceRef: editingInvoice.invoiceNo,
+        rate: rate || 0,
+        debitAccountId: party.id,
+        creditAccountId: incomeAccount.id,
+        amountSAR: Math.round(totalSAR * 100) / 100,
+        createdBy: userProfile?.uid || userProfile?.email || 'unknown',
+      });
+      const updated: ManualInvoiceDoc = {
+        ...editingInvoice,
+        date,
+        dueDate: dueDate || undefined,
+        partyId: party.id,
+        partyName: party.title,
+        partyType: party.accountType,
+        incomeAccountId: incomeAccount.id,
+        incomeAccountName: incomeAccount.title,
+        currency,
+        rate: rate || 0,
+        lines: lines.filter((l) => l.description.trim()).map((l) => ({ ...l })),
+        subtotal,
+        discount: discount || 0,
+        total,
+        totalSAR: Math.round(totalSAR * 100) / 100,
+        totalPKR: Math.round(totalPKR * 100) / 100,
+        notes: notes.trim(),
+        status: paid >= total - 0.01 ? 'Paid' : paid > 0 ? 'Partially Paid' : 'Unpaid',
+        isVoid: false,
+      };
+      if (!isConfigPlaceholder) {
+        await setDoc(doc(db, MANUAL_INVOICES_COLLECTION, editingInvoice.id), stripUndefinedDeep(updated));
+      }
+      try {
+        const raw = localStorage.getItem(MANUAL_INVOICES_LOCAL_KEY);
+        if (raw) {
+          const list = JSON.parse(raw) as ManualInvoiceDoc[];
+          localStorage.setItem(MANUAL_INVOICES_LOCAL_KEY, JSON.stringify(list.map((x) => (x.id === editingInvoice.id ? updated : x))));
+        }
+      } catch { /* local mirror best-effort */ }
+      success(`Invoice ${updated.invoiceNo} updated and reposted to ledger.`);
+      navigate('/accounts/invoices');
+    } catch (err: any) {
+      showError(err?.message || 'Could not update invoice.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!canCreate) { showError('You do not have permission to create invoices.'); return; }
+    if (isEditMode) {
+      if (!editingInvoice) { showError('Invoice not loaded yet.'); return; }
+      if (!party) { showError('Please select Bill To (party).'); return; }
+      if (!incomeAccount) { showError('Please select the Income Account.'); return; }
+      await handleSaveEdit();
+      return;
+    }
     if (!party) { showError('Please select Bill To (party).'); return; }
     if (!incomeAccount) { showError('Please select the Income Account.'); return; }
     if (lines.filter((l) => l.description.trim()).length === 0) { showError('Add at least one line item with a description.'); return; }
@@ -119,15 +246,38 @@ export const InvoiceCreatePage: React.FC = () => {
     return groups;
   }, [accounts]);
 
+  if (isEditMode && editLoading) {
+    return (
+      <div className="space-y-4">
+        <PageHeader title="Edit Invoice" subtitle="Loading invoice…" />
+        <Card className="p-8 text-center text-sm text-slate-500">Loading invoice…</Card>
+      </div>
+    );
+  }
+
+  if (isEditMode && editNotFound) {
+    return (
+      <div className="space-y-4">
+        <PageHeader title="Edit Invoice" subtitle="This invoice cannot be edited." />
+        <Card className="p-6 text-sm text-slate-600">
+          The invoice was not found, or it is voided and cannot be edited.
+          <div className="mt-4">
+            <Button variant="outline" size="sm" onClick={() => navigate('/accounts/invoices')}>Back to Invoices</Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader
-        title="New Invoice"
-        subtitle="Manual invoice — Bill To, line items, and ledger posting (Dr Party / Cr Income)"
+        title={isEditMode ? `Edit Invoice ${editingInvoice?.invoiceNo || ''}` : 'New Invoice'}
+        subtitle={isEditMode ? 'Update the invoice details. Ledger legs are reposted under the same invoice number.' : 'Manual invoice — Bill To, line items, and ledger posting (Dr Party / Cr Income)'}
         actions={
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate('/accounts/invoices')}>Back to Invoices</Button>
-            <Button variant="primary" size="sm" loading={saving} onClick={handleSave}>Save Invoice</Button>
+            <Button variant="primary" size="sm" loading={saving} onClick={handleSave}>{isEditMode ? 'Save Changes' : 'Save Invoice'}</Button>
           </div>
         }
       />
@@ -220,7 +370,7 @@ export const InvoiceCreatePage: React.FC = () => {
 
       <div className="flex justify-end gap-2">
         <Button variant="outline" onClick={() => navigate('/accounts/invoices')}>Cancel</Button>
-        <Button variant="primary" loading={saving} onClick={handleSave}>Save Invoice</Button>
+        <Button variant="primary" loading={saving} onClick={handleSave}>{isEditMode ? 'Save Changes' : 'Save Invoice'}</Button>
       </div>
     </div>
   );

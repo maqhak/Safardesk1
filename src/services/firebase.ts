@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore, disableNetwork } from 'firebase/firestore';
+import { getFirestore, Firestore, disableNetwork, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { firebaseConfig } from '../config';
 
@@ -22,7 +22,15 @@ try {
     app = getApp();
   }
   auth = getAuth(app);
-  db = getFirestore(app);
+  // Speed (Fixer order 2026-10-23): persistent local cache = cache-first reads.
+  // Pages render instantly from cache, Firestore syncs in background.
+  try {
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    });
+  } catch {
+    db = getFirestore(app); // already initialized (e.g. hot reload)
+  }
   storage = getStorage(app);
 
   if (isConfigPlaceholder && db) {
@@ -33,7 +41,13 @@ try {
   // Fallback to initialized app if already registered
   app = getApps()[0] || initializeApp(firebaseConfig);
   auth = getAuth(app);
-  db = getFirestore(app);
+  try {
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    });
+  } catch {
+    db = getFirestore(app);
+  }
   storage = getStorage(app);
 }
 

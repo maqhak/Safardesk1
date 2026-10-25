@@ -717,22 +717,35 @@ export async function saveLedgerAccount(account: LedgerAccountDoc): Promise<Ledg
  */
 async function fetchLedgerEntriesRaw(accountId?: string): Promise<LedgerEntryDoc[]> {
   let firestoreEntries: LedgerEntryDoc[] = [];
+  let firestoreFailed = false;
   try {
     if (!isConfigPlaceholder) {
       const snap = await getDocs(collection(db, ENTRIES_COLLECTION));
       firestoreEntries = snap.docs.map((d) => ({ ...d.data(), id: (d.data() as any).id || d.id } as LedgerEntryDoc));
+    } else {
+      firestoreFailed = true;
     }
   } catch (err) {
     console.warn('Could not read ledger entries from Firestore:', err);
+    firestoreFailed = true;
   }
 
-  // Merge local-only entries (e.g. saved before a Firestore sync) — Firestore wins on conflict.
+  // Firestore is source of truth — on success, sync localStorage and return Firestore data only.
+  // (This removes entries deleted from Firestore, fixing stale cache issues.)
+  if (!firestoreFailed) {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(firestoreEntries.map(stripReceiptDataForStorage)));
+    } catch { /* storage full/blocked */ }
+    if (accountId) return firestoreEntries.filter((e) => e.accountId === accountId);
+    return firestoreEntries;
+  }
+
+  // Fallback: Firestore unreachable, use localStorage only.
   let localEntries: LedgerEntryDoc[] = [];
   const stored = localStorage.getItem(LOCAL_STORAGE_ENTRIES_KEY);
   if (stored) {
     try {
       localEntries = JSON.parse(stored);
-      // One-time cleanup: strip any base64 receipt data bloating localStorage.
       if (localEntries.some((e: any) => typeof e?.driveFileUrl === 'string' && e.driveFileUrl.startsWith('data:'))) {
         saveEntriesToStorage(localEntries);
         localEntries = localEntries.map((e: any) =>
@@ -743,15 +756,8 @@ async function fetchLedgerEntriesRaw(accountId?: string): Promise<LedgerEntryDoc
       localEntries = [];
     }
   }
-  const byId = new Map<string, LedgerEntryDoc>();
-  for (const e of localEntries) if (e?.id) byId.set(e.id, e);
-  for (const e of firestoreEntries) if (e?.id) byId.set(e.id, e);
-  const list = Array.from(byId.values());
-
-  if (accountId) {
-    return list.filter((e) => e.accountId === accountId);
-  }
-  return list;
+  if (accountId) return localEntries.filter((e) => e.accountId === accountId);
+  return localEntries;
 }
 
 /** Cached per accountId (or all). Writes bust it via postBalancedTransaction. */
@@ -885,6 +891,10 @@ export async function postBalancedTransaction(params: {
         setDoc(doc(db, ENTRIES_COLLECTION, creditEntry.id), stripUndefinedDeep(stripReceiptDataForStorage(creditEntry))),
         ...extraLegs.map((leg) => setDoc(doc(db, ENTRIES_COLLECTION, leg.id), stripUndefinedDeep(stripReceiptDataForStorage(leg)))),
       ]);
+      // Re-sync localStorage from Firestore truth after write — never trust pre-write snapshot.
+      bust('ledger:entries:all'); bustPrefix('ledger:entries:');
+      const fresh = await fetchLedgerEntries();
+      try { saveEntriesToStorage(fresh); } catch { /* ignore */ }
     }
   } catch (err) {
     console.warn('Could not sync balanced transaction to Firestore:', err);
@@ -1098,15 +1108,16 @@ export async function deleteLedgerEntry(entryId: string): Promise<void> {
 }
 
 /**
- * Edit a ledger entry (Owner/Staff): void-and-repost with the SAME transNo.
- * The original leg is voided (kept as struck-through audit trail); a corrected
- * leg is posted under the same transNo with a new entry number, stamped with
- * the editor's name.
+ * Edit a ledger entry (Owner/Staff): DIRECT UPDATE in place.
+ * No void, no audit-trail copy — the entry's own values are corrected.
+ * Amount is typed in the given currency (entry-time style); the other
+ * currency is derived at the rate, so a PKR-entered amount stays exact
+ * instead of drifting through a rounded SAR value.
  */
 export async function editLedgerEntry(
   entryId: string,
-  updates: { date: string; particulars: string; amountSAR: number; rate: number },
-  editedBy: string
+  updates: { date: string; particulars: string; amount: number; currency: 'PKR' | 'SAR'; rate: number },
+  _editedBy: string
 ): Promise<LedgerEntryDoc> {
   const currentEntries = await fetchLedgerEntries();
   const index = currentEntries.findIndex((e) => e.id === entryId);
@@ -1120,63 +1131,44 @@ export async function editLedgerEntry(
   if (!updates.date) {
     throw new Error('Date is required');
   }
-  if (!(updates.amountSAR > 0)) {
+  if (!(updates.amount > 0)) {
     throw new Error('Amount must be greater than zero');
   }
   if (!(updates.rate > 0)) {
     throw new Error('Exchange rate must be greater than zero');
   }
 
-  // 1) Void the original leg (audit trail preserved)
-  await voidLedgerEntry(entryId, 'Edited — corrected entry reposted', editedBy);
+  const isDebitSide = (original.debitSAR || 0) > 0 || (original.debitPKR || 0) > 0;
+  const amountSAR = updates.currency === 'PKR'
+    ? Math.round((updates.amount / updates.rate) * 100) / 100
+    : updates.amount;
+  const amountPKR = updates.currency === 'PKR'
+    ? updates.amount
+    : Math.round(updates.amount * updates.rate * 100) / 100;
 
-  // 2) Repost the corrected leg under the SAME transNo
-  const fresh = await fetchLedgerEntries();
-  const nextNum = fresh.length + 10001;
-  const isDebitSide = (original.debitSAR || 0) > 0;
-  const amountPKR = Math.round(updates.amountSAR * updates.rate * 100) / 100;
-  const now = new Date().toISOString();
-  const corrected: LedgerEntryDoc = {
-    id: `le-${nextNum}`,
-    entryNo: `LE-${nextNum}`,
+  const updated: LedgerEntryDoc = {
+    ...original,
     date: updates.date,
-    accountId: original.accountId,
-    entryType: original.entryType,
-    transNo: original.transNo,
     particulars: updates.particulars,
-    invoiceRef: original.invoiceRef || null,
-    voucherNo: original.voucherNo || null,
     rate: updates.rate,
-    debitSAR: isDebitSide ? updates.amountSAR : 0,
-    creditSAR: isDebitSide ? 0 : updates.amountSAR,
+    debitSAR: isDebitSide ? amountSAR : 0,
+    creditSAR: isDebitSide ? 0 : amountSAR,
     debitPKR: isDebitSide ? amountPKR : 0,
     creditPKR: isDebitSide ? 0 : amountPKR,
-    driveFileUrl: original.driveFileUrl || null,
-    proofType: original.proofType || null,
-    createdBy: editedBy,
-    createdAt: now,
-    isVoid: false,
-    voidReason: null,
-    voidedAt: null,
-    voidedBy: null,
-    reversalOf: null,
-    paxCount: original.paxCount || 0,
-    paxType: original.paxType || null,
-    mofaPax: original.mofaPax || 0,
-    hotelPax: original.hotelPax || 0,
   };
 
-  const updated = [corrected, ...fresh];
-  try { saveEntriesToStorage(updated); } catch { /* storage full/blocked — Firestore is source of truth */ }
+  const next = [...currentEntries];
+  next[index] = updated;
+  try { saveEntriesToStorage(next); } catch { /* storage full/blocked — Firestore is source of truth */ }
   try {
     if (!isConfigPlaceholder) {
-      await setDoc(doc(db, ENTRIES_COLLECTION, corrected.id), stripUndefinedDeep(stripReceiptDataForStorage(corrected)));
+      await setDoc(doc(db, ENTRIES_COLLECTION, updated.id), stripUndefinedDeep(stripReceiptDataForStorage(updated)));
     }
   } catch (err) {
     console.warn('Could not sync edited ledger entry to Firestore:', err);
   }
   bust('ledger:entries:all'); bustPrefix('ledger:entries:');
-  return corrected;
+  return updated;
 }
 
 /**
@@ -1236,13 +1228,14 @@ export function computeLedgerStatement(
 
       if (e.mofaPax) totalMofaPax += e.mofaPax;
       if (e.hotelPax) totalHotelPax += e.hotelPax;
-    }
 
-    periodRows.push({
-      entry: e,
-      runningBalance: runningBalance,
-      formattedRate: e.rate ? Number(e.rate).toFixed(2) : '—',
-    });
+      periodRows.push({
+        entry: e,
+        runningBalance: runningBalance,
+        formattedRate: e.rate ? Number(e.rate).toFixed(2) : '—',
+      });
+    }
+    // Voided entries are NEVER added to the statement — they do not display at all.
   });
 
   const periodLabel = startDate && endDate 

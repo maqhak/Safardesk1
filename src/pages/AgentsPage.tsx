@@ -65,7 +65,8 @@ import {
   getAgentIdentityIds,
   deleteAgent
 } from '../services/agentService';
-import { createVendor } from '../services/masterService';
+import { createVendor, fetchVendors } from '../services/masterService';
+import { VendorDoc } from '../types/master';
 import { TENANT } from '../config';
 import { getCurrentRate } from '../services/exchangeRateService';
 import { formatMoney, formatDate } from '../utils/formatters';
@@ -130,6 +131,10 @@ export const AgentsPage: React.FC = () => {
   const [editExchangeRate, setEditExchangeRate] = useState<number>(masterRate);
   const [editDefSellPrice, setEditDefSellPrice] = useState<string>('');
   const [editNotes, setEditNotes] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editAlsoVendor, setEditAlsoVendor] = useState(false);
+  const [editLinkedVendorId, setEditLinkedVendorId] = useState('');
+  const [vendors, setVendors] = useState<VendorDoc[]>([]);
   const [editing, setEditing] = useState<boolean>(false);
 
   // "Reset Password" Modal state
@@ -162,14 +167,16 @@ export const AgentsPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [agentList, ledgerList, code] = await Promise.all([
+      const [agentList, ledgerList, code, vendorList] = await Promise.all([
         fetchAgents(),
         fetchLedgerAccounts(),
         generateNextAgentCode(),
+        fetchVendors().catch(() => []),
       ]);
       setAgents(agentList);
       setLedgers(ledgerList);
       setNextCodePreview(code);
+      setVendors(vendorList as VendorDoc[]);
     } catch {
       showError('Could not load agents data.');
     } finally {
@@ -284,6 +291,9 @@ Please keep these credentials safe and change password after first login.`;
     setEditExchangeRate(agent.exchangeRatePKRRate);
     setEditDefSellPrice(agent.defaultSellingPricePerVisa ? String(agent.defaultSellingPricePerVisa) : '');
     setEditNotes(agent.notes || '');
+    setEditEmail(agent.email || '');
+    setEditAlsoVendor(!!agent.alsoVendor);
+    setEditLinkedVendorId(agent.linkedVendorId || '');
     setEditModalOpen(true);
   };
 
@@ -294,16 +304,50 @@ Please keep these credentials safe and change password after first login.`;
 
     setEditing(true);
     try {
-      await updateAgent(userProfile, targetAgent.id, {
+      const updateData: any = {
         companyName: editCompanyName,
         contactPerson: editContactPerson,
         mobile: editMobile,
         city: editCity,
+        email: editEmail.trim().toLowerCase(),
         dueLimitSAR: Number(editDueLimitSAR) || 0,
         exchangeRatePKRRate: Number(editExchangeRate) || masterRate,
         defaultSellingPricePerVisa: parseFloat(editDefSellPrice) || undefined,
         notes: editNotes,
-      });
+      };
+
+      // Dual-role: link/unlink as Vendor (mirrors the VendorsPage edit picker + unlink pattern)
+      if (editAlsoVendor && !targetAgent.alsoVendor) {
+        // Newly enabling: link an existing vendor or create a new one
+        if (editLinkedVendorId) {
+          updateData.alsoVendor = true;
+          updateData.linkedVendorId = editLinkedVendorId;
+        } else {
+          const vendor = await createVendor(userProfile, {
+            name: editCompanyName,
+            country: '',
+            city: editCity,
+            contactPerson: editContactPerson,
+            mobile: editMobile,
+            email: editEmail,
+            notes: `Dual-role linked to agent ${targetAgent.agentCode}`,
+            alsoAgent: true,
+            linkedAgentId: targetAgent.id,
+          } as any);
+          updateData.alsoVendor = true;
+          updateData.linkedVendorId = vendor.id;
+          success(`Linked vendor ${vendor.vendorCode} created (shared account).`);
+        }
+      } else if (!editAlsoVendor && targetAgent.alsoVendor) {
+        // Disabling: unlink (the vendor record itself is kept)
+        updateData.alsoVendor = false;
+        updateData.linkedVendorId = null;
+      } else if (editAlsoVendor && editLinkedVendorId && editLinkedVendorId !== targetAgent.linkedVendorId) {
+        // Changed linked vendor
+        updateData.linkedVendorId = editLinkedVendorId;
+      }
+
+      await updateAgent(userProfile, targetAgent.id, updateData);
 
       success(`Agent ${targetAgent.agentCode} updated successfully.`);
       setEditModalOpen(false);
@@ -863,6 +907,16 @@ Please keep these credentials safe and change password after first login.`;
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
+              label="Email Address"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="e.g. agent@example.com"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
               label="Due Limit (SAR)"
               type="number"
               value={dueLimitSAR}
@@ -901,8 +955,8 @@ Please keep these credentials safe and change password after first login.`;
               className="w-4 h-4 mt-0.5 accent-[#0e2c4c]"
             />
             <span>
-              <span className="font-bold text-slate-800">Hum is party se bhi khareedte hain (Vendor bhi hai)</span>
-              <span className="block text-slate-500">Ek hi khata rahega — dena/lena auto net hoga.</span>
+              <span className="font-bold text-slate-800">This party also supplies to us (also a vendor)</span>
+              <span className="block text-slate-500">One shared account — payables and receivables net automatically.</span>
             </span>
           </label>
 
@@ -987,7 +1041,7 @@ Please keep these credentials safe and change password after first login.`;
         onClose={() => setEditModalOpen(false)}
         title={`Edit Agent — ${targetAgent?.agentCode}`}
         subtitle="Update agency information, due limits, and forex benchmarks"
-        size="lg"
+        size="2xl"
         footer={
           <>
             <Button variant="outline" size="sm" onClick={() => setEditModalOpen(false)}>
@@ -1000,49 +1054,65 @@ Please keep these credentials safe and change password after first login.`;
         }
       >
         <form onSubmit={handleSaveEdit} className="space-y-4">
-          <Input
-            label="Agent / Company Name"
-            value={editCompanyName}
-            onChange={(e) => setEditCompanyName(e.target.value)}
-            required
-          />
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Agent / Company Name"
+              value={editCompanyName}
+              onChange={(e) => setEditCompanyName(e.target.value)}
+              placeholder="e.g. Al-Quds Travel & Tours"
+              required
+            />
             <Input
               label="Contact Person"
               value={editContactPerson}
               onChange={(e) => setEditContactPerson(e.target.value)}
-              required
-            />
-            <Input
-              label="Mobile Number"
-              value={editMobile}
-              onChange={(e) => setEditMobile(e.target.value)}
+              placeholder="e.g. Tariq Mehmood"
               required
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Mobile Number (WhatsApp Enabled)"
+              value={editMobile}
+              onChange={(e) => setEditMobile(e.target.value)}
+              placeholder="e.g. +92 300 1234567"
+            />
             <Input
               label="City"
               value={editCity}
               onChange={(e) => setEditCity(e.target.value)}
-              required
+              placeholder="e.g. Karachi / Islamabad / Lahore"
             />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Email Address"
+              type="email"
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
+              placeholder="e.g. agent@example.com"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               label="Due Limit (SAR)"
               type="number"
               value={editDueLimitSAR}
               onChange={(e) => setEditDueLimitSAR(Number(e.target.value))}
-              required
+              placeholder="e.g. 50000"
+              helperText="Outstanding balance ceiling before alert"
             />
             <Input
-              label="Exchange Rate (SAR→PKR)"
+              label="SAR → PKR Exchange Rate"
               type="number"
               step="0.01"
               value={editExchangeRate}
               onChange={(e) => setEditExchangeRate(Number(e.target.value))}
-              required
+              placeholder="e.g. 74.50"
+              helperText="Specific rate for this agent ledger"
             />
             <Input
               label="Default Selling Price / Visa (SAR)"
@@ -1052,17 +1122,51 @@ Please keep these credentials safe and change password after first login.`;
               value={editDefSellPrice}
               onChange={(e) => setEditDefSellPrice(e.target.value)}
               placeholder="e.g. 525"
+              helperText="Auto-fills in visa distribution"
             />
+          </div>
+
+          {/* Dual-role: link as Vendor (cross entry — one party, one account) */}
+          <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/60">
+            <div className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">Cross Entry — Dual Role</div>
+            <p className="text-[11px] text-slate-500 mb-2">Link this agent as a vendor too. One party, one ledger account — payables and receivables post to the same account.</p>
+            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer mb-2">
+              <input
+                type="checkbox"
+                checked={editAlsoVendor}
+                onChange={(e) => setEditAlsoVendor(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300"
+              />
+              <span className="font-medium">Also acts as Vendor</span>
+            </label>
+            {editAlsoVendor && (
+              <select
+                value={editLinkedVendorId}
+                onChange={(e) => setEditLinkedVendorId(e.target.value)}
+                className="w-full px-2.5 py-2 text-xs bg-white border border-slate-300 rounded-lg"
+              >
+                <option value="">— Create new linked Vendor on save —</option>
+                {vendors.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.vendorCode} — {v.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {targetAgent?.linkedVendorId && !editAlsoVendor && (
+              <p className="text-[11px] text-amber-600 mt-1">Unchecking will unlink the vendor but keep its record.</p>
+            )}
           </div>
 
           <div>
             <label className="text-xs font-semibold text-slate-700 block mb-1">
-              Internal Notes
+              Internal Notes / Terms
             </label>
             <textarea
               rows={2}
               value={editNotes}
               onChange={(e) => setEditNotes(e.target.value)}
+              placeholder="Optional notes regarding commission, settlement cycle, bank details..."
               className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0e2c4c]/20"
             />
           </div>

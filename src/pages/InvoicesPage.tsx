@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Printer, Ban, Plus, Search, Trash2 } from 'lucide-react';
+import { Eye, Printer, Ban, Plus, Search, Trash2, Pencil } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -160,6 +160,9 @@ export const InvoicesPage: React.FC = () => {
                   <td className="p-3 text-right">
                     <div className="flex gap-1 justify-end">
                       <Button variant="outline" size="sm" onClick={() => openDetail(inv)} rightIcon={<Eye className="w-3.5 h-3.5" />}>View</Button>
+                      {canCreate && !inv.isVoid && (
+                        <Button variant="outline" size="sm" onClick={() => navigate(`/accounts/invoices/edit/${inv.id}`)} rightIcon={<Pencil className="w-3.5 h-3.5" />}>Edit</Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -187,6 +190,9 @@ export const InvoicesPage: React.FC = () => {
                 )}
               </div>
               <div className="flex gap-2">
+                {!selected.isVoid && canCreate && (
+                  <Button variant="outline" onClick={() => { setDetailOpen(false); navigate(`/accounts/invoices/edit/${selected.id}`); }} rightIcon={<Pencil className="w-3.5 h-3.5" />}>Edit</Button>
+                )}
                 <Button variant="primary" onClick={() => window.print()} rightIcon={<Printer className="w-3.5 h-3.5" />}>Print Invoice</Button>
                 <Button variant="outline" onClick={() => setDetailOpen(false)}>Close</Button>
               </div>

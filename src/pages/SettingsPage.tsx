@@ -374,34 +374,11 @@ export const SettingsPage: React.FC = () => {
                   <Button variant="outline" size="sm" onClick={handleTestFirebase} loading={fbTesting} leftIcon={<RefreshCw className="w-3.5 h-3.5" />}>
                     Test Connection
                   </Button>
-                  <div>
-                    <label className="block text-[11px] uppercase font-bold text-slate-500 mb-1">Connect a different project</label>
-                    <textarea
-                      value={fbJson}
-                      onChange={(e) => setFbJson(e.target.value)}
-                      placeholder={'Paste Firebase web config JSON here…\n{ "apiKey": "AIza…", "authDomain": "….firebaseapp.com", "projectId": "…" }'}
-                      rows={4}
-                      className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono focus:outline-none"
-                      spellCheck={false}
-                    />
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Firebase Console → Project Settings → "Your apps" → web app → copy the config. The app will reconnect as soon as you save.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="primary" size="sm" onClick={handleSaveFirebaseConfig} disabled={!fbJson.trim()} leftIcon={<Database className="w-3.5 h-3.5" />}>
-                      Save &amp; Reconnect
-                    </Button>
-                    {fbSource === 'custom' && (
-                      <Button variant="outline" size="sm" onClick={handleClearFirebaseConfig}>
-                        Back to .env config
-                      </Button>
-                    )}
-                  </div>
+                  {/* Connect-a-different-project UI removed for security — backend switching disabled */}
                 </div>
               ) : (
                 <div className="p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-800">
-                  Only the Agency Owner can connect or switch the Firebase backend.
+                  Only the Agency Owner can view the Firebase backend status.
                 </div>
               )}
             </div>

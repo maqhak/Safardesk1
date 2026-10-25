@@ -13,7 +13,7 @@ import { UserProfile } from '../types/auth';
 import { LedgerEntryDoc } from '../types/agent';
 import { logAuditEvent } from './userService';
 import { getCurrentRate, getBuyRate, getSellRate } from './exchangeRateService';
-import { fetchLedgerAccounts, postBalancedTransaction, fetchLedgerEntries, voidLedgerEntry } from './accountingService';
+import { fetchLedgerAccounts, postBalancedTransaction, fetchLedgerEntries, voidLedgerEntry, deleteLedgerEntry } from './accountingService';
 
 const TICKETS_COLLECTION = 'tickets';
 const LEDGER_ENTRIES_COLLECTION = 'ledgerEntries';
@@ -137,6 +137,27 @@ async function postTicketSaleToLedger(actor: UserProfile, ticket: TicketDoc): Pr
     amountSAR: ticket.salePriceSAR,
     createdBy: actor.uid,
   });
+
+  // Post the purchase cost to the vendor's ledger (if bought from a vendor)
+  // Dr Ticket Cost / Cr Vendor Payable
+  if (ticket.vendorId && ticket.purchaseCostSAR > 0) {
+    const vendorAccount = accounts.find((a: any) => a.id === ticket.vendorId || a.linkedId === ticket.vendorId);
+    const ticketCost = accounts.find((a: any) => a.id === 'acc-sys-003');
+    if (vendorAccount && ticketCost) {
+      await postBalancedTransaction({
+        date: new Date().toISOString().split('T')[0],
+        entryType: 'Invoice',
+        transNo: ticket.pnr,
+        particulars: `Ticket purchase — PNR ${ticket.pnr} from ${ticket.supplierName} (${getTicketRouteLabel(ticket) || `${ticket.sectorFrom?.iata || ''}→${ticket.sectorTo?.iata || ''}`}, ${ticket.flightDate})`,
+        invoiceRef: ticket.pnr,
+        rate: ticket.exchangeRateSARPKR || getCurrentRate('SAR-PKR'),
+        debitAccountId: 'acc-sys-003',
+        creditAccountId: (vendorAccount as any).id,
+        amountSAR: ticket.purchaseCostSAR,
+        createdBy: actor.uid,
+      });
+    }
+  }
 }
 
 /** Fix #20: post a REFUND reversal for the ticket sale — Dr Ticket Income / Cr buyer receivable. */
@@ -384,12 +405,13 @@ export async function updateTicket(
     }
   }
 
-  // Ledger stays in sync: if prices/rate changed on a non-refunded ticket,
-  // void the old sale legs and repost with the new amounts (same PNR/transNo).
+  // Ledger stays in sync: if prices/rate/vendor changed on a non-refunded ticket,
+  // DELETE the old legs (no audit trail — hard delete) and repost with new amounts.
   const financialChanged =
     (updates.salePricePKR ?? existing.salePricePKR) !== existing.salePricePKR ||
     (updates.purchaseCostPKR ?? existing.purchaseCostPKR) !== existing.purchaseCostPKR ||
-    (updates.exchangeRateSARPKR ?? existing.exchangeRateSARPKR) !== existing.exchangeRateSARPKR;
+    (updates.exchangeRateSARPKR ?? existing.exchangeRateSARPKR) !== existing.exchangeRateSARPKR ||
+    ((updates as any).vendorId ?? (existing as any).vendorId) !== (existing as any).vendorId;
   if (financialChanged && existing.status !== 'Refunded') {
     try {
       const legs = await fetchLedgerEntries();
@@ -397,14 +419,13 @@ export async function updateTicket(
         (e) => e.transNo === existing.pnr && e.entryType === 'Invoice' && !e.isVoid
       );
       for (const leg of saleLegs) {
-        await voidLedgerEntry(leg.id, `Ticket ${existing.pnr} edited — reposted`, actor.name || actor.email || 'system');
+        await deleteLedgerEntry(leg.id); // hard delete — no void trail
       }
       if (saleLegs.length > 0) {
         await postTicketSaleToLedger(actor, updated);
       }
     } catch (err) {
       console.warn('Ticket ledger repost failed after edit:', err);
-      // Ticket itself is saved; ledger repost failure is logged, not hidden.
       throw new Error('Ticket updated, but its ledger entries could not be reposted. Please check the ledger.');
     }
   }

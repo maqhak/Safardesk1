@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Trash2, ArrowLeft, ArrowRight, BedDouble, Users, CheckSquare } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -8,8 +8,14 @@ import { InlineLoader } from '../components/ui/BrandedLoader';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { useCan } from '../hooks/useCan';
-import { HotelStayItem, PassengerSnapshot, PACKAGE_INCLUDES_OPTIONS, DEFAULT_PACKAGE_INCLUDES } from '../types/voucher';
-import { createVoucher } from '../services/voucherService';
+import { HotelStayItem, PassengerSnapshot, PACKAGE_INCLUDES_OPTIONS, DEFAULT_PACKAGE_INCLUDES, VoucherDoc, VoucherEditPayload } from '../types/voucher';
+import { createVoucher, fetchVoucherById, applyVoucherEditDirect, requestVoucherEdit } from '../services/voucherService';
+import { doc, setDoc } from 'firebase/firestore';
+import { db, isConfigPlaceholder } from '../services/firebase';
+import { stripUndefinedDeep } from '../utils/firestoreSanitize';
+
+const VOUCHERS_COLLECTION = 'vouchers';
+const VOUCHERS_LOCAL_KEY = 'safardesk_vouchers_directory';
 import { fetchVendors, fetchHotels } from '../services/masterService';
 import { fetchAgents } from '../services/agentService';
 import { fetchCustomers } from '../services/customerService';
@@ -70,6 +76,8 @@ const blankStay = (): StayRow => {
 
 export const AccommodationVoucherPage: React.FC = () => {
   const navigate = useNavigate();
+  const { id: editId } = useParams<{ id: string }>();
+  const isEditMode = !!editId;
   const { userProfile } = useAuth();
   const { showSuccess, showError } = useToast();
   const canCreate = useCan('Vouchers', 'create');
@@ -80,6 +88,10 @@ export const AccommodationVoucherPage: React.FC = () => {
   const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editingVoucher, setEditingVoucher] = useState<VoucherDoc | null>(null);
+  const [editLoading, setEditLoading] = useState(isEditMode);
+  const [editError, setEditError] = useState('');
+  const [editReason, setEditReason] = useState('');
 
   const [vendorsMaster, setVendorsMaster] = useState<any[]>([]);
   const [agentsList, setAgentsList] = useState<AgentDoc[]>([]);
@@ -119,6 +131,64 @@ export const AccommodationVoucherPage: React.FC = () => {
     })();
   }, []);
 
+  // Edit mode: prefill the same 2-step page from the saved UV record.
+  useEffect(() => {
+    if (!editId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const found = await fetchVoucherById(editId);
+        if (cancelled) return;
+        if (!found) { setEditError('Voucher not found.'); return; }
+        if (found.status === 'Void') { setEditError('Cancelled vouchers cannot be edited.'); return; }
+        if (found.voucherKind && found.voucherKind !== 'accommodation') {
+          setEditError('This voucher is not an accommodation voucher and cannot be edited here.');
+          return;
+        }
+        if (found.linkType !== 'agent' && found.linkType !== 'customer') {
+          setEditError('This voucher is not linked to an agent or customer and cannot be edited here.');
+          return;
+        }
+        setEditingVoucher(found as VoucherDoc);
+        setVendorId(found.shirkaVendorId || '');
+        setLinkType(found.linkType as 'agent' | 'customer');
+        setAgentId(found.agentId || '');
+        setCustomerId(found.customerId || '');
+        setVoucherDate(found.voucherDate || todayStr());
+        setReference(found.reference || '');
+        setRemarks(found.remarks || '');
+        setPaxList((found.passengers || []).length > 0
+          ? found.passengers.map((p) => ({ id: uid(), name: p.name || '', passportNumber: p.passportNumber || '', ageType: p.ageType || 'Adult' }))
+          : [blankPax()]);
+        setStays((found.hotelStays || []).length > 0
+          ? found.hotelStays.map((s) => {
+              const ci = s.checkInDate || todayStr();
+              const co = s.checkOutDate || addDays(ci, s.nights || 3);
+              const nights = s.nights || nightsBetween(ci, co);
+              return {
+                id: uid(),
+                city: s.city || 'Makkah',
+                hotelName: s.hotelName || '',
+                checkInDate: ci,
+                checkOutDate: co,
+                nights,
+                bedType: s.bedType || 'Double',
+                roomCount: s.roomCount || 1,
+                ratePerNightSAR: s.ratePerNightSAR || 0,
+                totalSAR: nights * (s.roomCount || 0) * (s.ratePerNightSAR || 0),
+              };
+            })
+          : [blankStay()]);
+        setPackageIncludes(found.packageIncludes && found.packageIncludes.length > 0 ? [...found.packageIncludes] : [...DEFAULT_PACKAGE_INCLUDES]);
+      } catch {
+        if (!cancelled) setEditError('Failed to load voucher for editing.');
+      } finally {
+        if (!cancelled) setEditLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [editId]);
+
   const inputCls = 'w-full p-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-900';
   const labelCls = 'block text-[10px] font-bold text-slate-600 uppercase tracking-wide mb-1';
 
@@ -157,6 +227,109 @@ export const AccommodationVoucherPage: React.FC = () => {
     );
   };
 
+  /**
+   * Edit save — uses the page's existing update path. Approved vouchers use
+   * the voucher edit flow (owner applies directly, staff sends a request for
+   * approval, both reversing old charges and reposting under the same UV
+   * number). Draft vouchers have no ledger postings yet, so the document is
+   * updated in place with its number and Draft status preserved.
+   */
+  const handleSaveEdit = async (
+    passengers: PassengerSnapshot[],
+    hotelStays: HotelStayItem[],
+    charges: { description: string; category: 'Hotel'; amountSAR: number }[]
+  ) => {
+    if (!userProfile || !editingVoucher) return;
+    // The voucher edit payload carries no customer link, so changing the
+    // linked agent/customer on an approved voucher would post to the wrong
+    // party — blocked here; Draft vouchers (no postings yet) may change it.
+    if (editingVoucher.status !== 'Draft') {
+      const linkChanged =
+        linkType !== editingVoucher.linkType ||
+        (linkType === 'agent' ? agentId : '') !== (editingVoucher.agentId || '') ||
+        (linkType === 'customer' ? customerId : '') !== (editingVoucher.customerId || '');
+      if (linkChanged) {
+        showError('The linked agent/customer cannot be changed on an approved voucher.');
+        return;
+      }
+    }
+    const payload: VoucherEditPayload = {
+      voucherKind: 'accommodation',
+      visaIds: editingVoucher.visaIds || [],
+      agentId: linkType === 'agent' ? agentId : undefined,
+      shirkaVendorId: vendorId,
+      shirkaName: vendorName,
+      reference: reference.trim() || undefined,
+      remarks: remarks.trim() || undefined,
+      voucherDate: voucherDate || undefined,
+      passengers,
+      sectors: editingVoucher.sectors || [],
+      hotelStays,
+      charges,
+      totals: {
+        hotelsSAR,
+        transportSAR: 0,
+        otherSAR: 0,
+        totalSAR: hotelsSAR,
+        totalPKR,
+        exchangeRate: rate,
+      },
+      commission: (editingVoucher as any)?.commission?.enabled
+        ? (editingVoucher as any).commission
+        : { enabled: false, recipientName: '', contact: '', amountSAR: 0, isPaid: false },
+      packageIncludes,
+    };
+    setSaving(true);
+    try {
+      if (editingVoucher.status === 'Draft') {
+        const updated: VoucherDoc = {
+          ...editingVoucher,
+          agentId: payload.agentId,
+          customerId: linkType === 'customer' ? customerId : undefined,
+          shirkaVendorId: payload.shirkaVendorId,
+          shirkaName: payload.shirkaName,
+          reference: payload.reference,
+          remarks: payload.remarks,
+          voucherDate: payload.voucherDate,
+          passengers: payload.passengers,
+          sectors: payload.sectors,
+          hotelStays: payload.hotelStays,
+          charges: payload.charges,
+          totals: { ...payload.totals, exchangeRate: rate },
+          commission: payload.commission,
+          packageIncludes: payload.packageIncludes,
+          updatedAt: new Date().toISOString(),
+        };
+        if (!isConfigPlaceholder) {
+          await setDoc(doc(db, VOUCHERS_COLLECTION, editingVoucher.id), stripUndefinedDeep(updated) as any);
+        }
+        try {
+          const raw = localStorage.getItem(VOUCHERS_LOCAL_KEY);
+          if (raw) {
+            const list = JSON.parse(raw) as VoucherDoc[];
+            localStorage.setItem(VOUCHERS_LOCAL_KEY, JSON.stringify(list.map((x) => (x.id === editingVoucher.id ? updated : x))));
+          }
+        } catch { /* local mirror best-effort */ }
+        showSuccess(`Accommodation voucher ${editingVoucher.voucherNo} updated.`);
+      } else if (role === 'owner') {
+        await applyVoucherEditDirect(userProfile, editingVoucher.id, payload);
+        showSuccess(`Accommodation voucher ${editingVoucher.voucherNo} updated — old charges reversed, new charges posted to ledger.`);
+      } else {
+        if (!editReason.trim()) {
+          showError('Please write a reason for this edit request.');
+          return;
+        }
+        await requestVoucherEdit(userProfile, editingVoucher, payload, editReason);
+        showSuccess(`Edit request for ${editingVoucher.voucherNo} sent to owner for approval.`);
+      }
+      navigate('/vouchers');
+    } catch (e: any) {
+      showError(e?.message || 'Failed to update accommodation voucher.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!userProfile || !allowed) return;
     const validPax = paxList.filter((p) => p.name.trim());
@@ -169,19 +342,23 @@ export const AccommodationVoucherPage: React.FC = () => {
       showError('Please add at least one hotel stay with a hotel name and rate.');
       return;
     }
+    const passengers: PassengerSnapshot[] = validPax.map((p) => ({
+      name: p.name.trim(),
+      passportNumber: p.passportNumber.trim(),
+      ageType: p.ageType,
+    }));
+    const hotelStays: HotelStayItem[] = validStays.map(({ id, ...rest }) => rest);
+    const charges = hotelStays.map((h) => ({
+      description: `${h.city} - ${h.hotelName} (${h.nights}n ${h.bedType} x${h.roomCount} @ ${h.ratePerNightSAR} SAR)`,
+      category: 'Hotel' as const,
+      amountSAR: h.totalSAR,
+    }));
+    if (isEditMode) {
+      await handleSaveEdit(passengers, hotelStays, charges);
+      return;
+    }
     setSaving(true);
     try {
-      const passengers: PassengerSnapshot[] = validPax.map((p) => ({
-        name: p.name.trim(),
-        passportNumber: p.passportNumber.trim(),
-        ageType: p.ageType,
-      }));
-      const hotelStays: HotelStayItem[] = validStays.map(({ id, ...rest }) => rest);
-      const charges = hotelStays.map((h) => ({
-        description: `${h.city} - ${h.hotelName} (${h.nights}n ${h.bedType} x${h.roomCount} @ ${h.ratePerNightSAR} SAR)`,
-        category: 'Hotel' as const,
-        amountSAR: h.totalSAR,
-      }));
       const linkedId = linkType === 'agent' ? agentId : customerId;
       await createVoucher(userProfile, {
         voucherKind: 'accommodation',
@@ -219,10 +396,24 @@ export const AccommodationVoucherPage: React.FC = () => {
     }
   };
 
-  if (loading) {
+  if (loading || editLoading) {
     return (
       <div className="p-8 flex justify-center">
         <InlineLoader />
+      </div>
+    );
+  }
+
+  if (isEditMode && editError) {
+    return (
+      <div className="p-8">
+        <PageHeader title="Edit Accommodation Voucher" subtitle="This voucher cannot be edited here." />
+        <Card className="p-6 text-sm text-slate-600">
+          {editError}
+          <div className="mt-4">
+            <Button variant="outline" size="sm" onClick={() => navigate('/vouchers')}>Back to Vouchers</Button>
+          </div>
+        </Card>
       </div>
     );
   }
@@ -243,7 +434,7 @@ export const AccommodationVoucherPage: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
       <PageHeader
-        title="New Accommodation Voucher"
+        title={isEditMode ? `Edit Accommodation Voucher ${editingVoucher?.voucherNo || ''}` : 'New Accommodation Voucher'}
         subtitle={step === 1 ? 'Step 1: choose vendor and agent/customer' : 'Step 2: add passengers and hotel stays'}
         actions={
           <Button variant="secondary" size="sm" onClick={() => (step === 2 ? setStep(1) : navigate('/vouchers'))} leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}>
@@ -530,6 +721,21 @@ export const AccommodationVoucherPage: React.FC = () => {
             </div>
           </Card>
 
+          {/* Staff edit reason — required for approval requests on approved vouchers */}
+          {isEditMode && role !== 'owner' && editingVoucher?.status !== 'Draft' && (
+            <Card className="p-4">
+              <label className={labelCls}>Edit Reason *</label>
+              <input
+                type="text"
+                value={editReason}
+                onChange={(e) => setEditReason(e.target.value)}
+                placeholder="Why is this voucher being changed?"
+                className={inputCls}
+              />
+              <p className="text-[11px] text-slate-500 mt-1">Staff edits to an approved voucher go to the owner for approval.</p>
+            </Card>
+          )}
+
           {/* Totals + save */}
           <Card className="p-4 flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1 grid grid-cols-3 gap-3 text-center">
@@ -553,7 +759,7 @@ export const AccommodationVoucherPage: React.FC = () => {
               disabled={saving}
               onClick={handleSave}
             >
-              {saving ? 'Saving…' : 'Save Accommodation Voucher'}
+              {saving ? 'Saving…' : isEditMode ? (role === 'owner' || editingVoucher?.status === 'Draft' ? 'Save Changes' : 'Request Edit Approval') : 'Save Accommodation Voucher'}
             </Button>
           </Card>
         </div>

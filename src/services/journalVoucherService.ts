@@ -417,6 +417,7 @@ export async function createJournalVoucher(params: {
 
   // Requirement 3: Posting - each line becomes a ledgerEntries row
   // Particulars = Details Box text verbatim, PKR mirrors at the JV rate
+  bust('ledger:entries:all'); bustPrefix('ledger:entries:'); // fresh read — don't lose other entry types
   const currentEntries = await fetchLedgerEntries();
   const createdEntryIds: string[] = [];
   const newLedgerEntries: LedgerEntryDoc[] = [];
@@ -460,6 +461,11 @@ export async function createJournalVoucher(params: {
       await Promise.all(
         newLedgerEntries.map((e) => setDoc(doc(db, ENTRIES_COLLECTION, e.id), stripUndefinedDeep(e)))
       );
+      // After Firestore write, re-sync localStorage from Firestore truth to avoid losing
+      // entries posted by other flows (payments, etc.) — never trust the pre-write snapshot.
+      bust('ledger:entries:all'); bustPrefix('ledger:entries:');
+      const fresh = await fetchLedgerEntries();
+      localStorage.setItem(LOCAL_STORAGE_ENTRIES_KEY, JSON.stringify(fresh));
     } catch (e) {
       console.warn('Could not sync JV ledger entries to Firestore:', e);
     }
@@ -676,6 +682,7 @@ export async function deleteJournalVoucher(jvId: string): Promise<string> {
   const jvNo = jv.jvNo;
 
   // Hard-delete all linked ledger legs (no trace left)
+  // 1) legs recorded on the JV doc
   if (jv.createdEntryIds && jv.createdEntryIds.length > 0) {
     for (const entryId of jv.createdEntryIds) {
       try {
@@ -684,6 +691,23 @@ export async function deleteJournalVoucher(jvId: string): Promise<string> {
         console.warn('Could not delete JV ledger leg:', e);
       }
     }
+  }
+  // 2) fallback: legs tagged with this JV number but missing from
+  // createdEntryIds (old JVs like JV-00103) — match by transNo + entryType
+  try {
+    const allEntries = await fetchLedgerEntries();
+    const orphanLegs = allEntries.filter(
+      (e) => e.transNo === jvNo && e.entryType === 'Journal Voucher'
+    );
+    for (const leg of orphanLegs) {
+      try {
+        await deleteLedgerEntry(leg.id);
+      } catch (e) {
+        console.warn('Could not delete orphan JV ledger leg:', e);
+      }
+    }
+  } catch (e) {
+    console.warn('Could not scan for orphan JV ledger legs:', e);
   }
 
   const remaining = currentJVs.filter((j) => j.id !== jvId);

@@ -342,7 +342,7 @@ export const VouchersPage: React.FC = () => {
   const usedVisaIds = useMemo(() => {
     const set = new Set<string>();
     vouchers.forEach((v) => {
-      if (v.status === 'Cancelled') return; // cancelled voucher releases its pilgrims
+      if (v.status === 'Void') return; // cancelled voucher releases its pilgrims
       if (v.visaIds) {
         v.visaIds.forEach((id) => set.add(id));
       }
@@ -455,53 +455,14 @@ export const VouchersPage: React.FC = () => {
     setBuilderOpen(true);
   };
 
-  /** Open the builder in EDIT mode, pre-filled from the voucher. */
-  // SUPERSEDED 17-Oct-2026: voucher edit is now the full page /vouchers/edit/:id
-  // (VoucherCreatePage edit mode). This modal builder is no longer opened.
-  const openEditVoucher = (v: VoucherDoc) => {
-    if (v.status === 'Cancelled') {
-      showError('Cancelled vouchers cannot be edited.');
-      return;
-    }
-    const fd = v.flightDetails as any;
-    setEditingVoucherId(v.id);
-    setEditReason('');
-    setSelectedVisaIds([...(v.visaIds || [])]);
-    setPaxSearch('');
-    setPaxAgentFilter('all');
-    setVoucherVendorId((v as any).shirkaVendorId || '');
-    setVoucherShirkaId((v as any).shirkaId || '');
-    setArrivalDate(v.sectors?.[0]?.date || new Date().toISOString().split('T')[0]);
-    setSectors(JSON.parse(JSON.stringify(v.sectors || [])));
-    setMakkahStaffName(v.makkahStaffName || company?.makkahStaffName || '');
-    setMakkahStaffPhone(v.makkahStaffPhone || company?.makkahStaffPhone || '');
-    setMadinaStaffName(v.madinaStaffName || company?.madinaStaffName || '');
-    setMadinaStaffPhone(v.madinaStaffPhone || company?.madinaStaffPhone || '');
-    setPackageIncludes(v.packageIncludes && v.packageIncludes.length > 0 ? [...v.packageIncludes] : [...DEFAULT_PACKAGE_INCLUDES]);
-    setHotelStays(JSON.parse(JSON.stringify(v.hotelStays || [])));
-    setAllowFlightInfo(!!fd?.allowFlightInfo);
-    setDepAirline(fd?.departureFlight?.airline || null);
-    setDepFlightNo(fd?.departureFlight?.flightNo || '');
-    setDepFrom(fd?.departureFlight?.fromAirport || null);
-    setDepTo(fd?.departureFlight?.toAirport || null);
-    setDepDate(fd?.departureFlight?.date || new Date().toISOString().split('T')[0]);
-    setDepEtd(fd?.departureFlight?.etd || '12:00');
-    setDepEta(fd?.departureFlight?.eta || '15:00');
-    setRetAirline(fd?.returnFlight?.airline || null);
-    setRetFlightNo(fd?.returnFlight?.flightNo || '');
-    setRetFrom(fd?.returnFlight?.fromAirport || null);
-    setRetTo(fd?.returnFlight?.toAirport || null);
-    setRetDate(fd?.returnFlight?.date || new Date().toISOString().split('T')[0]);
-    setRetEtd(fd?.returnFlight?.etd || '14:00');
-    setRetEta(fd?.returnFlight?.eta || '18:00');
-    setLateIntimationSAR(fd?.lateIntimationChargesSAR ? String(fd.lateIntimationChargesSAR) : '');
-    setCommissionEnabled(!!v.commission?.enabled);
-    setCommissionName(v.commission?.recipientName || '');
-    setCommissionContact(v.commission?.contact || '');
-    setCommissionAmount(v.commission?.amountSAR ? String(v.commission.amountSAR) : '');
-    setBuilderStep(1);
-    setBuilderOpen(true);
-  };
+  /** QUARANTINED 2026-10-25: builder-modal edit entry point REMOVED.
+      SUPERSEDED 17-Oct-2026: voucher edit is now the full page /vouchers/edit/:id
+      (row Edit and detail-view Edit both navigate there — that routing is untouched).
+      This function had no call sites. It was deleted rather than left callable, but the
+      editingVoucherId branches in the builder (picker, save, modal title/footer) were
+      left intact on purpose: editingVoucherId can now only ever be null, so those
+      branches are dormant, and removing them risked breaking the builder CREATION
+      path that shares the same payload, picker, and footer code. */
 
   // Valid hotel stays & sectors (excluding zero/empty lines)
   const validHotelStays = useMemo(() => {
@@ -720,7 +681,7 @@ export const VouchersPage: React.FC = () => {
         shirkaVendorId: payload.shirkaVendorId,
         shirkaId: payload.shirkaId,
         shirkaName: payload.shirkaName,
-        status: 'Confirmed',
+        status: 'Approved',
         passengers: payload.passengers,
         sectors: payload.sectors,
         hotelStays: payload.hotelStays,
@@ -841,7 +802,7 @@ export const VouchersPage: React.FC = () => {
   };
 
   const downloadVerificationList = (kind: 'created' | 'pending') => {
-    let list = vouchers.filter(v => kind === 'created' ? v.status === 'Confirmed' : (v.status === 'Draft' || v.status === 'Pending Approval'));
+    let list = vouchers.filter(v => kind === 'created' ? v.status === 'Approved' : v.status === 'Draft');
     if (isAgent && userProfile?.agentId) list = list.filter(v => v.agentId === userProfile.agentId);
     const rows: Record<string, string>[] = [];
     list.forEach(v => {
@@ -954,7 +915,7 @@ export const VouchersPage: React.FC = () => {
       key: 'status',
       header: 'Status',
       render: (row) => (
-        <Badge variant={row.status === 'Confirmed' ? 'success' : row.status === 'Cancelled' ? 'danger' : row.status === 'Pending Approval' ? 'warning' : 'gold'}>
+        <Badge variant={row.status === 'Approved' ? 'success' : row.status === 'Void' ? 'danger' : 'warning'}>
           {row.status}
         </Badge>
       ),
@@ -971,7 +932,7 @@ export const VouchersPage: React.FC = () => {
           >
             View Itinerary
           </Button>
-          {isOwner && row.status === 'Pending Approval' && (
+          {isOwner && row.status === 'Draft' && (
             <>
               <Button
                 variant="primary"
@@ -1002,11 +963,11 @@ export const VouchersPage: React.FC = () => {
               </Button>
             </>
           )}
-          {canManage && row.status !== 'Cancelled' && !editRequests.some((r) => r.voucherId === row.id && r.status === 'pending') && (
+          {canManage && row.status !== 'Void' && !editRequests.some((r) => r.voucherId === row.id && r.status === 'pending') && (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate(`/vouchers/edit/${row.id}`)}
+              onClick={() => navigate(row.voucherKind === 'accommodation' ? `/vouchers/accommodation/edit/${row.id}` : row.voucherKind === 'transport' ? `/vouchers/transport/edit/${row.id}` : `/vouchers/edit/${row.id}`)}
             >
               Edit
             </Button>
@@ -1020,7 +981,7 @@ export const VouchersPage: React.FC = () => {
               Delete
             </Button>
           )}
-          {isOwner && row.status !== 'Cancelled' && (
+          {isOwner && row.status !== 'Void' && (
             <Button
               variant="danger"
               size="sm"
@@ -1230,10 +1191,9 @@ export const VouchersPage: React.FC = () => {
               className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700"
             >
               <option value="all">All Statuses</option>
-              <option value="Confirmed">Confirmed</option>
-              <option value="Pending Approval">Pending Approval</option>
+              <option value="Approved">Approved</option>
               <option value="Draft">Draft</option>
-              <option value="Cancelled">Cancelled</option>
+              <option value="Void">Void</option>
             </select>
           </div>
         </div>
@@ -1355,7 +1315,7 @@ export const VouchersPage: React.FC = () => {
               {(!editingVoucherId && !voucherVendorId) ? (
                 <div className="p-8 text-center bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl">
                   <div className="text-sm font-bold text-slate-700">↑ Select a Sub-Vendor above first</div>
-                  <div className="text-[11px] text-slate-500 mt-1">Uske baad sirf usi Sub-Vendor ke pilgrims ki list yahan ayegi.</div>
+                  <div className="text-[11px] text-slate-500 mt-1">Only that Sub-Vendor's pilgrims will appear here.</div>
                 </div>
               ) : (
               <div className="space-y-3">
@@ -2396,7 +2356,7 @@ export const VouchersPage: React.FC = () => {
                 <Button variant="primary" onClick={() => downloadVoucherPDF(selectedVoucher.voucherNo)} rightIcon={<Download className="w-3.5 h-3.5" />}>
                   Download PDF
                 </Button>
-                {isOwner && selectedVoucher.status === 'Pending Approval' && (
+                {isOwner && selectedVoucher.status === 'Draft' && (
                   <>
                     <Button
                       variant="primary"
@@ -2432,12 +2392,12 @@ export const VouchersPage: React.FC = () => {
                     Sent back: {selectedVoucher.disapprovalNote.slice(0, 60)}{selectedVoucher.disapprovalNote.length > 60 ? '…' : ''}
                   </span>
                 )}
-                {selectedVoucher.status !== 'Cancelled' && !editRequests.some((r) => r.voucherId === selectedVoucher.id && r.status === 'pending') && (
+                {selectedVoucher.status !== 'Void' && !editRequests.some((r) => r.voucherId === selectedVoucher.id && r.status === 'pending') && (
                   <Button
                     variant="outline"
                     onClick={() => {
                       setDetailModalOpen(false);
-                      navigate(`/vouchers/edit/${selectedVoucher.id}`);
+                      navigate(selectedVoucher.voucherKind === 'accommodation' ? `/vouchers/accommodation/edit/${selectedVoucher.id}` : selectedVoucher.voucherKind === 'transport' ? `/vouchers/transport/edit/${selectedVoucher.id}` : `/vouchers/edit/${selectedVoucher.id}`);
                     }}
                   >
                     Edit Voucher
@@ -2575,7 +2535,7 @@ export const VouchersPage: React.FC = () => {
                   <div className="font-bold text-amber-900 text-xs">Commission: {selectedVoucher.commission.recipientName || '—'}</div>
                   <div className="text-amber-800 text-[11px]">{selectedVoucher.commission.contact || '—'} • SAR {selectedVoucher.commission.amountSAR.toLocaleString()} • {selectedVoucher.commission.isPaid ? 'Paid' : 'Unpaid'}</div>
                 </div>
-                {isOwner && !selectedVoucher.commission.isPaid && selectedVoucher.status !== 'Cancelled' && (
+                {isOwner && !selectedVoucher.commission.isPaid && selectedVoucher.status !== 'Void' && (
                   <Button variant="primary" onClick={handleMarkCommissionPaid}>Mark Paid</Button>
                 )}
               </div>
@@ -2614,7 +2574,7 @@ export const VouchersPage: React.FC = () => {
               <h5 className="font-bold text-slate-800 mb-2">Audit Timeline</h5>
               <div className="space-y-1 text-[11px] text-slate-600">
                 <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500" />Created by {selectedVoucher.createdByName || '—'} • {new Date(selectedVoucher.createdAt).toLocaleString()}</div>
-                {selectedVoucher.status === 'Cancelled' && (
+                {selectedVoucher.status === 'Void' && (
                   <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500" />Cancelled by {selectedVoucher.cancelledBy || '—'} • {selectedVoucher.cancelledAt ? new Date(selectedVoucher.cancelledAt).toLocaleString() : '—'}</div>
                 )}
               </div>

@@ -56,7 +56,7 @@ export const VoucherQuickModal: React.FC<VoucherQuickModalProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
             <div>
               <span className="text-[10px] text-slate-400 uppercase font-bold block">Status</span>
-              <Badge variant={voucher.status === 'Confirmed' ? 'success' : 'warning'}>
+              <Badge variant={voucher.status === 'Approved' ? 'success' : 'warning'}>
                 {voucher.status}
               </Badge>
             </div>
